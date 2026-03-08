@@ -1,0 +1,95 @@
+@import "tailwindcss";
+
+@theme {
+  --color-neon-cyan: #00F5FF;
+  --color-neon-red: #FF3131;
+}
+
+:root {
+  /* Semantic Tokens - Dark (Default) */
+  --bg-primary: #000000;
+  --bg-secondary: rgba(255, 255, 255, 0.03);
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.6);
+  --text-dim: rgba(255, 255, 255, 0.3);
+  --glass-blur: blur(25px);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  --accent-glow: rgba(0, 245, 255, 0.4);
+  --emergency-glow: rgba(255, 49, 49, 0.4);
+  
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', 'SF Pro', sans-serif;
+  
+  /* Kill Focus technical debt */
+  -webkit-tap-highlight-color: transparent;
+}
+
+[data-theme="light"] {
+  --bg-primary: #F8F9FA;
+  --bg-secondary: rgba(0, 0, 0, 0.03);
+  --text-primary: #1A1A1A;
+  --text-secondary: rgba(0, 0, 0, 0.6);
+  --text-dim: rgba(0, 0, 0, 0.3);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
+  --accent-glow: rgba(0, 245, 255, 0.15);
+}
+
+/* Global Reset (Alexander Canon) */
+* {
+  border: none !important;
+  outline: none !important;
+  box-shadow: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea {
+  background: none;
+  color: inherit;
+  font: inherit;
+}
+
+/* Modular Glass Utility */
+.glass-panel {
+  background: var(--bg-secondary) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  box-shadow: var(--glass-shadow) !important;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-interactive {
+  background: var(--bg-secondary) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  box-shadow: var(--glass-shadow) !important;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-interactive:active {
+  transform: scale(0.98);
+  background: var(--accent-glow) !important;
+}
+
+/* Performance & Cleanliness */
+::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Kinetic Animations */
+@keyframes orb-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1) drop-shadow(0 0 10px var(--accent-glow)); }
+  50% { transform: scale(1.05); filter: brightness(1.2) drop-shadow(0 0 25px var(--accent-glow)); }
+}
+
+@keyframes emergence {
+  from { opacity: 0; transform: translateY(15px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-emergence {
+  animation: emergence 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.orb-glow {
+  animation: orb-pulse 4s infinite ease-in-out;
+}
