@@ -1,4 +1,4 @@
-import { ClinicalState, PillarData } from '../context/ClinicalContext';
+import { ClinicalState } from '../context/ClinicalContext';
 
 /**
  * Dr. Dyrane Clinical Engine Infrastructure.
