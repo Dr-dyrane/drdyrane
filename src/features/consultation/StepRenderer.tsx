@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { Orb } from './Orb';
-import { ChevronLeft, X } from 'lucide-react';
+import { ChevronLeft, X, Brain, Activity } from 'lucide-react';
 
 export const StepRenderer: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -163,10 +163,10 @@ export const StepRenderer: React.FC = () => {
                   if (message.role === 'patient') return null;
                   const isOld = idx < state.conversation.length - 3;
                   if (isOld) return null;
-                  
+
                   // Show the full contextual content in history
                   const displayContent = message.content;
-                  
+
                   return (
                     <motion.div
                       key={message.id}
@@ -212,13 +212,14 @@ export const StepRenderer: React.FC = () => {
                       <h2 className="text-xl font-light leading-snug tracking-tight text-content-primary mb-2 selection:bg-neon-cyan/30">
                         {question}
                       </h2>
-                      <div className="flex justify-center gap-6 mt-4 items-center">
+                      <div className="flex justify-center gap-8 mt-6 items-center">
                         <div className="relative">
                           <button
                             onClick={() => setShowTrace(!showTrace)}
-                            className={`text-[10px] uppercase font-bold tracking-[0.4em] transition-colors border-none outline-none bg-transparent cursor-pointer ${showTrace ? 'text-neon-cyan' : 'text-content-dim hover:text-neon-cyan'}`}
+                            className={`flex items-center gap-2 text-[10px] uppercase font-bold tracking-[0.5em] transition-colors border-none outline-none bg-transparent cursor-pointer ${showTrace ? 'text-neon-cyan' : 'text-content-dim hover:text-neon-cyan'}`}
                           >
-                            Certainty: {state.probability}%
+                            <Brain size={12} className={showTrace ? 'opacity-100' : 'opacity-80'} />
+                            <span className='text-[10px]'>{state.probability}%</span>
                           </button>
                           <AnimatePresence>
                             {showTrace && (
@@ -249,10 +250,17 @@ export const StepRenderer: React.FC = () => {
                             )}
                           </AnimatePresence>
                         </div>
-                        <div className="w-1 h-3 rounded-full bg-surface-muted" />
-                        <span className={`text-[10px] uppercase font-bold tracking-[0.4em] ${state.urgency === 'critical' ? 'text-neon-red' : 'text-content-dim'}`}>
-                          {state.urgency}
-                        </span>
+                        <div className="w-px h-3 bg-content-dim/10" />
+                        <div className="flex items-center gap-2 text-[10px] uppercase font-bold tracking-[0.5em]">
+                          <Activity size={12} className={`opacity-80 ${state.urgency === 'critical' || state.urgency === 'high' ? 'text-neon-red opacity-100' : ''}`} />
+                          <span className={state.urgency === 'critical' ? 'text-neon-red' : 'text-content-dim'}>
+                            {
+                              state.urgency === 'low' ? 'Standard' :
+                                state.urgency === 'medium' ? 'Elevated' :
+                                  state.urgency === 'high' ? 'Urgent' : 'Immediate'
+                            }
+                          </span>
+                        </div>
                       </div>
                     </motion.div>
                   );
