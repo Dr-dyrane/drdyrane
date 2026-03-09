@@ -11,9 +11,10 @@ OPTION GENERATION PROTOCOLS:
 4. COMPREHENSIVE COVERAGE: Include all reasonable possibilities
 5. PRIORITIZATION: Order by clinical relevance and likelihood
 6. MULTIPLE MODES: Support single/multiple selection based on context
-7. RESTRICTION: Prefer closed-ended options to keep the clinical loop tight. Use freeform only when essential.
-8. ATOMICITY: Each option MUST represent a single, discrete answer to the specific clinical question. NEVER couple multiple variables (e.g., "Severe and constant") unless the question explicitly asks for a combined state.
-9. SINGULAR FOCUS: If the question is about 'When', provide ONLY time-based options. If it's about 'Where', provide ONLY location-based options. No secondary info.
+7. RESTRICTION: Prefer closed-ended options.
+8. ATOMICITY: Each option MUST represent a single, discrete variable.
+9. SINGULAR DOMAIN: Never mix categories (e.g. Duration vs Symptom) in one turn.
+10. NO BUNDLING: If the doctor asked a bundled question (BAD), DO NOT bundle the options. Pick the MOST CRITICAL part of the question and provide options for ONLY that part.
 
 RESPONSE FORMAT (STRICT JSON):
 {
