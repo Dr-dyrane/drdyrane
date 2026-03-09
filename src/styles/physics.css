@@ -12,8 +12,10 @@
   --text-primary: #FFFFFF;
   --text-secondary: rgba(255, 255, 255, 0.6);
   --text-dim: rgba(255, 255, 255, 0.3);
+  --bg-active: #FFFFFF;
+  --text-active: #000000;
   --glass-blur: blur(25px);
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+  --glass-shadow: 0 8px 12px rgba(0,0,0,0.5);
   --accent-glow: rgba(0, 245, 255, 0.4);
   --emergency-glow: rgba(255, 49, 49, 0.4);
   
@@ -31,6 +33,8 @@
   --text-primary: #1A1A1A;
   --text-secondary: rgba(0, 0, 0, 0.6);
   --text-dim: rgba(0, 0, 0, 0.3);
+  --bg-active: #000000;
+  --text-active: #FFFFFF;
   --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.08);
   --accent-glow: rgba(0, 245, 255, 0.15);
 }

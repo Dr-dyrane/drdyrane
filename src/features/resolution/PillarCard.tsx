@@ -2,7 +2,6 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { Activity, Shield, TrendingUp, UserCheck } from 'lucide-react';
-import { GlassContainer } from '../../components/shared/GlassContainer';
 
 export const PillarCard: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -21,46 +20,50 @@ export const PillarCard: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 px-2 py-8 space-y-8 animate-emergence">
+    <div className="flex-1 px-4 py-12 space-y-12 animate-emergence">
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={{ delay: 0.2 }}
-        className="text-center"
+        className="text-center space-y-2"
       >
-        <span className="text-neon-cyan/40 uppercase tracking-[0.3em] text-[10px] font-bold">Clinical Resolution</span>
-        <h1 className="text-2xl font-light text-[var(--text-primary)] mt-3 leading-tight tracking-tight">{state.pillars.diagnosis}</h1>
+        <h1 className="text-3xl font-light text-[var(--text-primary)] leading-tight tracking-tight px-4">
+          Conclusion
+        </h1>
+        <p className="text-sm text-[var(--text-dim)] font-light italic">Clinical synthesis complete</p>
       </motion.div>
 
-      <div className="flex flex-col gap-4 pb-20">
-        {pillars.map((pillar) => (
-          <GlassContainer
+      <div className="flex flex-col gap-6 pb-24">
+        {pillars.map((pillar, idx) => (
+          <motion.div
             key={pillar.title}
-            className="p-6 rounded-[28px] space-y-4 shadow-none"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 + idx * 0.1 }}
+            className="p-8 bg-white/[0.02] border border-white/[0.05] rounded-[40px] space-y-4 shadow-glass"
           >
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-neon-cyan/10 rounded-xl">
-                <pillar.icon className="w-4 h-4 text-neon-cyan" />
+            <div className="flex items-center gap-4">
+              <div className="p-2.5 bg-neon-cyan/5 rounded-2xl">
+                <pillar.icon className="w-5 h-5 text-neon-cyan/60" />
               </div>
-              <h3 className="text-sm font-bold text-[var(--text-dim)] uppercase tracking-widest">{pillar.title}</h3>
+              <h3 className="text-xs font-bold text-[var(--text-dim)] uppercase tracking-[0.3em]">{pillar.title}</h3>
             </div>
-            <p className="text-base leading-relaxed text-[var(--text-secondary)] font-light pr-2">
+            <p className="text-lg leading-relaxed text-[var(--text-secondary)] font-light pr-4">
               {pillar.content}
             </p>
-          </GlassContainer>
+          </motion.div>
         ))}
 
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.2 }}
-          className="flex justify-center pt-8"
+          transition={{ delay: 1 }}
+          className="flex justify-center pt-12"
         >
           <button
             onClick={reset}
-            className="text-[11px] uppercase tracking-[0.2em] font-bold text-[var(--text-dim)] hover:text-[var(--text-primary)] transition-colors active:scale-95 border-none outline-none bg-transparent"
+            className="px-10 py-5 bg-neon-cyan/10 hover:bg-neon-cyan/20 text-neon-cyan rounded-[32px] text-xs font-bold uppercase tracking-[0.3em] transition-all active:scale-95"
           >
-            Terminate Session & Reset
+            New Consultation
           </button>
         </motion.div>
       </div>

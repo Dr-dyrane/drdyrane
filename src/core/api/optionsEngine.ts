@@ -11,6 +11,7 @@ OPTION GENERATION PROTOCOLS:
 4. COMPREHENSIVE COVERAGE: Include all reasonable possibilities
 5. PRIORITIZATION: Order by clinical relevance and likelihood
 6. MULTIPLE MODES: Support single/multiple selection based on context
+7. RESTRICTION: Prefer closed-ended options to keep the clinical loop tight. Use freeform only when essential.
 
 RESPONSE FORMAT (STRICT JSON):
 {
@@ -47,29 +48,27 @@ export const generateResponseOptions = async (
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5-20250520',
+        model: 'claude-3-haiku-20240307',
         max_tokens: 800,
-        // Automatic caching - caches everything up to the last cacheable block
-        cache_control: { type: 'ephemeral' },
         system: [
           {
             type: 'text',
             text: OPTIONS_SYSTEM_PROMPT,
-            // Explicit cache breakpoint for system prompt (static content)
             cache_control: { type: 'ephemeral' }
           }
         ],
         messages: [{
           role: 'user',
-          content: `Generate response options for this clinical context:
-
-CONVERSATION: ${conversationContext}
-
+          content: `Generate high-fidelity clinical response options.
+ 
+LAST DOCTOR QUESTION: ${conversationContext.split('\n').filter(l => l.startsWith('doctor:')).pop() || conversationContext}
 AGENT STATE: ${JSON.stringify(agentState)}
-
 CURRENT SOAP: ${JSON.stringify(currentSOAP)}
-
-Generate contextually appropriate response options that would help advance the clinical assessment.`
+ 
+CRITICAL:
+- Provide duration options if asking "when" (e.g., "Started today", "Past 3 days").
+- Provide symptom details (severity, type) if needed.
+- Return ONLY valid JSON.`
         }]
       })
     });
@@ -80,9 +79,17 @@ Generate contextually appropriate response options that would help advance the c
     }
 
     const data = await response.json();
-    const optionsResponse = JSON.parse(data.content[0].text);
-
-    return optionsResponse;
+    const rawContent = data.content[0].text;
+    
+    // Robust clinical data extraction (Rule 5: State is Design)
+    try {
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      const optionsResponse = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
+      return optionsResponse;
+    } catch (e) {
+      console.error("Critical: Options JSON Parsing Failed:", rawContent);
+      throw new Error("Dr. Dyrane's suggestion model failed to structure its response. Reverting to manual entry.");
+    }
 
   } catch (error) {
     console.error("Options Engine Error:", error);

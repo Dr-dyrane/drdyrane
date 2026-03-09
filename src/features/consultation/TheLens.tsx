@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
-import { Camera, RefreshCw } from 'lucide-react';
+import { Camera } from 'lucide-react';
 
 export const TheLens: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -37,20 +37,25 @@ export const TheLens: React.FC = () => {
         className="relative w-full h-full flex flex-col"
       >
         {!active ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 space-y-8 text-center bg-[var(--bg-primary)]">
-            <div className="space-y-2">
-              <span className="text-neon-cyan/40 uppercase tracking-[0.3em] text-[10px] font-bold">Vision Bridge</span>
-              <h2 className="text-2xl font-light text-[var(--text-primary)] leading-tight">Initialize Optical Biomarker Scan</h2>
+          <div className="absolute inset-0 flex flex-col items-center justify-center p-8 space-y-12 text-center bg-[var(--bg-primary)]">
+            <div className="space-y-4">
+              <h2 className="text-2xl font-light text-[var(--text-primary)] leading-tight tracking-tight">Show Dr. Dyrane.</h2>
+              <p className="text-[var(--text-dim)] text-sm font-light max-w-[280px] mx-auto leading-relaxed">
+                Optical analysis helps determine morphology, vascularity, and clinical margins.
+              </p>
             </div>
             <button 
               onClick={() => setActive(true)}
-              className="w-24 h-24 bg-neon-cyan/10 rounded-full flex items-center justify-center text-neon-cyan ring-none border-none active:scale-90 transition-all shadow-[0_0_20px_var(--accent-glow)]"
+              className="w-20 h-20 bg-neon-cyan/5 hover:bg-neon-cyan/10 rounded-full flex items-center justify-center text-neon-cyan transition-all active:scale-95 border-none outline-none"
             >
-              <Camera className="w-10 h-10" />
+              <Camera className="w-8 h-8 opacity-60" />
             </button>
-            <p className="text-[var(--text-dim)] text-sm font-light max-w-xs">
-              This allowing Dr. Dyrane to analyze morphology, vascularity, and clinical margins.
-            </p>
+            <button 
+               onClick={() => dispatch({ type: 'RESET' })}
+               className="text-[10px] uppercase tracking-[0.3em] font-bold text-[var(--text-dim)] hover:text-[var(--text-primary)] transition-all border-none outline-none bg-transparent"
+             >
+               Skip Visual Analysis
+             </button>
           </div>
         ) : (
           <div className="absolute inset-0">
@@ -58,49 +63,61 @@ export const TheLens: React.FC = () => {
               ref={videoRef} 
               autoPlay 
               playsInline 
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover grayscale opacity-40 brightness-125"
             />
             
-            {/* Viewfinder Scopes */}
-            <div className="absolute inset-0 border-none shadow-[inset_0_0_100px_rgba(0,0,0,0.8)] pointer-events-none" />
-            <div className="absolute inset-8 rounded-[48px] pointer-events-none border-none shadow-[0_0_0_1px_rgba(255,255,255,0.05)]">
-               <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 px-4 py-1 bg-black rounded-full border-none">
-                  <span className="text-neon-cyan text-[8px] uppercase tracking-widest font-bold">Targeting Array</span>
-               </div>
-            </div>
+            {/* Viewfinder */}
+            <div className="absolute inset-0 border-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)] pointer-events-none" />
+            <div className="absolute inset-12 rounded-[56px] border border-white/[0.03] pointer-events-none" />
             
-            <div className="absolute bottom-12 left-0 right-0 flex justify-center items-center gap-12">
+            <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-16">
               <button 
                 onClick={() => setActive(false)}
-                className="text-[var(--text-dim)] uppercase tracking-widest text-[10px] font-bold border-none outline-none bg-transparent"
+                className="text-[var(--text-dim)] uppercase tracking-widest text-[9px] font-bold border-none outline-none bg-transparent"
               >
-                Abort
+                Cancel
               </button>
               <button 
                 onClick={handleCapture}
                 disabled={analyzing}
                 className={`w-20 h-20 rounded-full flex items-center justify-center transition-all border-none outline-none ${
-                  analyzing ? 'bg-white/10' : 'bg-white text-black active:scale-90 shadow-[0_0_30px_rgba(255,255,255,0.4)]'
+                   analyzing ? 'bg-white/5' : 'bg-white text-black active:scale-90 shadow-2xl'
                 }`}
               >
-                {analyzing ? <RefreshCw className="animate-spin" /> : <Camera />}
+                <Camera className="w-6 h-6" />
               </button>
-              <div className="w-12" />
+              <div className="w-10" />
             </div>
             
-            {analyzing && (
-              <div className="absolute inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center">
-                <div className="text-center space-y-4">
-                   <motion.div 
-                     animate={{ rotate: 360 }}
-                     transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-                     className="w-12 h-12 border-2 border-[var(--text-dim)] border-t-neon-cyan rounded-full mx-auto"
-                   />
-                  <div className="text-neon-cyan text-[10px] font-bold tracking-[0.4em] animate-pulse">EXTRACTING BIOMARKERS</div>
-                  <div className="text-[var(--text-dim)] text-[8px] tracking-[0.2em] font-light">ANALYZING MORPHOLOGY • MARGINS • VASCULARITY</div>
-                </div>
-              </div>
-            )}
+            <AnimatePresence>
+               {analyzing && (
+                 <motion.div 
+                   initial={{ opacity: 0 }}
+                   animate={{ opacity: 1 }}
+                   exit={{ opacity: 0 }}
+                   className="absolute inset-0 bg-black/60 backdrop-blur-xl flex items-center justify-center"
+                 >
+                   <div className="text-center space-y-8">
+                      <motion.div 
+                        animate={{ 
+                          scale: [1, 1.2, 1],
+                          opacity: [0.3, 0.7, 0.3],
+                          boxShadow: [
+                            '0 0 10px rgba(0, 245, 255, 0.2)',
+                            '0 0 40px rgba(0, 245, 255, 0.5)',
+                            '0 0 10px rgba(0, 245, 255, 0.2)'
+                          ]
+                        }}
+                        transition={{ repeat: Infinity, duration: 2 }}
+                        className="w-16 h-16 bg-neon-cyan/20 rounded-full mx-auto flex items-center justify-center"
+                      >
+                         <div className="w-4 h-4 bg-neon-cyan rounded-full" />
+                      </motion.div>
+                      <span className="text-lg font-light text-white tracking-[0.2em] uppercase">Analyzing Pathophysiology</span>
+                   </div>
+                 </motion.div>
+               )}
+            </AnimatePresence>
           </div>
         )}
       </motion.div>

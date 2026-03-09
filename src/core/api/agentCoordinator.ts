@@ -20,21 +20,22 @@ export class AgentCoordinator {
       };
     }
 
+    // Add patient message to conversation immediately for UI continuity
+    const patientMessage: ConversationMessage = {
+      id: crypto.randomUUID(),
+      role: 'patient',
+      content: input,
+      timestamp: Date.now()
+    };
+
     try {
       // Step 1: Get doctor's conversational response
       const conversationResult = await callConversationEngine(input, this.state);
 
-      // Add patient message to conversation
-      const patientMessage: ConversationMessage = {
-        id: crypto.randomUUID(),
-        role: 'patient',
-        content: input,
-        timestamp: Date.now()
-      };
-
       const newState: Partial<ClinicalState> = {
         conversation: [...this.state.conversation, patientMessage, conversationResult.message],
         soap: { ...this.state.soap, ...conversationResult.soap_updates },
+        ddx: conversationResult.ddx,
         agent_state: conversationResult.agent_state,
         urgency: conversationResult.urgency,
         probability: conversationResult.probability,
@@ -65,16 +66,22 @@ export class AgentCoordinator {
 
     } catch (error) {
       console.error("Agent Coordinator Error:", error);
-      // Fallback response
-      return {
+      
+      // Still update the state with the patient message even if AI fails
+      const fallbackState: Partial<ClinicalState> = {
         status: 'active',
+        conversation: [...this.state.conversation, patientMessage],
+        thinking: 'Attempting to reconnect with clinical engine...',
         response_options: {
           mode: 'freeform',
           options: [],
           allow_custom_input: true,
-          context_hint: 'Please tell me more about your symptoms'
+          context_hint: 'Dr. Dyrane is experiencing connectivity issues. Please re-state your symptoms.'
         }
       };
+
+      this.state = { ...this.state, ...fallbackState };
+      return fallbackState;
     }
   }
 

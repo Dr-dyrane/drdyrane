@@ -7,15 +7,23 @@ const CONVERSATION_SYSTEM_PROMPT = `You are Dr. Dyrane, a Senior Clinical Regist
 CONVERSATION PROTOCOLS:
 1. SPEAK DIRECTLY: Address the patient as "you" in natural conversation, not as a third party
 2. CLINICAL AUTHORITY: Be authoritative yet compassionate, zero filler words
-3. PROGRESSIVE REVELATION: Ask one focused question at a time
-4. CLINICAL REASONING: Show your thinking process visibly
-5. URGENCY ASSESSMENT: Evaluate case urgency continuously
-6. NATURAL FLOW: Respond conversationally, not as a questionnaire
+3. ONE-QUESTION RULE: Ask exactly one focused clinical question per turn. Never aggregate queries.
+4. OPTION-DRIVEN: When asking a question, ALWAYS set "needs_options": true so the options engine can generate button responses.
+5. CLINICAL REASONING: Show your thinking process visibly.
+6. URGENCY ASSESSMENT: Evaluate case urgency continuously.
+7. NATURAL FLOW: Respond conversationally, not as a questionnaire.
+8. RELEVANCE: Do NOT ask for info already in SOAP or Patient Input.
+9. ACKNOWLEDGMENT: Explicitly acknowledge user symptoms.
+10. PATIENT-FACING: The "message" field is for directly speaking to the patient. NEVER include diagnostic monologue, "Differential" lists, or terms like "Induction". Keep reasoning inside "thinking".
+11. CLINICAL RIGOR: Move quickly to high-fidelity inquiry once the complaint is established.
 
 RESPONSE FORMAT (STRICT JSON):
+You MUST return ONLY a JSON object. No pre-conversation, no "Assistant:", no reasoning before the JSON. All reasoning MUST be inside the "thinking" field.
+
 {
   "message": "Your direct response to the patient",
   "soap_updates": { "S": {}, "O": {}, "A": {}, "P": {} },
+  "ddx": ["Condition 1", "Condition 2"],
   "agent_state": {
     "phase": "intake|assessment|differential|resolution|followup",
     "confidence": number (0-100),
@@ -28,7 +36,8 @@ RESPONSE FORMAT (STRICT JSON):
   "thinking": "Your internal clinical reasoning",
   "needs_options": boolean,
   "status": "active|emergency|complete"
-}`;
+}
+`;
 
 export const callConversationEngine = async (
   patientInput: string,
@@ -36,6 +45,7 @@ export const callConversationEngine = async (
 ): Promise<{
   message: ConversationMessage;
   soap_updates: Partial<ClinicalState['soap']>;
+  ddx: string[];
   agent_state: AgentState;
   urgency: ClinicalState['urgency'];
   probability: number;
@@ -65,15 +75,13 @@ export const callConversationEngine = async (
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-6-20250514',
+        // Stable model for initial setup. Upgrade to 'claude-3-5-sonnet-latest' for premium clinical fidelity.
+        model: 'claude-3-haiku-20240307',
         max_tokens: 1024,
-        // Automatic caching - caches everything up to the last cacheable block
-        cache_control: { type: 'ephemeral' },
         system: [
           {
             type: 'text',
             text: CONVERSATION_SYSTEM_PROMPT,
-            // Explicit cache breakpoint for system prompt (static content)
             cache_control: { type: 'ephemeral' }
           }
         ],
@@ -81,14 +89,16 @@ export const callConversationEngine = async (
           ...conversationContext,
           {
             role: 'user',
-            content: `Patient says: "${patientInput}"
-
+            content: `CONTEXT:
 Current SOAP: ${JSON.stringify(state.soap)}
 Agent State: ${JSON.stringify(state.agent_state)}
+Differential (DDX): ${state.ddx.join(', ')}
 Urgency: ${state.urgency}
 Confidence: ${state.probability}%
 
-Respond as Dr. Dyrane speaking directly to the patient.`
+Patient Input: "${patientInput}"
+
+Review the memory above to avoid redundant questions. Advance the clinical assessment.`
           }
         ]
       })
@@ -100,7 +110,17 @@ Respond as Dr. Dyrane speaking directly to the patient.`
     }
 
     const data = await response.json();
-    const aiResponse = JSON.parse(data.content[0].text);
+    const rawContent = data.content[0].text;
+    
+    // Robust JSON extraction (Rule 5: Nothing fails silently)
+    let aiResponse;
+    try {
+      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
+      aiResponse = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
+    } catch (e) {
+      console.error("Critical: Failed to parse AI Response JSON:", rawContent);
+      throw new Error("Dr. Dyrane's internal model returned an invalid structure. Please try again.");
+    }
 
     // Create conversation message
     const doctorMessage: ConversationMessage = {
@@ -120,6 +140,7 @@ Respond as Dr. Dyrane speaking directly to the patient.`
       message: doctorMessage,
       soap_updates: aiResponse.soap_updates || {},
       agent_state: aiResponse.agent_state,
+      ddx: aiResponse.ddx || state.ddx,
       urgency: aiResponse.urgency,
       probability: aiResponse.probability,
       thinking: aiResponse.thinking,

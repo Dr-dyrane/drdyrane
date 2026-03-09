@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
-import { GlassContainer } from '../../components/shared/GlassContainer';
-import { ChevronLeft, Check, MessageCircle } from 'lucide-react';
+import { Orb } from './Orb';
+import { ChevronLeft, X } from 'lucide-react';
 
 export const StepRenderer: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -11,8 +11,8 @@ export const StepRenderer: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
 
-  const handleInitialInput = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleInitialInput = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!val.trim()) return;
 
     setLoading(true);
@@ -28,13 +28,11 @@ export const StepRenderer: React.FC = () => {
     const { mode } = state.response_options;
 
     if (mode === 'multiple') {
-      // Toggle selection for multiple mode
       const newSelection = selectedOptionIds.includes(optionId)
         ? selectedOptionIds.filter(id => id !== optionId)
         : [...selectedOptionIds, optionId];
       setSelectedOptionIds(newSelection);
     } else if (mode === 'single') {
-      // Immediate submission for single mode
       setLoading(true);
       const result = await processAgentInteraction([optionId], state, true);
       dispatch({ type: 'SET_AGENT_RESPONSE', payload: result });
@@ -52,70 +50,97 @@ export const StepRenderer: React.FC = () => {
     setLoading(false);
   };
 
+  const handleReset = () => {
+    dispatch({ type: 'RESET' });
+  };
+
   const handleGoBack = () => {
     dispatch({ type: 'GO_BACK' });
   };
 
   if (state.status === 'complete') return null;
 
-  const canGoBack = state.history.length > 0 || state.status !== 'idle';
+  const showInput = !state.response_options || state.response_options.allow_custom_input;
+
+  const canGoBack = state.history.length > 0 || state.status !== 'idle' || state.conversation.length > 0;
 
   return (
-    <div className="flex-1 flex flex-col justify-start">
+    <div className="flex-1 flex flex-col justify-start min-h-0 px-2">
+      {/* Universal Breadcrumb Utilities */}
+      <div className="flex items-center justify-between px-6 -mb-2 z-20">
+        <div className="w-10">
+          {canGoBack && (
+            <button
+              onClick={handleGoBack}
+              className="p-2 text-[var(--text-dim)] hover:text-neon-cyan transition-all active:scale-90"
+            >
+              <ChevronLeft size={20} />
+            </button>
+          )}
+        </div>
+        <div className="w-10">
+          {state.status !== 'idle' && (
+            <button
+              onClick={handleReset}
+              className="p-2 text-[var(--text-dim)] hover:text-neon-red transition-all active:scale-90"
+            >
+              <X size={18} />
+            </button>
+          )}
+        </div>
+      </div>
+
       <AnimatePresence mode="wait">
-        {state.status === 'idle' || state.status === 'intake' ? (
+        {(state.status === 'idle' || state.status === 'intake') ? (
           <motion.div
             key="intake"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="text-center space-y-6 pt-4 animate-emergence"
+            className="flex-1 flex flex-col items-center justify-center -mt-12 px-4"
           >
-            <div className="flex items-center justify-between gap-4 px-2 mb-2">
-              <div className="w-12 h-12 flex items-center justify-center">
-                {canGoBack && (
-                  <button
-                    onClick={handleGoBack}
-                    className="group p-3 bg-white/[0.05] hover:bg-white/[0.08] backdrop-blur-md text-[var(--text-dim)] hover:text-neon-cyan active:scale-90 transition-all rounded-full border-none outline-none flex items-center justify-center shadow-none"
-                  >
-                    <ChevronLeft size={24} className="group-hover:drop-shadow-[0_0_8px_var(--accent-glow)] transition-all" />
-                  </button>
-                )}
-              </div>
-              <h1 className="text-xl font-light tracking-tight text-[var(--text-secondary)] flex-1">
-                Tell me what&apos;s happening.
-              </h1>
-              <div className="w-12 h-12 flex items-center justify-center">
-                 {state.status !== 'idle' && (
-                   <button
-                     onClick={() => dispatch({ type: 'RESET' })}
-                     className="text-[var(--text-dim)] hover:text-neon-red transition-all border-none outline-none bg-transparent active:scale-95"
-                   >
-                     <motion.div whileHover={{ rotate: 90 }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                     </motion.div>
-                   </button>
-                 )}
-              </div>
-            </div>
-
-            <form onSubmit={handleInitialInput} className="relative">
-              <textarea
-                autoFocus
-                rows={4}
-                value={val}
-                onChange={(e) => setVal(e.target.value)}
-                placeholder="Describe your symptoms..."
-                className="w-full bg-[var(--bg-secondary)] backdrop-blur-3xl border-none outline-none text-lg p-6 rounded-[32px] text-[var(--text-primary)] placeholder-[var(--text-dim)] transition-all focus:bg-[var(--bg-secondary)]/10 resize-none"
-              />
-              <button
-                type="submit"
-                disabled={loading || !val.trim()}
-                className="mt-4 w-full bg-neon-cyan/10 py-5 rounded-[24px] text-neon-cyan font-bold tracking-wide transition-all active:scale-95 disabled:opacity-20 border-none outline-none"
+            <div className="max-w-2xl w-full flex flex-col items-center">
+              <Orb loading={loading} />
+              
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="text-center pb-2"
               >
-                {loading ? 'Analyzing...' : 'Begin Consultation'}
-              </button>
-            </form>
+                <h1 className="text-3xl font-light tracking-tight text-white/90 leading-tight">
+                  {state.conversation.length > 0 ? "Anything else?" : "What's happening?"}
+                </h1>
+              </motion.div>
+
+              <form onSubmit={handleInitialInput} className="space-y-4">
+                <div className="relative group">
+                  <textarea
+                    autoFocus
+                    rows={2}
+                    value={val}
+                    onChange={(e) => setVal(e.target.value)}
+                    placeholder="e.g. Sharp chest pain, high fever..."
+                    disabled={loading}
+                    onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleInitialInput(e as any)}
+                    className="w-full bg-white/[0.01] hover:bg-white/[0.02] p-6 rounded-2xl outline-none text-lg text-center text-[var(--text-primary)] placeholder-[var(--text-dim)] transition-all resize-none shadow-none border-none"
+                  />
+
+                  <AnimatePresence>
+                    {val.trim() && !loading && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        type="submit"
+                        className="w-full mt-4 py-5 bg-white text-black font-bold text-[10px] uppercase tracking-[0.4em] transition-all active:scale-95 shadow-[0_30px_60px_rgba(255,255,255,0.15)] rounded-2xl"
+                      >
+                        Analyze Findings
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </form>
+            </div>
           </motion.div>
         ) : (
           <motion.div
@@ -123,143 +148,138 @@ export const StepRenderer: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="space-y-4 pt-2 pb-12 animate-emergence"
+            className="flex flex-col h-full relative"
           >
-            {/* Conversation History */}
-            <div className="space-y-4 max-h-96 overflow-y-auto px-2">
-              {state.conversation.map((message) => (
-                <motion.div
-                  key={message.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className={`flex ${message.role === 'doctor' ? 'justify-start' : 'justify-end'}`}
-                >
-                  <div className={`max-w-[80%] p-4 rounded-2xl ${
-                    message.role === 'doctor'
-                      ? 'bg-neon-cyan/10 text-[var(--text-primary)] border border-neon-cyan/20'
-                      : 'bg-[var(--bg-secondary)] text-[var(--text-primary)]'
-                  }`}>
-                    <div className="flex items-center gap-2 mb-2">
-                      {message.role === 'doctor' ? (
-                        <MessageCircle size={16} className="text-neon-cyan" />
-                      ) : (
-                        <div className="w-2 h-2 bg-neon-cyan rounded-full" />
-                      )}
-                      <span className="text-xs text-[var(--text-dim)] uppercase tracking-wide">
-                        {message.role === 'doctor' ? 'Dr. Dyrane' : 'You'}
-                      </span>
-                    </div>
-                    <p className="text-sm leading-relaxed">{message.content}</p>
-                    {message.metadata?.thinking && (
-                      <div className="mt-2 text-xs text-[var(--text-dim)] italic">
-                        {message.metadata.thinking}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+            {/* The Blurred History (Rule 18/21) */}
+            <div className="flex-1 overflow-y-auto px-2 no-scrollbar">
+              <div className="space-y-12">
+                {state.conversation.slice(0, -1).map((message: any, idx: number) => {
+                  if (message.role === 'patient') return null;
+                  const isOld = idx < state.conversation.length - 4;
+                  return (
+                    <motion.div
+                      key={message.id}
+                      initial={{ opacity: 0 }}
+                      animate={{
+                        opacity: isOld ? 0 : 0.05,
+                        filter: isOld ? 'blur(20px)' : 'blur(12px)',
+                        scale: isOld ? 0.8 : 0.9
+                      }}
+                      className="text-center"
+                    >
+                      <p className="text-lg font-light leading-relaxed text-[var(--text-primary)]">
+                        {message.content}
+                      </p>
+                    </motion.div>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Response Options */}
-            {state.response_options && (
-              <div className="space-y-4">
-                <div className="text-center">
-                  <span className="text-[10px] text-neon-cyan/40 uppercase tracking-[0.3em] font-bold">
-                    {state.response_options.mode === 'multiple' ? 'Select All That Apply' :
-                     state.response_options.mode === 'single' ? 'Choose One' :
-                     state.response_options.mode === 'confirm' ? 'Confirm' : 'Response Options'}
-                  </span>
-                  {state.response_options.context_hint && (
-                    <p className="text-xs text-[var(--text-dim)] mt-1">
-                      {state.response_options.context_hint}
-                    </p>
-                  )}
-                </div>
+            {/* The Focal Command Panel (Rule 4/29) */}
+            <div className="absolute bottom-0 left-0 right-0 p-2 pb-2 pt-12 bg-gradient-to-t from-black via-black/98 to-transparent backdrop-blur-3xl border-none">
+              <div className="max-w-2xl mx-auto space-y-4">
 
-                <div className="flex flex-col gap-3">
-                  {state.response_options.options.map((option) => {
-                    const isSelected = selectedOptionIds.includes(option.id);
-                    return (
-                      <GlassContainer
-                        key={option.id}
-                        interactive
-                        onClick={() => handleOptionSelect(option.id)}
-                        disabled={loading}
-                        className={`text-left px-6 py-5 rounded-[24px] transition-all ${
-                          isSelected ? 'ring-2 ring-neon-cyan bg-neon-cyan/10' : ''
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-base text-[var(--text-secondary)]">
+                {/* The Current Question (Rule 30: Type is Interface) */}
+                {state.conversation.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, ease: "easeOut" }}
+                    className="text-center px-2"
+                  >
+                    <p className="text-base font-medium leading-normal tracking-tight text-white mb-2 selection:bg-neon-cyan/30">
+                      {state.conversation[state.conversation.length - 1].content}
+                    </p>
+                    <div className="flex justify-center gap-6 mt-4 items-center">
+                      <div className="group relative cursor-default">
+                        <span className="text-[10px] uppercase font-bold tracking-[0.4em] text-white/40 group-hover:text-neon-cyan transition-colors">Certainty: {state.probability}%</span>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 w-64 p-5 glass-panel opacity-0 group-hover:opacity-100 transition-all pointer-events-none text-[10px] leading-relaxed text-[var(--text-secondary)] scale-95 group-hover:scale-100 origin-bottom border-none shadow-[0_40px_80px_rgba(0,0,0,0.8)] z-50">
+                          <span className="block mb-3 text-neon-cyan opacity-80 uppercase tracking-widest font-bold text-[8px]">Cognitive Trace</span>
+                          <div className="max-h-32 overflow-y-auto pr-2 no-scrollbar">
+                            {state.thinking || "Synthesizing clinical evidence..."}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="w-1 h-3 rounded-full bg-white/10" />
+                      <span className={`text-[10px] uppercase font-bold tracking-[0.4em] ${state.urgency === 'critical' ? 'text-neon-red' : 'text-white/40'}`}>
+                        {state.urgency}
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Phasic Grid (Rule 10) */}
+                <div className="space-y-4">
+                  <div className={`grid gap-2 animate-emergence ${(state.response_options?.options.length || 0) > 4 ? 'grid-cols-2' : 'grid-cols-1'
+                    }`}>
+                    {state.response_options?.options.map((option: any) => {
+                      const isSelected = selectedOptionIds.includes(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => handleOptionSelect(option.id)}
+                          className={`relative overflow-hidden py-2.5 px-2 rounded-lg transition-all duration-300 border-none outline-none text-center group ${isSelected
+                            ? 'shadow-[0_15px_30px_rgba(0,245,255,0.15)] z-10 scale-[1.01]'
+                            : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)] hover:bg-white/[0.05]'
+                            }`}
+                          style={{
+                            backgroundColor: isSelected ? 'var(--bg-active)' : undefined,
+                            color: isSelected ? 'var(--text-active)' : undefined
+                          }}
+                        >
+                          <AnimatePresence>
+                            {isSelected && (
+                              <motion.div
+                                layoutId={state.response_options?.mode === 'single' ? "active-pill" : undefined}
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                className="absolute inset-0 bg-[var(--bg-active)]"
+                                transition={{ type: "spring", bounce: 0, duration: 0.3 }}
+                              />
+                            )}
+                          </AnimatePresence>
+                          <span className="relative z-10 text-[9px] font-bold uppercase tracking-[0.2em] transition-colors duration-300">
                             {option.text}
                           </span>
-                          {state.response_options?.mode === 'multiple' && (
-                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
-                              isSelected
-                                ? 'border-neon-cyan bg-neon-cyan'
-                                : 'border-[var(--text-dim)]'
-                            }`}>
-                              {isSelected && <Check size={12} className="text-black" />}
-                            </div>
-                          )}
-                        </div>
-                        {option.category && (
-                          <span className="text-xs text-[var(--text-dim)] mt-1 block">
-                            {option.category}
-                          </span>
-                        )}
-                      </GlassContainer>
-                    );
-                  })}
-                </div>
+                        </button>
+                      );
+                    })}
+                  </div>
 
-                {/* Multiple selection submit button */}
-                {state.response_options.mode === 'multiple' && selectedOptionIds.length > 0 && (
-                  <button
-                    onClick={handleMultipleSubmit}
-                    disabled={loading}
-                    className="w-full bg-neon-cyan/10 py-4 rounded-[24px] text-neon-cyan font-bold tracking-wide transition-all active:scale-95 disabled:opacity-20 border-none outline-none"
-                  >
-                    {loading ? 'Processing...' : `Continue with ${selectedOptionIds.length} selection${selectedOptionIds.length > 1 ? 's' : ''}`}
-                  </button>
-                )}
+                  {state.response_options?.mode === 'multiple' && selectedOptionIds.length > 0 && (
+                    <button
+                      onClick={handleMultipleSubmit}
+                      className="w-full py-5 bg-neon-cyan text-black font-bold text-[10px] uppercase tracking-[0.4em] transition-all active:scale-95 shadow-[0_20px_40px_rgba(0,245,255,0.2)] rounded-xl"
+                    >
+                      Confirm Analysis ({selectedOptionIds.length})
+                    </button>
+                  )}
 
-                {/* Freeform input option */}
-                {state.response_options.allow_custom_input && (
-                  <form onSubmit={handleInitialInput} className="relative">
-                    <textarea
-                      rows={2}
-                      value={val}
-                      onChange={(e) => setVal(e.target.value)}
-                      placeholder="Or tell me in your own words..."
-                      className="w-full bg-[var(--bg-secondary)] backdrop-blur-3xl border-none outline-none text-sm p-4 rounded-[24px] text-[var(--text-primary)] placeholder-[var(--text-dim)] transition-all focus:bg-[var(--bg-secondary)]/10 resize-none"
-                    />
-                    {val.trim() && (
-                      <button
-                        type="submit"
-                        disabled={loading}
-                        className="mt-2 w-full bg-neon-cyan/10 py-3 rounded-[20px] text-neon-cyan font-bold tracking-wide transition-all active:scale-95 disabled:opacity-20 border-none outline-none text-sm"
-                      >
-                        {loading ? 'Sending...' : 'Send'}
-                      </button>
-                    )}
-                  </form>
-                )}
-              </div>
-            )}
-
-            {/* Loading indicator */}
-            {loading && (
-              <div className="text-center py-4">
-                <div className="inline-flex items-center gap-2 text-neon-cyan">
-                  <div className="w-4 h-4 border-2 border-neon-cyan/30 border-t-neon-cyan rounded-full animate-spin" />
-                  <span className="text-sm">Dr. Dyrane is thinking...</span>
+                  {showInput && (
+                    <div className="pt-2 flex items-center gap-2">
+                      <textarea
+                        rows={1}
+                        value={val}
+                        onChange={(e) => setVal(e.target.value)}
+                        placeholder="Additional details..."
+                        className="flex-1 bg-white/[0.02] hover:bg-white/[0.04] p-3 rounded-xl outline-none text-xs text-[var(--text-primary)] placeholder-[var(--text-dim)] transition-all resize-none no-scrollbar text-center"
+                      />
+                      {val.trim() && !loading && (
+                        <button onClick={() => handleInitialInput()} className="p-3 bg-white text-black rounded-xl">
+                          <ChevronLeft size={16} className="rotate-180" />
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
+
   );
 };
