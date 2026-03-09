@@ -35,6 +35,8 @@ export interface ConversationMessage {
     urgency?: 'low' | 'medium' | 'high' | 'critical';
     probability?: number;
     thinking?: string;
+    statement?: string;
+    question?: string;
   };
 }
 

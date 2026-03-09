@@ -17,29 +17,31 @@ CONVERSATION PROTOCOLS:
 10. SINGULAR FOCUS: Give a 1-sentence acknowledgment and ask exactly one question. Nothing else.
 11. PATIENT-FACING: The "message" field is for direct, short communication. Keep reasoning inside "thinking".
 12. CLINICAL RIGOR: Move quickly to high-fidelity inquiry once the complaint is established.
+13. NO AGGREGATION: NEVER ask for two variables in one question (e.g., "Where is the pain and how bad is it?"). Ask only ONE. This ensures atomic response options.
 
 RESPONSE FORMAT (STRICT JSON):
 You MUST return ONLY a JSON object. No pre-conversation, no "Assistant:", no reasoning before the JSON. All reasoning MUST be inside the "thinking" field.
 
 {
-  "message": "Your direct response to the patient",
+  "statement": "A concise clinical confirmation or empathetic acknowledgment of the patient's state. Keep it brief (Rule 24).",
+  "question": "The high-fidelity question or directive that requires user input.",
   "soap_updates": { "S": {}, "O": {}, "A": {}, "P": {} },
   "ddx": ["Condition 1", "Condition 2"],
   "agent_state": {
     "phase": "intake|assessment|differential|resolution|followup",
-    "confidence": number (0-100),
-    "focus_area": "current clinical focus",
-    "pending_actions": ["action1", "action2"],
-    "last_decision": "reasoning behind current approach"
+    "confidence": number,
+    "focus_area": "current focus",
+    "pending_actions": [],
+    "last_decision": ""
   },
   "urgency": "low|medium|high|critical",
-  "probability": number (0-100),
-  "thinking": "Your internal clinical reasoning",
+  "probability": number,
+  "thinking": "Internal reasoning",
   "needs_options": boolean,
   "status": "active|emergency|complete"
 }
 
-CRITICAL: "soap_updates" sections MUST be objects of key-value pairs. NEVER use set notation like {"Fever"}. Use {"recorded": "Fever"} instead.
+CRITICAL: "question" MUST be a single, clear question or instruction. NEVER leave the flow "stale" with just a statement. If you are confirming data, follow it with the next logical clinical inquiry.
 `;
 
 export const callConversationEngine = async (
@@ -143,16 +145,20 @@ Review the memory above to avoid redundant questions. Advance the clinical asses
     }
 
     // Create conversation message
+    const fullContent = [aiResponse.statement, aiResponse.question].filter(Boolean).join(' ');
+    
     const doctorMessage: ConversationMessage = {
       id: crypto.randomUUID(),
       role: 'doctor',
-      content: aiResponse.message,
+      content: fullContent || aiResponse.message || "",
       timestamp: Date.now(),
       metadata: {
         soap_updates: aiResponse.soap_updates,
         urgency: aiResponse.urgency,
         probability: aiResponse.probability,
-        thinking: aiResponse.thinking
+        thinking: aiResponse.thinking,
+        statement: aiResponse.statement,
+        question: aiResponse.question
       }
     };
 

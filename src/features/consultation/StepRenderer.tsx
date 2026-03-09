@@ -162,7 +162,11 @@ export const StepRenderer: React.FC = () => {
                 {state.conversation.slice(0, -1).map((message: any, idx: number) => {
                   if (message.role === 'patient') return null;
                   const isOld = idx < state.conversation.length - 3;
-                  if (isOld) return null; // Hide older history to reduce stress
+                  if (isOld) return null;
+                  
+                  // Show the full contextual content in history
+                  const displayContent = message.content;
+                  
                   return (
                     <motion.div
                       key={message.id}
@@ -174,8 +178,8 @@ export const StepRenderer: React.FC = () => {
                       }}
                       className="text-center"
                     >
-                      <p className="text-sm font-light leading-relaxed text-[var(--text-primary)]">
-                        {message.content}
+                      <p className="text-sm font-light leading-relaxed text-content-primary">
+                        {displayContent}
                       </p>
                     </motion.div>
                   );
@@ -188,55 +192,71 @@ export const StepRenderer: React.FC = () => {
               <div className="max-w-2xl mx-auto space-y-6">
 
                 {/* The Current Question (Rule 30: Type is Interface) */}
-                {state.conversation.length > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, ease: "easeOut" }}
-                    className="text-center px-2"
-                  >
-                    <p className="text-xl font-light leading-snug tracking-tight text-content-primary mb-2 selection:bg-neon-cyan/30">
-                      {state.conversation[state.conversation.length - 1].content}
-                    </p>
-                    <div className="flex justify-center gap-6 mt-4 items-center">
-                      <div className="relative">
-                        <button
-                          onClick={() => setShowTrace(!showTrace)}
-                          className={`text-[10px] uppercase font-bold tracking-[0.4em] transition-colors border-none outline-none bg-transparent cursor-pointer ${showTrace ? 'text-neon-cyan' : 'text-content-dim hover:text-neon-cyan'}`}
-                        >
-                          Certainty: {state.probability}%
-                        </button>
-                        <AnimatePresence>
-                          {showTrace && (
-                            <motion.div
-                              initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                              animate={{ opacity: 1, y: 0, scale: 1 }}
-                              exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                              className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 w-64 p-5 glass-panel text-[10px] leading-relaxed text-content-secondary border-none shadow-glass z-50 pointer-events-auto"
-                            >
-                              <div className="flex justify-between items-center mb-3">
-                                <span className="text-neon-cyan opacity-80 uppercase tracking-widest font-bold text-[8px]">Cognitive Trace</span>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setShowTrace(false); }}
-                                  className="text-content-dim hover:text-content-primary border-none bg-transparent p-1"
-                                >
-                                  <ChevronLeft size={12} className="rotate-90" />
-                                </button>
-                              </div>
-                              <div className="max-h-32 overflow-y-auto pr-2 no-scrollbar text-left font-light leading-relaxed">
-                                {state.thinking || "Synthesizing clinical evidence..."}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
+                {state.conversation.length > 0 && (() => {
+                  const currentMessage = state.conversation[state.conversation.length - 1];
+                  const question = currentMessage.metadata?.question || currentMessage.content;
+                  const statement = currentMessage.metadata?.statement;
+
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.8, ease: "easeOut" }}
+                      className="text-center px-2"
+                    >
+                      {statement && (
+                        <p className="text-[10px] uppercase tracking-[0.2em] text-neon-cyan/40 font-bold mb-4 opacity-0 animate-emergence" style={{ animationDelay: '0.2s' }}>
+                          Verified
+                        </p>
+                      )}
+                      <h2 className="text-xl font-light leading-snug tracking-tight text-content-primary mb-2 selection:bg-neon-cyan/30">
+                        {question}
+                      </h2>
+                      <div className="flex justify-center gap-6 mt-4 items-center">
+                        <div className="relative">
+                          <button
+                            onClick={() => setShowTrace(!showTrace)}
+                            className={`text-[10px] uppercase font-bold tracking-[0.4em] transition-colors border-none outline-none bg-transparent cursor-pointer ${showTrace ? 'text-neon-cyan' : 'text-content-dim hover:text-neon-cyan'}`}
+                          >
+                            Certainty: {state.probability}%
+                          </button>
+                          <AnimatePresence>
+                            {showTrace && (
+                              <motion.div
+                                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                                className="absolute bottom-full left-1/2 -translate-x-1/2 mb-6 w-64 p-5 glass-panel text-[10px] leading-relaxed text-content-secondary border-none shadow-glass z-50 pointer-events-auto"
+                              >
+                                <div className="flex justify-between items-center mb-3">
+                                  <span className="text-neon-cyan opacity-80 uppercase tracking-widest font-bold text-[8px]">Cognitive Trace</span>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); setShowTrace(false); }}
+                                    className="text-content-dim hover:text-content-primary border-none bg-transparent p-1"
+                                  >
+                                    <ChevronLeft size={12} className="rotate-90" />
+                                  </button>
+                                </div>
+                                <div className="max-h-32 overflow-y-auto pr-2 no-scrollbar text-left font-light leading-relaxed">
+                                  {statement && (
+                                    <p className="mb-4 text-content-primary font-medium border-b border-content-primary/5 pb-2">
+                                      {statement}
+                                    </p>
+                                  )}
+                                  {state.thinking || "Synthesizing clinical evidence..."}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                        <div className="w-1 h-3 rounded-full bg-surface-muted" />
+                        <span className={`text-[10px] uppercase font-bold tracking-[0.4em] ${state.urgency === 'critical' ? 'text-neon-red' : 'text-content-dim'}`}>
+                          {state.urgency}
+                        </span>
                       </div>
-                      <div className="w-1 h-3 rounded-full bg-surface-muted" />
-                      <span className={`text-[10px] uppercase font-bold tracking-[0.4em] ${state.urgency === 'critical' ? 'text-neon-red' : 'text-content-dim'}`}>
-                        {state.urgency}
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
+                    </motion.div>
+                  );
+                })()}
 
                 {/* Phasic Grid (Rule 10) */}
                 <div className="space-y-4">

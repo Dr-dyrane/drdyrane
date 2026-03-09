@@ -3,32 +3,32 @@
 @theme {
   --color-neon-cyan: #00F5FF;
   --color-neon-red: #FF3131;
-  
-  --color-surface-primary: var(--bg-primary);
-  --color-surface-secondary: var(--bg-secondary);
-  --color-surface-muted: var(--bg-muted);
-  --color-surface-active: var(--bg-active);
-  
-  --color-content-primary: var(--text-primary);
-  --color-content-secondary: var(--text-secondary);
-  --color-content-dim: var(--text-dim);
-  --color-content-active: var(--text-active);
 }
 
 @utility bg-gradient-radial {
-  background-image: radial-gradient(var(--tw-gradient-stops));
+  background-image: radial-gradient(circle at 50% 0%, var(--tw-gradient-stops));
 }
 
 :root {
   /* Semantic Tokens - Dark (Default) */
-  --bg-primary: #000000;
-  --bg-secondary: rgba(255, 255, 255, 0.03);
-  --bg-muted: rgba(255, 255, 255, 0.05);
-  --text-primary: #FFFFFF;
-  --text-secondary: rgba(255, 255, 255, 0.6);
-  --text-dim: rgba(255, 255, 255, 0.3);
-  --bg-active: #FFFFFF;
-  --text-active: #000000;
+  --color-surface-primary: #000000;
+  --color-surface-secondary: rgba(255, 255, 255, 0.03);
+  --color-surface-muted: rgba(255, 255, 255, 0.05);
+  --color-surface-active: #FFFFFF;
+  
+  --color-content-primary: #FFFFFF;
+  --color-content-secondary: rgba(255, 255, 255, 0.6);
+  --color-content-dim: rgba(255, 255, 255, 0.3);
+  --color-content-active: #000000;
+
+  --bg-primary: var(--color-surface-primary);
+  --bg-secondary: var(--color-surface-secondary);
+  --bg-muted: var(--color-surface-muted);
+  --text-primary: var(--color-content-primary);
+  --text-secondary: var(--color-content-secondary);
+  --text-dim: var(--color-content-dim);
+  --bg-active: var(--color-surface-active);
+  --text-active: var(--color-content-active);
   --glass-blur: blur(25px);
   --glass-shadow: 0 8px 12px rgba(0,0,0,0.5);
   --glass-bg-hover: rgba(255, 255, 255, 0.05);
@@ -46,14 +46,23 @@
 }
 
 [data-theme="light"] {
-  --bg-primary: #F5F7FA;
-  --bg-secondary: rgba(0, 0, 0, 0.05);
-  --bg-muted: rgba(0, 0, 0, 0.12); /* Increased contrast for buttons */
-  --text-primary: #0F172A;
-  --text-secondary: #475569;
-  --text-dim: #94A3B8;
-  --bg-active: #000000;
-  --text-active: #FFFFFF;
+  --color-surface-primary: #F5F7FA;
+  --color-surface-secondary: rgba(0, 0, 0, 0.05);
+  --color-surface-muted: rgba(0, 0, 0, 0.12);
+  --color-surface-active: #000000;
+
+  --color-content-primary: #0F172A;
+  --color-content-secondary: #475569;
+  --color-content-dim: #94A3B8;
+  --color-content-active: #FFFFFF;
+
+  --bg-primary: var(--color-surface-primary);
+  --bg-muted: var(--color-surface-muted);
+  --text-primary: var(--color-content-primary);
+  --text-secondary: var(--color-content-secondary);
+  --text-dim: var(--color-content-dim);
+  --bg-active: var(--color-surface-active);
+  --text-active: var(--color-content-active);
   --glass-blur: blur(25px);
   --glass-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
   --glass-bg-hover: rgba(0, 0, 0, 0.08); /* More distinct hover */

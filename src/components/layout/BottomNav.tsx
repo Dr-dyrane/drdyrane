@@ -27,7 +27,7 @@ export const BottomNav: React.FC = () => {
               key={item.id}
               onClick={() => setView(item.id)}
               className={`flex flex-col items-center gap-1 p-2 min-w-[70px] transition-all border-none outline-none ${
-                isActive ? 'text-neon-cyan' : 'text-[var(--text-dim)] hover:text-[var(--text-secondary)]'
+                isActive ? 'text-neon-cyan' : 'text-content-dim hover:text-content-secondary'
               }`}
             >
               <item.icon size={20} className={isActive ? 'drop-shadow-[0_0_8px_var(--accent-glow)]' : ''} />

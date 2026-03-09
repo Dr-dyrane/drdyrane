@@ -37,7 +37,7 @@ export const EmergencyOverlay: React.FC = () => {
           <div className="space-y-4">
             <AlertCircle className="w-16 h-16 text-neon-red mx-auto animate-pulse shadow-[0_0_20px_rgba(255,49,49,0.4)]" />
             <h1 className="text-3xl font-bold text-neon-red tracking-tight leading-none uppercase">EMERGENCY</h1>
-            <p className="text-lg text-white/60 font-light">
+            <p className="text-lg text-content-primary/60 font-light">
               Must-not-miss pathophysiology detected.
             </p>
           </div>
@@ -47,13 +47,13 @@ export const EmergencyOverlay: React.FC = () => {
               href={edUrl || '#'}
               target="_blank"
               rel="noreferrer"
-              className="bg-neon-red text-white p-5 rounded-[24px] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-lg shadow-neon-red/20 border-none outline-none"
+              className="bg-neon-red text-content-active p-5 rounded-[24px] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-lg shadow-neon-red/20 border-none outline-none"
             >
               <MapPin size={20} /> Nearest ED
             </a>
             <button
               onClick={handleShareSBAR}
-              className="bg-white/[0.1] text-white p-5 rounded-[24px] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95 border-none outline-none"
+              className="bg-surface-muted/10 text-content-primary p-5 rounded-[24px] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95 border-none outline-none"
             >
               <Share2 size={20} /> Show SBAR
             </button>

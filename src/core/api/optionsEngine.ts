@@ -12,6 +12,8 @@ OPTION GENERATION PROTOCOLS:
 5. PRIORITIZATION: Order by clinical relevance and likelihood
 6. MULTIPLE MODES: Support single/multiple selection based on context
 7. RESTRICTION: Prefer closed-ended options to keep the clinical loop tight. Use freeform only when essential.
+8. ATOMICITY: Each option MUST represent a single, discrete answer to the specific clinical question. NEVER couple multiple variables (e.g., "Severe and constant") unless the question explicitly asks for a combined state.
+9. SINGULAR FOCUS: If the question is about 'When', provide ONLY time-based options. If it's about 'Where', provide ONLY location-based options. No secondary info.
 
 RESPONSE FORMAT (STRICT JSON):
 {
@@ -21,16 +23,16 @@ RESPONSE FORMAT (STRICT JSON):
       "id": "unique_id",
       "text": "Option text",
       "category": "symptom|severity|duration|location|etc",
-      "priority": number (1-10, higher = more important),
+      "priority": number (1-10),
       "requires_confirmation": boolean
     }
   ],
-  "context_hint": "Brief explanation of why these options",
+  "context_hint": "explanation",
   "allow_custom_input": boolean
 }`;
 
 export const generateResponseOptions = async (
-  conversationContext: string,
+  lastQuestion: string,
   agentState: ClinicalState['agent_state'],
   currentSOAP: ClinicalState['soap']
 ): Promise<ResponseOptions> => {
@@ -59,16 +61,15 @@ export const generateResponseOptions = async (
         ],
         messages: [{
           role: 'user',
-          content: `Generate high-fidelity clinical response options.
- 
-LAST DOCTOR QUESTION: ${conversationContext.split('\n').filter(l => l.startsWith('doctor:')).pop() || conversationContext}
+          content: `LAST DOCTOR QUESTION: "${lastQuestion}"
 AGENT STATE: ${JSON.stringify(agentState)}
 CURRENT SOAP: ${JSON.stringify(currentSOAP)}
  
 CRITICAL:
-- Provide duration options if asking "when" (e.g., "Started today", "Past 3 days").
-- Provide symptom details (severity, type) if needed.
-- Return ONLY valid JSON.`
+- ATOMIC OPTIONS: One answer per button. No "coupled" responses (e.g., don't mix severity and timing).
+- SINGULAR SCOPE: If the question is about one symptom, provide ONLY options for that symptom.
+- Return ONLY valid JSON.
+`
         }]
       })
     });

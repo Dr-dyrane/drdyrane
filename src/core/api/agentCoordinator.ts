@@ -45,9 +45,9 @@ export class AgentCoordinator {
 
       // Step 2: Generate response options if needed
       if (conversationResult.needs_options) {
-        const conversationContext = this.buildConversationContext();
+        const lastQuestion = conversationResult.message.metadata?.question || conversationResult.message.content;
         const options = await generateResponseOptions(
-          conversationContext,
+          lastQuestion,
           conversationResult.agent_state,
           newState.soap || this.state.soap
         );
@@ -112,11 +112,6 @@ export class AgentCoordinator {
     );
   }
 
-  private buildConversationContext(): string {
-    // Build recent conversation context for options generation
-    const recentMessages = this.state.conversation.slice(-5);
-    return recentMessages.map(msg => `${msg.role}: ${msg.content}`).join('\n');
-  }
 
   getState(): ClinicalState {
     return this.state;
