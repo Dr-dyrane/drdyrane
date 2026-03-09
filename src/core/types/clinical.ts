@@ -25,6 +25,40 @@ export interface SessionRecord {
   pillars?: PillarData;
 }
 
+export interface ConversationMessage {
+  id: string;
+  role: 'doctor' | 'patient' | 'system';
+  content: string;
+  timestamp: number;
+  metadata?: {
+    soap_updates?: Partial<SOAPState>;
+    urgency?: 'low' | 'medium' | 'high' | 'critical';
+    probability?: number;
+    thinking?: string;
+  };
+}
+
+export interface ResponseOptions {
+  mode: 'single' | 'multiple' | 'freeform' | 'confirm';
+  options: Array<{
+    id: string;
+    text: string;
+    category?: string;
+    priority?: number;
+    requires_confirmation?: boolean;
+  }>;
+  context_hint?: string;
+  allow_custom_input?: boolean;
+}
+
+export interface AgentState {
+  phase: 'intake' | 'assessment' | 'differential' | 'resolution' | 'followup';
+  confidence: number; // 0-100
+  focus_area: string;
+  pending_actions: string[];
+  last_decision: string;
+}
+
 export interface ClinicalState {
   sessionId: string;
   view: AppView;
@@ -38,6 +72,12 @@ export interface ClinicalState {
     question: string;
     options: string[];
   } | null;
+
+  // New agent-driven fields
+  conversation: ConversationMessage[];
+  agent_state: AgentState;
+  response_options: ResponseOptions | null;
+  selected_options: string[];
   lastFeedback?: string;
   probability: number; // 0-100 certainty
   urgency: 'low' | 'medium' | 'high' | 'critical';

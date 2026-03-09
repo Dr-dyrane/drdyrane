@@ -1,4 +1,4 @@
-import { ClinicalState } from '../context/ClinicalContext';
+import { ClinicalState } from '../core/types/clinical';
 
 /**
  * Dr. Dyrane Clinical Engine Infrastructure.

@@ -1,46 +1,5 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
-
-export type SOAPState = {
-  S: Record<string, any>;
-  O: Record<string, any>;
-  A: Record<string, any>;
-  P: Record<string, any>;
-};
-
-export type PillarData = {
-  diagnosis: string;
-  management: string;
-  prognosis: string;
-  prevention: string;
-};
-
-export type ConsultationStatus = 'idle' | 'intake' | 'active' | 'lens' | 'emergency' | 'complete';
-export type AppTheme = 'dark' | 'light';
-export type AppView = 'consult' | 'history' | 'about';
-
-export interface SessionRecord {
-  id: string;
-  timestamp: number;
-  diagnosis: string;
-  status: ConsultationStatus;
-}
-
-export interface ClinicalState {
-  sessionId: string;
-  view: AppView;
-  soap: SOAPState;
-  ddx: string[];
-  status: ConsultationStatus;
-  theme: AppTheme;
-  redFlag: boolean;
-  pillars: PillarData | null;
-  currentQuestion: {
-    question: string;
-    options: string[];
-  } | null;
-  history: ClinicalState[]; // State stack for undo/back within session
-  archives: SessionRecord[]; // Persistent past session summary
-}
+import { ClinicalState, ConversationMessage } from '../core/types/clinical';
 
 type Action =
   | { type: 'START_INTAKE' }
@@ -48,10 +7,13 @@ type Action =
   | { type: 'SET_ANSWER'; payload: string }
   | { type: 'TRIGGER_EMERGENCY' }
   | { type: 'SET_AI_RESPONSE'; payload: Partial<ClinicalState> }
-  | { type: 'COMPLETE_CONSULTATION'; payload: PillarData }
+  | { type: 'SET_AGENT_RESPONSE'; payload: Partial<ClinicalState> }
+  | { type: 'SELECT_OPTIONS'; payload: string[] }
+  | { type: 'ADD_CONVERSATION_MESSAGE'; payload: ConversationMessage }
+  | { type: 'COMPLETE_CONSULTATION'; payload: any }
   | { type: 'GO_BACK' }
   | { type: 'TOGGLE_THEME' }
-  | { type: 'SET_VIEW'; payload: AppView }
+  | { type: 'SET_VIEW'; payload: any }
   | { type: 'RESET' };
 
 const initialState: ClinicalState = {
@@ -64,6 +26,20 @@ const initialState: ClinicalState = {
   redFlag: false,
   pillars: null,
   currentQuestion: null,
+  conversation: [],
+  agent_state: {
+    phase: 'intake',
+    confidence: 0,
+    focus_area: 'Initial assessment',
+    pending_actions: ['Gather chief complaint'],
+    last_decision: 'Starting patient intake'
+  },
+  response_options: null,
+  selected_options: [],
+  probability: 0,
+  urgency: 'low',
+  thinking: 'Ready to begin clinical assessment',
+  isHxOpen: false,
   history: [],
   archives: [],
 };
@@ -108,6 +84,18 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
     case 'SET_AI_RESPONSE':
       return pushHistory({ ...state, ...action.payload });
     
+    case 'SET_AGENT_RESPONSE':
+      return pushHistory({ ...state, ...action.payload });
+    
+    case 'SELECT_OPTIONS':
+      return { ...state, selected_options: action.payload };
+    
+    case 'ADD_CONVERSATION_MESSAGE':
+      return { 
+        ...state, 
+        conversation: [...state.conversation, action.payload] 
+      };
+    
     case 'TRIGGER_EMERGENCY':
       return pushHistory({ ...state, status: 'emergency', redFlag: true });
     
@@ -120,7 +108,8 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
         id: state.sessionId,
         timestamp: Date.now(),
         diagnosis: state.pillars?.diagnosis || (state.redFlag ? 'Emergency Triage' : 'Incomplete'),
-        status: state.status
+        status: state.status,
+        soap: state.soap
       }, ...state.archives] : state.archives;
 
       return { 

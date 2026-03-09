@@ -3,7 +3,8 @@ import {
   ClinicalState, 
   AppView, 
   PillarData,
-  SessionRecord
+  SessionRecord,
+  ConversationMessage
 } from '../types/clinical';
 
 export type Action =
@@ -12,6 +13,9 @@ export type Action =
   | { type: 'SET_ANSWER'; payload: string }
   | { type: 'TRIGGER_EMERGENCY' }
   | { type: 'SET_AI_RESPONSE'; payload: Partial<ClinicalState>; lastInput?: string }
+  | { type: 'SET_AGENT_RESPONSE'; payload: Partial<ClinicalState>; lastInput?: string }
+  | { type: 'SELECT_OPTIONS'; payload: string[] }
+  | { type: 'ADD_CONVERSATION_MESSAGE'; payload: ConversationMessage }
   | { type: 'COMPLETE_CONSULTATION'; payload: PillarData }
   | { type: 'GO_BACK' }
   | { type: 'TOGGLE_THEME' }
@@ -29,9 +33,19 @@ const initialState: ClinicalState = {
   redFlag: false,
   pillars: null,
   currentQuestion: null,
+  conversation: [],
+  agent_state: {
+    phase: 'intake',
+    confidence: 0,
+    focus_area: 'Initial assessment',
+    pending_actions: ['Gather chief complaint'],
+    last_decision: 'Starting patient intake'
+  },
+  response_options: null,
+  selected_options: [],
   probability: 0,
   urgency: 'low',
-  thinking: 'Standing by for patient induction...',
+  thinking: 'Ready to begin clinical assessment',
   isHxOpen: false,
   history: [],
   archives: [],
@@ -102,6 +116,22 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
       }
       return pushHistory({ ...updated, archives }, (action as any).lastInput);
     }
+
+    case 'SET_AGENT_RESPONSE': {
+      const updated = { ...state, ...action.payload };
+      // If we finished or had an emergency, auto-archive it immediately
+      let archives = state.archives;
+      if (updated.status === 'complete' || updated.status === 'emergency') {
+        archives = archiveSession(state.archives, updated);
+      }
+      return pushHistory({ ...updated, archives }, (action as any).lastInput);
+    }
+
+    case 'SELECT_OPTIONS':
+      return { ...state, selected_options: action.payload };
+
+    case 'ADD_CONVERSATION_MESSAGE':
+      return { ...state, conversation: [...state.conversation, action.payload] };
     
     case 'TRIGGER_EMERGENCY': {
       const updated: ClinicalState = { ...state, status: 'emergency', redFlag: true };

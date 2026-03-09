@@ -88,13 +88,15 @@ export const callClinicalEngine = async (
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-3-haiku-20240307',
+          model: 'claude-haiku-4-5-20250520',
           max_tokens: 1500,
+          // Automatic caching - caches everything up to the last cacheable block
           cache_control: { type: 'ephemeral' },
           system: [
             {
               type: "text",
               text: SYSTEM_PROMPT,
+              // Explicit cache breakpoint for system prompt (static content)
               cache_control: { type: "ephemeral" }
             }
           ],
