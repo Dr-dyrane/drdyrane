@@ -171,8 +171,16 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
+        
+        // Ensure all new agent-driven fields have defaults in case of legacy localstorage (Rule 5)
         if (!parsed.archives) parsed.archives = [];
         if (!parsed.history) parsed.history = [];
+        if (!parsed.conversation) parsed.conversation = [];
+        if (!parsed.ddx) parsed.ddx = [];
+        if (parsed.probability === undefined) parsed.probability = 0;
+        if (parsed.urgency === undefined) parsed.urgency = 'low';
+        if (!parsed.agent_state) parsed.agent_state = { ...initialState.agent_state };
+        if (parsed.selected_options === undefined) parsed.selected_options = [];
         
         // Ensure we don't load corrupt recursive history
         parsed.history = parsed.history.map((h: any) => {

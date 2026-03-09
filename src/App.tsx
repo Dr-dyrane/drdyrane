@@ -1,6 +1,5 @@
 import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sun, Moon, ClipboardList } from 'lucide-react';
 
 // Core
 import { ClinicalProvider, useClinical } from './core/context/ClinicalContext';
@@ -18,6 +17,9 @@ import { EmergencyOverlay } from './features/emergency/EmergencyOverlay';
 
 import { TheHx } from './features/consultation/TheHx';
 
+import { Header } from './components/layout/Header';
+import { DepthLayer } from './components/layout/DepthLayer';
+
 const MainApp: React.FC = () => {
   const { state, dispatch } = useClinical();
 
@@ -29,39 +31,11 @@ const MainApp: React.FC = () => {
   const toggleHx = () => dispatch({ type: 'TOGGLE_HX' });
 
   return (
-    <div className="min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] selection:bg-neon-cyan selection:text-black flex justify-center transition-colors duration-500 overflow-hidden">
+    <div className="min-h-screen bg-surface-primary text-content-primary selection:bg-neon-cyan selection:text-black flex justify-center transition-colors duration-500 overflow-hidden">
       {/* Mobile Frame Container */}
       <div className="w-full max-w-[440px] h-screen overflow-y-auto relative flex flex-col no-scrollbar">
-        {/* Background Depth layer */}
-        <div className="fixed inset-0 bg-gradient-radial from-white/[0.02] to-transparent pointer-events-none" />
-
-        {/* Dynamic Header */}
-        <header className="fixed top-0 max-w-[440px] w-full z-40 px-6 pt-8 flex items-center justify-between pointer-events-none">
-          <div className="flex items-center gap-2 pointer-events-auto">
-             <img 
-               src={state.theme === 'dark' ? "/logo.png" : "/logo_light.png"} 
-               alt="Dr. Dyrane" 
-               className="w-5 h-5 object-contain opacity-60 drop-shadow-[0_0_8px_var(--accent-glow)]" 
-             />
-             <span className="text-[10px] font-bold uppercase tracking-[0.4em] text-[var(--text-primary)]/40">Dr. Dyrane</span>
-          </div>
-          <div className="flex items-center gap-2 pointer-events-auto">
-            {state.status !== 'idle' && (
-              <button 
-                onClick={toggleHx}
-                className="p-3 glass-panel rounded-2xl active:scale-90 transition-all text-[var(--text-primary)]/40 hover:text-neon-cyan border-none outline-none bg-transparent"
-              >
-                <ClipboardList size={18} />
-              </button>
-            )}
-            <button 
-              onClick={toggleTheme}
-              className="p-3 glass-panel rounded-2xl active:scale-90 transition-all text-[var(--text-primary)]/40 hover:text-[var(--text-primary)] border-none outline-none bg-transparent"
-            >
-              {state.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-            </button>
-          </div>
-        </header>
+        <DepthLayer />
+        <Header onToggleTheme={toggleTheme} onToggleHx={toggleHx} />
 
         {/* Global Overlays */}
         <EmergencyOverlay />
@@ -112,7 +86,7 @@ const MainApp: React.FC = () => {
             )}
           </AnimatePresence>
         </main>
-        
+
         {/* Universal Navigation */}
         <AnimatePresence>
           {(state.status === 'idle' || state.status === 'complete') && (

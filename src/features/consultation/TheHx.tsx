@@ -16,7 +16,7 @@ export const TheHx: React.FC<{
   // Use override state if provided (for history), otherwise use live state
   const displaySoap = overrideState ? overrideState.soap : liveState.soap;
   const displayDiagnosis = overrideState ? overrideState.diagnosis : (liveState.pillars?.diagnosis || 'Active Case');
-  const displayDDx = overrideState ? [] : liveState.ddx; // Archives don't currently store DDx list explicitly
+  const displayDDx = overrideState ? [] : (liveState.ddx || []); // Use fallback for ddx
 
   const soapSections = [
     { label: 'Subjective', key: 'S' as const, icon: ClipboardList, color: 'text-neon-cyan' },
@@ -35,7 +35,7 @@ export const TheHx: React.FC<{
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[60] pointer-events-auto"
+            className="fixed inset-0 bg-surface-primary/40 backdrop-blur-md z-[60] pointer-events-auto"
           />
 
           {/* Hx Drawer */}
@@ -44,46 +44,46 @@ export const TheHx: React.FC<{
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 h-[85vh] bg-[var(--bg-primary)] rounded-t-[40px] z-[70] flex flex-col overflow-hidden glass-panel border-t border-white/5 pointer-events-auto"
+            className="fixed inset-x-0 bottom-0 h-[85vh] bg-surface-primary rounded-t-[40px] z-[70] flex flex-col overflow-hidden glass-panel border-t border-content-primary/5 pointer-events-auto"
           >
             {/* Header */}
             <div className="px-8 pt-8 pb-4 flex items-center justify-between">
               <div>
                 <span className="text-[10px] text-neon-cyan/40 uppercase tracking-[0.3em] font-bold">Clinical Records</span>
-                <h2 className="text-2xl font-light text-[var(--text-primary)] mt-1">{displayDiagnosis}</h2>
+                <h2 className="text-2xl font-light text-content-primary mt-1">{displayDiagnosis}</h2>
               </div>
               <button
                 onClick={onClose}
-                className="p-3 bg-white/5 rounded-full hover:bg-white/10 transition-colors border-none outline-none"
+                className="p-3 bg-surface-muted rounded-full hover:bg-surface-muted/80 transition-colors border-none outline-none"
               >
-                <X size={20} className="text-[var(--text-dim)]" />
+                <X size={20} className="text-content-dim" />
               </button>
             </div>
 
             {/* Content */}
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 no-scrollbar pb-12">
               {soapSections.map((section) => {
-                const data = displaySoap[section.key];
+                const data = displaySoap?.[section.key] || {};
                 const hasData = Object.keys(data).length > 0;
 
                 return (
                   <div key={section.key} className="space-y-3">
                     <div className="flex items-center gap-2 px-2">
                       <section.icon size={14} className={`${section.color} opacity-60`} />
-                      <span className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-dim)]">
+                      <span className="text-[10px] uppercase tracking-widest font-bold text-content-dim">
                         {section.label}
                       </span>
                     </div>
 
                     <GlassContainer className="p-5 rounded-[24px] border-none shadow-none">
                       {!hasData ? (
-                        <p className="text-xs text-[var(--text-dim)] font-light italic">No findings recorded yet.</p>
+                        <p className="text-xs text-content-dim font-light italic">No findings recorded yet.</p>
                       ) : (
                         <div className="space-y-3">
                           {Object.entries(data).map(([key, value]) => (
                             <div key={key} className="space-y-1">
                               <span className="text-[9px] uppercase tracking-wider text-neon-cyan/60 font-medium">{key}</span>
-                              <p className="text-sm text-[var(--text-secondary)] font-light leading-relaxed">
+                              <p className="text-sm text-content-secondary font-light leading-relaxed">
                                 {typeof value === 'string' ? value : JSON.stringify(value)}
                               </p>
                             </div>
@@ -100,7 +100,7 @@ export const TheHx: React.FC<{
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 px-2">
                     <Activity size={14} className="text-neon-cyan opacity-60" />
-                    <span className="text-[10px] uppercase tracking-widest font-bold text-[var(--text-dim)]">
+                    <span className="text-[10px] uppercase tracking-widest font-bold text-content-dim">
                       Differential Diagnosis (DDx)
                     </span>
                   </div>
@@ -114,7 +114,7 @@ export const TheHx: React.FC<{
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-[var(--text-dim)] font-light italic">Assessment in progress...</p>
+                      <p className="text-xs text-content-dim font-light italic">Assessment in progress...</p>
                     )}
                   </GlassContainer>
                 </div>

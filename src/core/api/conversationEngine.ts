@@ -11,11 +11,12 @@ CONVERSATION PROTOCOLS:
 4. OPTION-DRIVEN: When asking a question, ALWAYS set "needs_options": true so the options engine can generate button responses.
 5. CLINICAL REASONING: Show your thinking process visibly.
 6. URGENCY ASSESSMENT: Evaluate case urgency continuously.
-7. NATURAL FLOW: Respond conversationally, not as a questionnaire.
+7. NATURAL FLOW: Respond conversationally, but with extreme brevity. Avoid repeating what the patient just said back to them.
 8. RELEVANCE: Do NOT ask for info already in SOAP or Patient Input.
-9. ACKNOWLEDGMENT: Explicitly acknowledge user symptoms.
-10. PATIENT-FACING: The "message" field is for directly speaking to the patient. NEVER include diagnostic monologue, "Differential" lists, or terms like "Induction". Keep reasoning inside "thinking".
-11. CLINICAL RIGOR: Move quickly to high-fidelity inquiry once the complaint is established.
+9. NO SUMMARIES: Never summarize the "discussion so far". The patient is sick and in a hurry.
+10. SINGULAR FOCUS: Give a 1-sentence acknowledgment and ask exactly one question. Nothing else.
+11. PATIENT-FACING: The "message" field is for direct, short communication. Keep reasoning inside "thinking".
+12. CLINICAL RIGOR: Move quickly to high-fidelity inquiry once the complaint is established.
 
 RESPONSE FORMAT (STRICT JSON):
 You MUST return ONLY a JSON object. No pre-conversation, no "Assistant:", no reasoning before the JSON. All reasoning MUST be inside the "thinking" field.
@@ -37,6 +38,8 @@ You MUST return ONLY a JSON object. No pre-conversation, no "Assistant:", no rea
   "needs_options": boolean,
   "status": "active|emergency|complete"
 }
+
+CRITICAL: "soap_updates" sections MUST be objects of key-value pairs. NEVER use set notation like {"Fever"}. Use {"recorded": "Fever"} instead.
 `;
 
 export const callConversationEngine = async (
@@ -112,13 +115,30 @@ Review the memory above to avoid redundant questions. Advance the clinical asses
     const data = await response.json();
     const rawContent = data.content[0].text;
     
-    // Robust JSON extraction (Rule 5: Nothing fails silently)
+    // Robust JSON extraction and repair (Rule 5: Nothing fails silently)
     let aiResponse;
+    const repairJson = (str: string) => {
+      return str
+        .replace(/"\s*\n?\s*"/g, '", "')
+        .replace(/}\s*\n?\s*"/g, '}, "')
+        .replace(/]\s*\n?\s*"/g, '], "')
+        // Fix set-like structures {"Value"} -> {"recorded": "Value"}
+        .replace(/\{\s*"([^"]+)"\s*(?!\:)\}/g, '{"recorded": "$1"}')
+        // Fix trailing commas
+        .replace(/,\s*([}\]])/g, '$1');
+    };
+
     try {
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      aiResponse = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
+      const targetStr = jsonMatch ? jsonMatch[0] : rawContent;
+      try {
+        aiResponse = JSON.parse(targetStr);
+      } catch (innerError) {
+        // Attempt repair
+        aiResponse = JSON.parse(repairJson(targetStr));
+      }
     } catch (e) {
-      console.error("Critical: Failed to parse AI Response JSON:", rawContent);
+      console.error("Critical: Failed to parse AI Response JSON after repair attempt:", rawContent);
       throw new Error("Dr. Dyrane's internal model returned an invalid structure. Please try again.");
     }
 

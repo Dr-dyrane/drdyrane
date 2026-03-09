@@ -81,10 +81,27 @@ CRITICAL:
     const data = await response.json();
     const rawContent = data.content[0].text;
     
-    // Robust clinical data extraction (Rule 5: State is Design)
+    // Robust clinical data extraction and repair (Rule 5: State is Design)
+    const repairJson = (str: string) => {
+      return str
+        .replace(/"\s*\n?\s*"/g, '", "')
+        .replace(/}\s*\n?\s*"/g, '}, "')
+        .replace(/]\s*\n?\s*"/g, '], "')
+        // Fix set-like structures {"Value"} -> {"recorded": "Value"}
+        .replace(/\{\s*"([^"]+)"\s*(?!\:)\}/g, '{"recorded": "$1"}')
+        // Fix trailing commas
+        .replace(/,\s*([}\]])/g, '$1');
+    };
+
     try {
       const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      const optionsResponse = JSON.parse(jsonMatch ? jsonMatch[0] : rawContent);
+      const targetStr = jsonMatch ? jsonMatch[0] : rawContent;
+      let optionsResponse;
+      try {
+        optionsResponse = JSON.parse(targetStr);
+      } catch (innerError) {
+        optionsResponse = JSON.parse(repairJson(targetStr));
+      }
       return optionsResponse;
     } catch (e) {
       console.error("Critical: Options JSON Parsing Failed:", rawContent);
