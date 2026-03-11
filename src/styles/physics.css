@@ -55,6 +55,18 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body,
+#root {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
 [data-theme="light"] {
   --color-surface-primary: #F5F7FA;
   --color-surface-secondary: rgba(0, 0, 0, 0.05);

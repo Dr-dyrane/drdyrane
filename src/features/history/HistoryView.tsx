@@ -5,11 +5,8 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle,
-  ClipboardList,
   ChevronRight,
   Plus,
-  RotateCcw,
-  Trash2,
 } from 'lucide-react';
 import { TheHx } from '../consultation/TheHx';
 import { Orb } from '../consultation/Orb';
@@ -21,10 +18,12 @@ export const HistoryView: React.FC = () => {
   const { state, dispatch } = useClinical();
   const [soapSession, setSoapSession] = useState<SessionRecord | null>(null);
   const [recordModal, setRecordModal] = useState<SessionRecord | null>(null);
-  const archives = state.archives || [];
   const orderedArchives = useMemo(
-    () => [...archives].sort((a, b) => (b.updated_at || b.timestamp) - (a.updated_at || a.timestamp)),
-    [archives]
+    () =>
+      [...(state.archives || [])].sort(
+        (a, b) => (b.updated_at || b.timestamp) - (a.updated_at || a.timestamp)
+      ),
+    [state.archives]
   );
 
   const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
@@ -38,22 +37,9 @@ export const HistoryView: React.FC = () => {
     feedback('select');
   };
 
-  const revisit = (session: SessionRecord) => {
-    dispatch({ type: 'RESTORE_ARCHIVE', payload: session.id });
-    dispatch({ type: 'SET_VIEW', payload: 'consult' });
-    feedback('question');
-  };
-
   const openSoap = (session: SessionRecord) => {
     setSoapSession(session);
     feedback('select');
-  };
-
-  const removeRecord = (session: SessionRecord) => {
-    const ok = window.confirm(`Delete "${session.visit_label}"?`);
-    if (!ok) return;
-    dispatch({ type: 'DELETE_ARCHIVE', payload: session.id });
-    feedback('error');
   };
 
   const createManualRecord = () => {
@@ -149,39 +135,6 @@ export const HistoryView: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    revisit(session);
-                  }}
-                  className="icon-action surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
-                  aria-label="Revisit visit"
-                >
-                  <RotateCcw size={14} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openSoap(session);
-                  }}
-                  className="icon-action surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
-                  aria-label="Open SOAP details"
-                >
-                  <ClipboardList size={14} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeRecord(session);
-                  }}
-                  className="icon-action icon-action-danger focus-glow interactive-tap"
-                  aria-label="Delete visit"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
             </GlassContainer>
           ))
         )}
@@ -200,7 +153,7 @@ export const HistoryView: React.FC = () => {
         isOpen={!!recordModal}
         onClose={() => setRecordModal(null)}
         onOpenHx={(record) => {
-          setSoapSession(record);
+          openSoap(record);
         }}
       />
     </div>

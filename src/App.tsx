@@ -31,9 +31,9 @@ const MainApp: React.FC = () => {
   }, [state.theme, state.settings.text_scale]);
 
   return (
-    <div className="min-h-screen bg-surface-primary text-content-primary selection:bg-neon-cyan selection:text-black flex justify-center transition-colors duration-500 overflow-hidden">
+    <div className="min-h-screen min-h-[100dvh] bg-surface-primary text-content-primary selection:bg-neon-cyan selection:text-black flex justify-center transition-colors duration-500 overflow-hidden">
       {/* Mobile Frame Container */}
-      <div className="w-full max-w-[440px] h-screen overflow-y-auto relative isolate flex flex-col no-scrollbar">
+      <div className="w-full max-w-[440px] min-h-screen min-h-[100dvh] overflow-y-auto relative isolate flex flex-col no-scrollbar">
         <DepthLayer />
         <Header />
 
