@@ -80,8 +80,17 @@ export const callConversationEngine = async (
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Conversation API Error: ${errorData.error || response.status}`);
+      const rawError = await response.text().catch(() => '');
+      let parsedError = '';
+      if (rawError) {
+        try {
+          const json = JSON.parse(rawError) as { error?: string };
+          parsedError = json.error || '';
+        } catch {
+          parsedError = rawError.trim();
+        }
+      }
+      throw new Error(`Conversation API Error: ${parsedError || response.status}`);
     }
 
     const aiResponse = await response.json();

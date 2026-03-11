@@ -32,3 +32,6 @@ dist-ssr
 
 # Local generated clinical data
 server/.data/
+
+.vercel
+.env*.local

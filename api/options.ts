@@ -1,4 +1,4 @@
-import { OptionsRequest, runOptions } from './_anthropic';
+import { OptionsRequest, runOptions } from './_anthropic.js';
 
 interface ApiRequest {
   method?: string;

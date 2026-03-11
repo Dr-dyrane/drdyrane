@@ -255,6 +255,30 @@ export class AgentCoordinator {
     return 'What symptom is bothering you the most right now?';
   }
 
+  private sanitizeQuestion(rawQuestion: string): string {
+    const cleaned = (rawQuestion || '')
+      .replace(/\s+/g, ' ')
+      .replace(/\s+\?/g, '?')
+      .trim();
+
+    if (!cleaned) return '';
+
+    const withoutUiArtifacts = cleaned
+      .replace(/\bselect (one|an?) option[^.?!]*[.?!]?/gi, '')
+      .replace(/\bor type your own answer[.?!]?/gi, '')
+      .replace(/\bchoose from the options below[.?!]?/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (!withoutUiArtifacts) return '';
+    if (withoutUiArtifacts.endsWith('?')) return withoutUiArtifacts;
+    if (/^(who|what|when|where|why|how|is|are|do|did|have|has|can|could|would|will|should)\b/i.test(withoutUiArtifacts)) {
+      return `${withoutUiArtifacts}?`;
+    }
+
+    return withoutUiArtifacts;
+  }
+
   private extractQuestionFromContent(content: string): string {
     const normalized = (content || '').replace(/\s+/g, ' ').trim();
     if (!normalized) return '';
@@ -268,7 +292,7 @@ export class AgentCoordinator {
     const statement = message.metadata?.statement?.trim();
     const candidateQuestion =
       message.metadata?.question?.trim() || this.extractQuestionFromContent(message.content);
-    const question = candidateQuestion || this.getFallbackQuestion();
+    const question = this.sanitizeQuestion(candidateQuestion || this.getFallbackQuestion()) || this.getFallbackQuestion();
 
     return {
       ...message,
@@ -293,7 +317,8 @@ export class AgentCoordinator {
   }
 
   private createDoctorMessage(question: string, statement?: string): ConversationMessage {
-    const content = [statement, question].filter(Boolean).join(' ');
+    const sanitizedQuestion = this.sanitizeQuestion(question) || this.getFallbackQuestion();
+    const content = [statement, sanitizedQuestion].filter(Boolean).join(' ');
     return {
       id: crypto.randomUUID(),
       role: 'doctor',
@@ -301,34 +326,41 @@ export class AgentCoordinator {
       timestamp: Date.now(),
       metadata: {
         statement: statement || undefined,
-        question,
+        question: sanitizedQuestion,
       },
     };
   }
 
   private extractBundledSegments(question: string): GatedQuestionSegment[] {
-    const cleaned = question
-      .replace(/\s+/g, ' ')
-      .replace(/\s+\?/g, '?')
-      .trim();
+    const cleaned = this.sanitizeQuestion(question);
     if (!cleaned) return [];
 
-    const sentenceSegments = cleaned
-      .split('?')
-      .map((item) => item.trim())
-      .filter(Boolean)
+    const sentenceSegments = cleaned.match(/[^?]+\?/g)?.map((item) => item.trim()) || [];
+
+    let rawSegments = sentenceSegments.length > 1
+      ? sentenceSegments
+      : cleaned
+          .split(
+            /\s*(?:,|;)?\s+(?:and|also|plus)\s+(?=(?:are|is|do|did|have|has|can|could|would|will|should|what|when|where|which|why|how)\b)/gi
+          )
+          .map((item) => item.trim())
+          .filter(Boolean);
+
+    if (rawSegments.length <= 1 && cleaned.length > 135) {
+      rawSegments = cleaned
+        .split(
+          /\s*,\s+(?=(?:are|is|do|did|have|has|can|could|would|will|should|what|when|where|which|why|how)\b)/gi
+        )
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    const normalizedSegments = rawSegments
+      .map((item) => this.sanitizeQuestion(item))
+      .filter((item): item is string => Boolean(item))
       .map((item) => (item.endsWith('?') ? item : `${item}?`));
 
-    const rawSegments =
-      sentenceSegments.length > 1
-        ? sentenceSegments
-        : cleaned
-            .split(/\s+(?:and|also|plus)\s+/i)
-            .map((item) => item.trim())
-            .filter(Boolean)
-            .map((item) => (item.endsWith('?') ? item : `${item}?`));
-
-    const dedup = rawSegments
+    const dedup = normalizedSegments
       .map((item, idx) => ({ id: `segment-${idx + 1}`, prompt: item }))
       .filter((segment, index, all) =>
         all.findIndex((other) => other.prompt.toLowerCase() === segment.prompt.toLowerCase()) === index
@@ -343,6 +375,10 @@ export class AgentCoordinator {
     const knownAge = this.state.profile.age;
     const onsetPattern = /(when did|since when|how long|when .* start|started|start)/;
     const tempPattern = /(temperature|temp|fever|highest.*measure|how high)/;
+    const countPattern = /(how many|number of|episodes?|times|count|frequency)/;
+    const gastroPattern = /(vomit|vomiting|throwing up|nausea|diarrhea|diarrhoea|loose stool|stool|bowel)/;
+    const hydrationPattern =
+      /(keep fluids down|keep liquid down|hold down fluids|able to drink|drinking fluids|hydration|dehydrat|oral intake|sips)/;
 
     if (onsetPattern.test(normalized)) {
       return {
@@ -373,6 +409,54 @@ export class AgentCoordinator {
         ],
         allow_custom_input: true,
         context_hint: 'Select your highest measured temperature.',
+      };
+    }
+
+    if (gastroPattern.test(normalized) && countPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'ladder',
+        options: [
+          { id: 'episodes-0', text: '0 episodes', category: 'episode_count', priority: 10 },
+          { id: 'episodes-1-2', text: '1-2 episodes', category: 'episode_count', priority: 9 },
+          { id: 'episodes-3-5', text: '3-5 episodes', category: 'episode_count', priority: 8 },
+          { id: 'episodes-6-9', text: '6-9 episodes', category: 'episode_count', priority: 7 },
+          { id: 'episodes-10-plus', text: '10 or more', category: 'episode_count', priority: 6 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Estimate episodes in the last 24 hours.',
+      };
+    }
+
+    if (hydrationPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'stack',
+        options: [
+          { id: 'fluids-normal', text: 'Yes, drinking normally', category: 'hydration', priority: 10 },
+          { id: 'fluids-sips', text: 'Only small sips stay down', category: 'hydration', priority: 9 },
+          { id: 'fluids-vomit', text: 'Most fluids come back up', category: 'hydration', priority: 8 },
+          { id: 'fluids-none', text: 'Cannot keep any fluids down', category: 'hydration', priority: 7 },
+          { id: 'fluids-unsure', text: 'Not sure', category: 'hydration', priority: 6 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Select the closest match for oral intake.',
+      };
+    }
+
+    if (countPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'grid',
+        options: [
+          { id: 'count-0', text: '0', category: 'count', priority: 10 },
+          { id: 'count-1-2', text: '1-2', category: 'count', priority: 9 },
+          { id: 'count-3-5', text: '3-5', category: 'count', priority: 8 },
+          { id: 'count-6-9', text: '6-9', category: 'count', priority: 7 },
+          { id: 'count-10-plus', text: '10+', category: 'count', priority: 6 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Choose the nearest count range.',
       };
     }
 
@@ -440,7 +524,7 @@ export class AgentCoordinator {
       };
     }
 
-    if (/^(is|are|do|did|have|has|can|will)\b/.test(normalized) || normalized.includes('yes or no')) {
+    if (/^(is|are|do|did|have|has|can|will|would|should|could)\b/.test(normalized) || normalized.includes('yes or no')) {
       return {
         mode: 'single',
         ui_variant: 'segmented',
@@ -456,16 +540,14 @@ export class AgentCoordinator {
 
     return {
       mode: 'single',
-      ui_variant: 'stack',
+      ui_variant: 'segmented',
       options: [
-        { id: 'mild', text: 'Mild', category: 'descriptor', priority: 10 },
-        { id: 'moderate', text: 'Moderate', category: 'descriptor', priority: 9 },
-        { id: 'severe', text: 'Severe', category: 'descriptor', priority: 8 },
-        { id: 'intermittent', text: 'Intermittent', category: 'pattern', priority: 7 },
-        { id: 'constant', text: 'Constant', category: 'pattern', priority: 6 },
+        { id: 'yes', text: 'Yes', category: 'default', priority: 10 },
+        { id: 'no', text: 'No', category: 'default', priority: 9 },
+        { id: 'unsure', text: 'Not sure', category: 'default', priority: 8 },
       ],
       allow_custom_input: true,
-      context_hint: 'Select one option or type your own answer.',
+      context_hint: 'Choose a quick option or type details.',
     };
   }
 
