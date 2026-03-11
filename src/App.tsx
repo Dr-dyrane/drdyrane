@@ -33,7 +33,7 @@ const MainApp: React.FC = () => {
   return (
     <div className="min-h-screen bg-surface-primary text-content-primary selection:bg-neon-cyan selection:text-black flex justify-center transition-colors duration-500 overflow-hidden">
       {/* Mobile Frame Container */}
-      <div className="w-full max-w-[440px] h-screen overflow-y-auto relative flex flex-col no-scrollbar">
+      <div className="w-full max-w-[440px] h-screen overflow-y-auto relative isolate flex flex-col no-scrollbar">
         <DepthLayer />
         <Header />
 
@@ -96,19 +96,7 @@ const MainApp: React.FC = () => {
         </main>
 
         {/* Universal Navigation */}
-        <AnimatePresence>
-          {state.status !== 'emergency' && state.status !== 'lens' && (
-            <motion.div
-              initial={{ y: 100, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: 100, opacity: 0 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-              className="fixed bottom-0 max-w-[440px] w-full z-50 pointer-events-none"
-            >
-              <BottomNav />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {state.status !== 'emergency' && state.status !== 'lens' && <BottomNav />}
       </div>
     </div>
   );

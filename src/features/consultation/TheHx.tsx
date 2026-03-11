@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { X, ClipboardList, Activity, Target, Shield } from 'lucide-react';
 import { GlassContainer } from '../../components/shared/GlassContainer';
+import { OverlayPortal } from '../../components/shared/OverlayPortal';
 
 import { SessionRecord } from '../../core/types/clinical';
 
@@ -47,26 +48,27 @@ export const TheHx: React.FC<{
   ];
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop Blur */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-surface-primary/40 backdrop-blur-md z-[60] pointer-events-auto"
-          />
+    <OverlayPortal>
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            {/* Backdrop Blur */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+              className="fixed inset-0 bg-black/40 backdrop-blur-md z-[100] pointer-events-auto"
+            />
 
-          {/* Hx Drawer */}
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 h-[85vh] bg-surface-primary rounded-t-[40px] z-[70] flex flex-col overflow-hidden glass-panel pointer-events-auto"
-          >
+            {/* Hx Drawer */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 h-[85vh] bg-surface-primary rounded-t-[40px] z-[110] flex flex-col overflow-hidden glass-panel pointer-events-auto"
+            >
             {/* Header */}
             <div className="px-8 pt-8 pb-4 flex items-center justify-between">
               <div>
@@ -193,9 +195,10 @@ export const TheHx: React.FC<{
                 </div>
               )}
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </OverlayPortal>
   );
 };

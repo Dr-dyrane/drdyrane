@@ -32,7 +32,7 @@ export const EmergencyOverlay: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 bg-neon-red/10 backdrop-blur-3xl p-6 flex flex-col items-center justify-center text-center space-y-10 overflow-hidden"
+          className="fixed inset-0 z-[270] bg-neon-red/10 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center space-y-10 overflow-hidden"
         >
           <div className="space-y-4">
             <AlertCircle className="w-16 h-16 text-neon-red mx-auto animate-pulse shadow-[0_0_20px_rgba(255,49,49,0.4)]" />

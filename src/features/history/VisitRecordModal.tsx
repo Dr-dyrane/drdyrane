@@ -4,6 +4,7 @@ import { ClipboardList, Printer, RotateCcw, Save, Trash2, X } from 'lucide-react
 import { SessionRecord } from '../../core/types/clinical';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
+import { OverlayPortal } from '../../components/shared/OverlayPortal';
 
 interface VisitRecordModalProps {
   record: SessionRecord | null;
@@ -149,24 +150,25 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && record && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={handleClose}
-            className="fixed inset-0 z-[72] bg-black/30 backdrop-blur-sm"
-          />
+    <OverlayPortal>
+      <AnimatePresence>
+        {isOpen && record && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={handleClose}
+              className="fixed inset-0 z-[140] bg-black/44 backdrop-blur-md"
+            />
 
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed inset-x-0 bottom-0 h-[88vh] z-[82] rounded-t-[36px] surface-raised shadow-[0_30px_60px_rgba(0,0,0,0.35)] flex flex-col overflow-hidden"
-          >
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 h-[88vh] z-[150] rounded-t-[36px] surface-raised shadow-[0_30px_60px_rgba(0,0,0,0.35)] flex flex-col overflow-hidden pointer-events-auto"
+            >
             <div className="px-5 py-5 flex items-center justify-between">
               <div>
                 <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">Visit Record</p>
@@ -305,9 +307,10 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                 </button>
               </div>
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </OverlayPortal>
   );
 };

@@ -4,6 +4,9 @@
 @theme {
   --color-neon-cyan: #00F5FF;
   --color-neon-red: #FF3131;
+  --color-neon-mint: #7CFFB2;
+  --color-neon-amber: #FFD166;
+  --color-neon-rose: #FF7DAA;
 }
 
 @utility bg-gradient-radial {
@@ -38,6 +41,8 @@
   --glass-shadow-hover: 0 12px 24px rgba(0,0,0,0.6);
   --accent-glow: rgba(0, 245, 255, 0.4);
   --emergency-glow: rgba(255, 49, 49, 0.4);
+  --accent-mint: rgba(124, 255, 178, 0.42);
+  --accent-amber: rgba(255, 209, 102, 0.36);
   --shadow-glass: 0 20px 40px rgba(0,0,0,0.4);
   --focus-glow: 0 0 0 2px rgba(0, 245, 255, 0.35), 0 0 0 6px rgba(0, 245, 255, 0.08);
   --ease-fluid: cubic-bezier(0.22, 1, 0.36, 1);
@@ -73,6 +78,8 @@
   --glass-bg-hover: rgba(0, 0, 0, 0.08); /* More distinct hover */
   --glass-shadow-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   --accent-glow: rgba(0, 245, 255, 0.25);
+  --accent-mint: rgba(22, 163, 74, 0.2);
+  --accent-amber: rgba(245, 158, 11, 0.2);
   --shadow-glass: 0 20px 25px -5px rgba(0, 0, 0, 0.08);
   --color-surface-raised: rgba(15, 23, 42, 0.12);
   --color-surface-strong: rgba(15, 23, 42, 0.18);
@@ -182,6 +189,131 @@ button {
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.26);
 }
 
+.energy-chip {
+  background: linear-gradient(120deg, rgba(0, 245, 255, 0.28), rgba(124, 255, 178, 0.26), rgba(255, 209, 102, 0.24));
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+}
+
+.cta-live {
+  position: relative;
+  overflow: hidden;
+  color: #031018;
+  background: linear-gradient(130deg, #00f5ff, #7cffb2 45%, #ffd166);
+  box-shadow:
+    0 16px 32px rgba(0, 245, 255, 0.28),
+    0 22px 40px rgba(124, 255, 178, 0.16);
+  transition:
+    transform 220ms var(--ease-fluid),
+    box-shadow 260ms var(--ease-fluid),
+    filter 260ms var(--ease-fluid);
+}
+
+.cta-live::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.45) 50%, transparent 80%);
+  transform: translateX(-130%);
+  animation: cta-shimmer 3.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.cta-live:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: saturate(1.1);
+}
+
+.cta-live:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.cta-live:disabled {
+  filter: grayscale(0.2);
+}
+
+.cta-live-dark {
+  color: #fff;
+}
+
+.cta-live-icon {
+  color: #061018;
+  background: linear-gradient(135deg, #00f5ff, #7cffb2 55%, #ffd166);
+  box-shadow: 0 18px 30px rgba(0, 245, 255, 0.28);
+}
+
+.fab-live {
+  color: #061018;
+  background: conic-gradient(from 210deg, #00f5ff, #7cffb2, #ffd166, #00f5ff);
+  box-shadow:
+    0 18px 42px rgba(0, 245, 255, 0.28),
+    0 28px 50px rgba(124, 255, 178, 0.14);
+  animation: fab-glow 3.8s ease-in-out infinite;
+}
+
+.option-live {
+  position: relative;
+  overflow: hidden;
+}
+
+.option-live::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at 8% 10%, rgba(255, 255, 255, 0.26), transparent 45%);
+  opacity: 0.7;
+}
+
+.option-tone-cyan {
+  background-image: linear-gradient(135deg, rgba(0, 245, 255, 0.28), rgba(255, 255, 255, 0.07));
+}
+
+.option-tone-mint {
+  background-image: linear-gradient(135deg, rgba(124, 255, 178, 0.28), rgba(255, 255, 255, 0.07));
+}
+
+.option-tone-amber {
+  background-image: linear-gradient(135deg, rgba(255, 209, 102, 0.28), rgba(255, 255, 255, 0.07));
+}
+
+.option-tone-rose {
+  background-image: linear-gradient(135deg, rgba(255, 125, 170, 0.28), rgba(255, 255, 255, 0.07));
+}
+
+.option-live-selected {
+  background-image: linear-gradient(140deg, rgba(0, 245, 255, 0.9), rgba(124, 255, 178, 0.92), rgba(255, 209, 102, 0.9));
+  color: #021017;
+  box-shadow:
+    0 20px 44px rgba(0, 245, 255, 0.26),
+    0 12px 20px rgba(124, 255, 178, 0.2);
+  animation: option-spark 680ms var(--ease-fluid);
+}
+
+.segment-live-shell {
+  background-image: linear-gradient(145deg, rgba(0, 245, 255, 0.08), rgba(124, 255, 178, 0.06), rgba(255, 209, 102, 0.06));
+}
+
+.atmosphere-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.8;
+  pointer-events: none;
+  animation: ambient-drift 18s ease-in-out infinite;
+}
+
+.atmosphere-cyan {
+  background: radial-gradient(circle, rgba(0, 245, 255, 0.34) 0%, rgba(0, 245, 255, 0) 70%);
+}
+
+.atmosphere-mint {
+  background: radial-gradient(circle, rgba(124, 255, 178, 0.28) 0%, rgba(124, 255, 178, 0) 72%);
+}
+
+.atmosphere-amber {
+  background: radial-gradient(circle, rgba(255, 209, 102, 0.25) 0%, rgba(255, 209, 102, 0) 72%);
+}
+
 /* Modular Glass Utility */
 .glass-panel {
   background: var(--bg-secondary) !important;
@@ -217,6 +349,29 @@ button {
 @keyframes emergence {
   from { opacity: 0; transform: translateY(15px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes cta-shimmer {
+  0%, 22% { transform: translateX(-130%); opacity: 0; }
+  28% { opacity: 0.85; }
+  48%, 100% { transform: translateX(130%); opacity: 0; }
+}
+
+@keyframes fab-glow {
+  0%, 100% { filter: saturate(1) brightness(1); }
+  50% { filter: saturate(1.08) brightness(1.04); }
+}
+
+@keyframes option-spark {
+  0% { transform: scale(0.97); }
+  45% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+@keyframes ambient-drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(18px, -14px, 0) scale(1.08); }
+  66% { transform: translate3d(-14px, 12px, 0) scale(0.94); }
 }
 
 .animate-emergence {

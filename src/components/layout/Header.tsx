@@ -11,7 +11,7 @@ export const Header: React.FC = () => {
     : 0;
 
   return (
-    <header className="fixed top-0 max-w-[440px] w-full z-40 px-6 pt-7 flex items-center justify-between pointer-events-none">
+    <header className="fixed top-0 max-w-[440px] w-full z-30 px-6 pt-7 flex items-center justify-between pointer-events-none">
       <div className="pointer-events-auto">
         <button
           onClick={() => dispatch({ type: 'TOGGLE_SHEET', payload: 'profile' })}

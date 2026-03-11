@@ -4,6 +4,7 @@ import { ArrowDownToLine, ArrowUp, ChevronLeft, SkipForward, X } from 'lucide-re
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
+import { playCelebrationBurst } from '../../core/services/celebration';
 import { Orb } from './Orb';
 import { ClinicalQuestionCard } from './components/ClinicalQuestionCard';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
@@ -93,6 +94,10 @@ export const StepRenderer: React.FC = () => {
     const trimmed = val.trim();
     if (!trimmed || loading) return;
 
+    playCelebrationBurst({
+      reducedMotion: state.settings.reduced_motion,
+      intensity: 'medium',
+    });
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -101,10 +106,20 @@ export const StepRenderer: React.FC = () => {
     setVal('');
   };
 
-  const handleOptionSelect = async (optionId: string) => {
+  const handleOptionSelect = async (
+    optionId: string,
+    event?: React.MouseEvent<HTMLButtonElement>
+  ) => {
     if (!state.response_options || loading) return;
 
     const { mode, ui_variant: variant } = state.response_options;
+    const rect = event?.currentTarget?.getBoundingClientRect();
+    playCelebrationBurst({
+      reducedMotion: state.settings.reduced_motion,
+      intensity: 'soft',
+      x: rect ? rect.left + rect.width / 2 : undefined,
+      y: rect ? rect.top + rect.height / 2 : undefined,
+    });
     signalFeedback('select', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -139,6 +154,10 @@ export const StepRenderer: React.FC = () => {
 
   const handleSingleSubmit = async () => {
     if (selectedOptionIds.length === 0 || loading) return;
+    playCelebrationBurst({
+      reducedMotion: state.settings.reduced_motion,
+      intensity: 'strong',
+    });
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -149,6 +168,10 @@ export const StepRenderer: React.FC = () => {
 
   const handleMultipleSubmit = async () => {
     if (selectedOptionIds.length === 0 || loading) return;
+    playCelebrationBurst({
+      reducedMotion: state.settings.reduced_motion,
+      intensity: 'strong',
+    });
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -156,8 +179,6 @@ export const StepRenderer: React.FC = () => {
     await runInteraction(selectedOptionIds, true);
     setSelectedOptionIds([]);
   };
-
-  if (state.status === 'complete') return null;
 
   const showInput = !state.response_options || state.response_options.allow_custom_input;
   const canGoBack =
@@ -251,6 +272,8 @@ export const StepRenderer: React.FC = () => {
     return false;
   })();
 
+  if (state.status === 'complete') return null;
+
   return (
     <div className="flex-1 flex flex-col justify-start min-h-0 px-2">
       <div className="flex items-center justify-between px-2 z-20">
@@ -287,7 +310,7 @@ export const StepRenderer: React.FC = () => {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="text-[10px] uppercase tracking-[0.35em] text-neon-cyan/70 font-semibold"
+              className="energy-chip px-3 h-7 rounded-full text-[10px] uppercase tracking-[0.28em] text-content-primary font-semibold inline-flex items-center"
             >
               {LOADING_PHASES[loadingPhaseIndex]}
             </motion.span>
@@ -359,7 +382,7 @@ export const StepRenderer: React.FC = () => {
                           <button
                             onClick={submitBiodataStep}
                             disabled={!canSubmitBiodataStep}
-                            className="h-11 w-11 rounded-xl bg-surface-active text-content-active flex items-center justify-center disabled:opacity-45"
+                            className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45"
                             aria-label="Save name"
                           >
                             <ArrowDownToLine size={14} />
@@ -389,7 +412,7 @@ export const StepRenderer: React.FC = () => {
                           <button
                             onClick={submitBiodataStep}
                             disabled={!canSubmitBiodataStep}
-                            className="h-11 w-11 rounded-xl bg-surface-active text-content-active flex items-center justify-center disabled:opacity-45"
+                            className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45"
                             aria-label="Save age"
                           >
                             <ArrowDownToLine size={14} />
@@ -467,11 +490,11 @@ export const StepRenderer: React.FC = () => {
                         whileHover={{ scale: 1.01, y: -2 }}
                         whileTap={{ scale: 0.98 }}
                         type="submit"
-                        className="w-full mt-4 py-5 bg-surface-active text-content-active font-bold text-[10px] uppercase tracking-[0.4em] transition-all shadow-glass rounded-2xl focus-glow"
+                        className="w-full mt-4 py-5 cta-live font-bold text-[10px] uppercase tracking-[0.3em] transition-all rounded-2xl focus-glow"
                       >
                         <span className="inline-flex items-center justify-center gap-2">
                           <ArrowUp size={14} />
-                          Start
+                          Start ✨
                         </span>
                       </motion.button>
                     )}
@@ -508,7 +531,7 @@ export const StepRenderer: React.FC = () => {
                 <ResponseOptionsPanel
                   responseOptions={state.response_options}
                   selectedOptionIds={selectedOptionIds}
-                  onSelect={(optionId) => void handleOptionSelect(optionId)}
+                  onSelect={(optionId, event) => void handleOptionSelect(optionId, event)}
                   onSubmitSingle={() => void handleSingleSubmit()}
                   onSubmitMultiple={() => void handleMultipleSubmit()}
                   loading={loading}
@@ -532,7 +555,7 @@ export const StepRenderer: React.FC = () => {
                     {val.trim() && !loading && (
                       <button
                         onClick={() => void handleInitialInput()}
-                        className="h-12 w-12 flex items-center justify-center bg-surface-active text-content-active rounded-2xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95"
+                        className="h-12 w-12 flex items-center justify-center cta-live-icon rounded-2xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95"
                         aria-label="Send response"
                       >
                         <ArrowUp size={16} />

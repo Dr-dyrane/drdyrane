@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { Check, Scissors, X } from 'lucide-react';
+import { OverlayPortal } from '../../components/shared/OverlayPortal';
 
 interface AvatarCropModalProps {
   isOpen: boolean;
@@ -87,23 +88,24 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   };
 
   return (
-    <AnimatePresence>
-      {isOpen && imageDataUrl && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-[95] bg-black/35 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-            className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[96] rounded-t-[34px] surface-raised p-5 space-y-4 shadow-[0_28px_60px_rgba(0,0,0,0.45)]"
-          >
+    <OverlayPortal>
+      <AnimatePresence>
+        {isOpen && imageDataUrl && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+              className="fixed inset-0 z-[170] bg-black/46 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[180] rounded-t-[34px] surface-raised p-5 space-y-4 shadow-[0_28px_60px_rgba(0,0,0,0.45)] pointer-events-auto"
+            >
             <div className="flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-[10px] uppercase tracking-[0.22em] text-content-dim">Crop Avatar (Optional)</p>
@@ -201,9 +203,10 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             </p>
 
             <canvas ref={canvasRef} className="hidden" />
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </OverlayPortal>
   );
 };

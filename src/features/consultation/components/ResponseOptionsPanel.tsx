@@ -1,12 +1,11 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check } from 'lucide-react';
 import { ResponseOptions } from '../../../core/types/clinical';
 
 interface ResponseOptionsPanelProps {
   responseOptions: ResponseOptions | null;
   selectedOptionIds: string[];
-  onSelect: (optionId: string) => void;
+  onSelect: (optionId: string, event?: React.MouseEvent<HTMLButtonElement>) => void;
   onSubmitSingle: () => void;
   onSubmitMultiple: () => void;
   loading?: boolean;
@@ -34,13 +33,23 @@ const getVariant = (responseOptions: ResponseOptions): NonNullable<ResponseOptio
 
 const getOptionClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
   const base =
-    'option-button relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
+    'option-button option-live relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
 
   if (variant === 'binary' || variant === 'segmented') return `${base} min-h-12 rounded-[16px] px-3 py-3`;
   if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3 surface-raised shadow-glass`;
   if (variant === 'grid') return `${base} min-h-20 rounded-3xl px-4 py-6 surface-raised shadow-glass`;
   if (variant === 'ladder') return `${base} min-h-14 rounded-2xl px-4 py-4 text-left surface-raised shadow-glass`;
   return `${base} min-h-16 rounded-2xl px-4 py-5 surface-raised shadow-glass`;
+};
+
+const getToneClass = (index: number): string => {
+  const tones = ['option-tone-cyan', 'option-tone-mint', 'option-tone-amber', 'option-tone-rose'];
+  return tones[index % tones.length];
+};
+
+const getOptionEmoji = (index: number): string => {
+  const emojis = ['✨', '🎯', '⚡', '💡', '🩺', '💫'];
+  return emojis[index % emojis.length];
 };
 
 const getSelectedSingleOption = (
@@ -131,14 +140,14 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
               return (
                 <button
                   key={option.id}
-                  onClick={() => onSelect(option.id)}
+                  onClick={(event) => onSelect(option.id, event)}
                   disabled={loading}
                   aria-pressed={isSelected}
                   style={!isSelected ? { opacity: Math.max(0.45, depth * 0.1) } : undefined}
-                  className={`h-11 rounded-xl transition-all text-sm font-semibold ${
+                  className={`h-11 rounded-xl transition-all text-sm font-semibold option-live ${
                     isSelected
-                      ? 'bg-surface-active text-content-active shadow-[0_14px_28px_rgba(255,255,255,0.18)]'
-                      : 'surface-strong text-content-primary'
+                      ? 'option-live-selected text-content-active shadow-[0_14px_28px_rgba(255,255,255,0.18)]'
+                      : `surface-strong text-content-primary ${getToneClass(index)}`
                   }`}
                 >
                   {option.text}
@@ -158,7 +167,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           }}
           className={`${
             isSegmentedLike
-              ? `surface-raised rounded-[22px] p-1.5 grid gap-1.5 ${getGridByVariant(
+              ? `surface-raised segment-live-shell rounded-[22px] p-1.5 grid gap-1.5 ${getGridByVariant(
                   variant,
                   responseOptions.options.length
                 )}`
@@ -174,7 +183,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             return (
               <motion.button
                 key={option.id}
-                onClick={() => onSelect(option.id)}
+                onClick={(event) => onSelect(option.id, event)}
                 disabled={loading}
                 aria-pressed={isSelected}
                 variants={{ hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}
@@ -183,12 +192,12 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 className={`${getOptionClass(variant)} ${
                   isSegmentedLike
                     ? isSelected
-                      ? 'bg-surface-active text-content-active shadow-[0_10px_26px_rgba(255,255,255,0.2)]'
+                      ? 'option-live-selected text-content-active shadow-[0_10px_26px_rgba(255,255,255,0.2)]'
                       : 'text-content-secondary bg-transparent'
                     : isSelected
-                      ? 'scale-[1.01] bg-surface-active text-content-active shadow-[0_18px_40px_rgba(255,255,255,0.2)]'
+                      ? 'scale-[1.01] option-live-selected text-content-active shadow-[0_18px_40px_rgba(255,255,255,0.2)]'
                       : 'text-content-primary'
-                }`}
+                } ${isSelected ? '' : getToneClass(index)}`}
               >
                 <AnimatePresence>
                   {isSelected && (
@@ -226,13 +235,13 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 )}
 
                 {isSelected && !isLadder && !isSegmentedLike && (
-                  <span className="absolute right-3 top-3 z-20 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/20">
-                    <Check size={12} className="text-content-active" />
+                  <span className="absolute right-3 top-3 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/18 text-[12px]">
+                    {getOptionEmoji(index)}
                   </span>
                 )}
 
                 {isSelected && isSegmentedLike && (
-                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 h-1.5 w-1.5 rounded-full bg-black/40" />
+                  <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 text-[10px]">✨</span>
                 )}
               </motion.button>
             );
@@ -246,9 +255,9 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           disabled={loading}
           whileHover={{ scale: 1.01, y: -1 }}
           whileTap={{ scale: 0.97 }}
-          className="w-full py-5 bg-neon-cyan text-black font-bold text-[10px] uppercase tracking-[0.35em] transition-all shadow-[0_20px_40px_rgba(0,245,255,0.28)] rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.35em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue ({selectedScaleOption?.text || 'Selected'})
+          Continue ✨ ({selectedScaleOption?.text || 'Selected'})
         </motion.button>
       )}
 
@@ -258,9 +267,9 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           disabled={loading}
           whileHover={{ scale: 1.01, y: -1 }}
           whileTap={{ scale: 0.97 }}
-          className="w-full py-5 bg-neon-cyan text-black font-bold text-[10px] uppercase tracking-[0.4em] transition-all shadow-[0_20px_40px_rgba(0,245,255,0.28)] rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.4em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue ({selectedOptionIds.length})
+          Continue ✨ ({selectedOptionIds.length})
         </motion.button>
       )}
     </div>

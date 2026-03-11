@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { signalFeedback } from '../../core/services/feedback';
+import { playCelebrationBurst } from '../../core/services/celebration';
 import { ClinicalProcessModal } from '../../features/consultation/ClinicalProcessModal';
+import { OverlayPortal } from '../shared/OverlayPortal';
 
 export const BottomNav: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -132,11 +134,6 @@ export const BottomNav: React.FC = () => {
       dispatch,
       hasArchives,
       state.archives,
-      state.clerking.dh,
-      state.clerking.fh,
-      state.clerking.hpc,
-      state.clerking.pmh,
-      state.clerking.sh,
       feedback,
       openClerkingComposer,
     ]
@@ -209,6 +206,10 @@ export const BottomNav: React.FC = () => {
       return;
     }
     if (primaryAction.disabled) return;
+    playCelebrationBurst({
+      reducedMotion: state.settings.reduced_motion,
+      intensity: 'medium',
+    });
     primaryAction.onClick();
   };
 
@@ -238,6 +239,10 @@ export const BottomNav: React.FC = () => {
 
   const triggerAction = (run: () => void, disabled?: boolean) => {
     if (disabled) return;
+    playCelebrationBurst({
+      reducedMotion: state.settings.reduced_motion,
+      intensity: 'soft',
+    });
     run();
     setMenuOpen(false);
   };
@@ -251,7 +256,7 @@ export const BottomNav: React.FC = () => {
 
   return (
     <>
-      <nav className="fixed bottom-0 max-w-[440px] w-full z-50 px-6 pb-7 pointer-events-none">
+      <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-6 pb-7 pointer-events-none">
         <div className="flex items-end justify-between pointer-events-auto">
           <div className="surface-raised rounded-full px-2 py-2 shadow-glass flex items-center gap-1 backdrop-blur-xl">
             {navItems.map((item) => {
@@ -314,7 +319,7 @@ export const BottomNav: React.FC = () => {
                         key={item.key}
                         onClick={() => triggerAction(item.onClick, item.disabled)}
                         disabled={item.disabled}
-                        className="h-[72px] rounded-2xl surface-strong text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow"
+                        className="h-[72px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
                       >
                         <span className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center">
                           <item.icon size={14} />
@@ -336,7 +341,7 @@ export const BottomNav: React.FC = () => {
                   feedback('select');
                   setMenuOpen((prev) => !prev);
                 }}
-                className="h-10 w-10 rounded-full surface-raised text-content-dim shadow-glass flex items-center justify-center"
+                className="h-10 w-10 rounded-full surface-raised option-live option-tone-amber text-content-dim shadow-glass flex items-center justify-center interactive-tap"
                 aria-label="Open more clinical actions"
               >
                 {menuOpen ? <X size={14} /> : <MoreHorizontal size={14} />}
@@ -345,7 +350,7 @@ export const BottomNav: React.FC = () => {
                 whileHover={{ scale: 1.04, y: -1 }}
                 whileTap={{ scale: 0.96 }}
                 onClick={triggerPrimaryAction}
-                className="h-14 w-14 rounded-full bg-neon-cyan text-black shadow-[0_20px_45px_rgba(0,245,255,0.34)] flex items-center justify-center"
+                className="h-14 w-14 rounded-full fab-live flex items-center justify-center"
                 aria-label={menuOpen ? 'Close actions' : primaryAction.label}
               >
                 {menuOpen ? <X size={18} /> : <PrimaryIcon size={18} />}
@@ -355,69 +360,71 @@ export const BottomNav: React.FC = () => {
         </div>
       </nav>
 
-      <AnimatePresence>
-        {clerkingOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={closeComposer}
-              className="fixed inset-0 z-[85] bg-black/24 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[90] px-4 pb-6"
-            >
-              <div className="surface-raised rounded-[30px] p-4 shadow-[0_24px_48px_rgba(0,0,0,0.35)] space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">
-                    Patient Clerking
-                  </p>
-                  <button onClick={closeComposer} className="h-9 w-9 rounded-full surface-strong flex items-center justify-center">
-                    <X size={14} />
+      <OverlayPortal>
+        <AnimatePresence>
+          {clerkingOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={closeComposer}
+                className="fixed inset-0 z-[150] bg-black/42 backdrop-blur-md"
+              />
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+                className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[160] px-4 pb-6 pointer-events-auto"
+              >
+                <div className="surface-raised rounded-[30px] p-4 shadow-[0_24px_48px_rgba(0,0,0,0.35)] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">
+                      Patient Clerking
+                    </p>
+                    <button onClick={closeComposer} className="h-9 w-9 rounded-full surface-strong flex items-center justify-center">
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {[
+                      { key: 'hpc', label: 'HPC', placeholder: 'History of presenting complaint' },
+                      { key: 'pmh', label: 'PMH', placeholder: 'Past medical history' },
+                      { key: 'dh', label: 'DH', placeholder: 'Drug history' },
+                      { key: 'sh', label: 'SH', placeholder: 'Social history' },
+                      { key: 'fh', label: 'FH', placeholder: 'Family history' },
+                    ].map((field) => (
+                      <label key={field.key} className="block space-y-1">
+                        <span className="text-[10px] uppercase tracking-[0.18em] text-content-dim">{field.label}</span>
+                        <textarea
+                          rows={2}
+                          value={clerkingDraft[field.key as keyof typeof clerkingDraft]}
+                          onChange={(e) =>
+                            setClerkingDraft((prev) => ({
+                              ...prev,
+                              [field.key]: e.target.value,
+                            }))
+                          }
+                          placeholder={field.placeholder}
+                          className="w-full rounded-xl surface-strong p-3 text-sm text-content-primary resize-none"
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <button
+                    onClick={commitClerking}
+                    disabled={!Object.values(clerkingDraft).some((value) => value.trim())}
+                    className="w-full h-12 rounded-2xl bg-surface-active text-content-active text-[10px] uppercase tracking-[0.24em] font-semibold disabled:opacity-45"
+                  >
+                    Save Clerking
                   </button>
                 </div>
-                <div className="space-y-2">
-                  {[
-                    { key: 'hpc', label: 'HPC', placeholder: 'History of presenting complaint' },
-                    { key: 'pmh', label: 'PMH', placeholder: 'Past medical history' },
-                    { key: 'dh', label: 'DH', placeholder: 'Drug history' },
-                    { key: 'sh', label: 'SH', placeholder: 'Social history' },
-                    { key: 'fh', label: 'FH', placeholder: 'Family history' },
-                  ].map((field) => (
-                    <label key={field.key} className="block space-y-1">
-                      <span className="text-[10px] uppercase tracking-[0.18em] text-content-dim">{field.label}</span>
-                      <textarea
-                        rows={2}
-                        value={clerkingDraft[field.key as keyof typeof clerkingDraft]}
-                        onChange={(e) =>
-                          setClerkingDraft((prev) => ({
-                            ...prev,
-                            [field.key]: e.target.value,
-                          }))
-                        }
-                        placeholder={field.placeholder}
-                        className="w-full rounded-xl surface-strong p-3 text-sm text-content-primary resize-none"
-                      />
-                    </label>
-                  ))}
-                </div>
-                <button
-                  onClick={commitClerking}
-                  disabled={!Object.values(clerkingDraft).some((value) => value.trim())}
-                  className="w-full h-12 rounded-2xl bg-surface-active text-content-active text-[10px] uppercase tracking-[0.24em] font-semibold disabled:opacity-45"
-                >
-                  Save Clerking
-                </button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </OverlayPortal>
 
       <ClinicalProcessModal
         isOpen={processOpen}

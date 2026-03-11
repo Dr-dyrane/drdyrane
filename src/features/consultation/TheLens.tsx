@@ -107,7 +107,7 @@ export const TheLens: React.FC = () => {
   const isDark = state.theme === 'dark';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-surface-primary">
+    <div className="fixed inset-0 z-[260] flex items-center justify-center bg-surface-primary">
       <motion.div 
         layoutId="orb"
         className="relative w-full h-full flex flex-col"

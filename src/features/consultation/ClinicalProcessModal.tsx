@@ -2,6 +2,7 @@ import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { Activity, AlertTriangle, Gauge, ListChecks, X } from 'lucide-react';
+import { OverlayPortal } from '../../components/shared/OverlayPortal';
 
 interface ClinicalProcessModalProps {
   isOpen: boolean;
@@ -31,23 +32,24 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
   const confidence = Math.max(0, Math.min(100, state.probability || state.agent_state.confidence || 0));
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-[88] bg-black/28 backdrop-blur-sm"
-          />
-          <motion.div
-            initial={{ y: '100%' }}
-            animate={{ y: 0 }}
-            exit={{ y: '100%' }}
-            transition={{ type: 'spring', damping: 30, stiffness: 290 }}
-            className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[92] rounded-t-[34px] surface-raised shadow-[0_26px_54px_rgba(0,0,0,0.4)]"
-          >
+    <OverlayPortal>
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={onClose}
+              className="fixed inset-0 z-[140] bg-black/44 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 30, stiffness: 290 }}
+              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[150] rounded-t-[34px] surface-raised shadow-[0_26px_54px_rgba(0,0,0,0.4)] pointer-events-auto"
+            >
             <div className="px-5 py-5 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">Clinical Process</p>
@@ -129,9 +131,10 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
                 )}
               </section>
             </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    </OverlayPortal>
   );
 };
