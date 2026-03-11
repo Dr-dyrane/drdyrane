@@ -52,8 +52,17 @@ RESPONSE JSON:
   "allow_custom_input": true
 }`;
 
-const getApiKey = (): string =>
-  process.env.ANTHROPIC_API_KEY || '';
+const normalizeEnvValue = (value: string | undefined): string =>
+  (value || '').trim().replace(/^['"]|['"]$/g, '');
+
+const getApiKey = (): string => {
+  const candidates = [
+    normalizeEnvValue(process.env.ANTHROPIC_API_KEY),
+    normalizeEnvValue(process.env.VITE_ANTHROPIC_API_KEY),
+    normalizeEnvValue(process.env.CLAUDE_API_KEY),
+  ];
+  return candidates.find((value) => value.length > 0) || '';
+};
 
 const readJsonBody = async <T>(req: IncomingMessage): Promise<T> => {
   const chunks: Buffer[] = [];
@@ -92,7 +101,9 @@ const parseFirstJsonObject = (text: string): any => {
 const callAnthropic = async (payload: unknown): Promise<string> => {
   const apiKey = getApiKey().trim();
   if (!apiKey) {
-    throw new Error('Missing ANTHROPIC_API_KEY on server.');
+    throw new Error(
+      'Missing Anthropic key on server. Configure ANTHROPIC_API_KEY (or legacy VITE_ANTHROPIC_API_KEY).'
+    );
   }
 
   const response = await fetch(ANTHROPIC_ENDPOINT, {
