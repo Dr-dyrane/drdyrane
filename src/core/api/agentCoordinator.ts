@@ -114,9 +114,7 @@ export class AgentCoordinator {
     const nextConversation: ConversationMessage[] = [...stateForTurn.conversation, patientMessage];
     let doctorMessage = this.buildDoctorMessageFromResult(conversationResult.message);
     const question = doctorMessage.metadata?.question || this.getFallbackQuestion();
-    const segments = conversationResult.lens_trigger || !conversationResult.needs_options
-      ? []
-      : this.extractBundledSegments(question);
+    const segments = conversationResult.lens_trigger ? [] : this.extractBundledSegments(question);
 
     let questionGate: QuestionGateState | null = null;
     let responseOptions: ResponseOptions | null = null;
