@@ -165,6 +165,7 @@ export const StepRenderer: React.FC = () => {
   const currentMessage =
     state.conversation.length > 0 ? state.conversation[state.conversation.length - 1] : null;
   const currentQuestion = currentMessage?.metadata?.question ?? currentMessage?.content ?? '';
+  const resolvedQuestion = currentQuestion.trim() || 'What symptom is bothering you the most right now?';
   const statement = currentMessage?.metadata?.statement;
   const gateProgress = state.question_gate?.active
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
@@ -341,16 +342,16 @@ export const StepRenderer: React.FC = () => {
                     </p>
                     {biodataStep === 'name' && (
                       <div className="space-y-2">
-                        <input
-                          value={biodataValue}
-                          onChange={(e) => setBiodataValue(e.target.value)}
-                          className="w-full h-11 px-3 rounded-xl surface-strong text-sm"
-                          placeholder="Your name"
-                        />
                         <div className="flex items-center gap-2">
+                          <input
+                            value={biodataValue}
+                            onChange={(e) => setBiodataValue(e.target.value)}
+                            className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm"
+                            placeholder="Your name"
+                          />
                           <button
                             onClick={() => setBiodataDismissed(true)}
-                            className="h-10 w-10 rounded-xl surface-strong flex items-center justify-center text-content-dim"
+                            className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim"
                             aria-label="Skip biodata for now"
                           >
                             <SkipForward size={14} />
@@ -358,7 +359,7 @@ export const StepRenderer: React.FC = () => {
                           <button
                             onClick={submitBiodataStep}
                             disabled={!canSubmitBiodataStep}
-                            className="flex-1 h-10 rounded-xl bg-surface-active text-content-active flex items-center justify-center disabled:opacity-45"
+                            className="h-11 w-11 rounded-xl bg-surface-active text-content-active flex items-center justify-center disabled:opacity-45"
                             aria-label="Save name"
                           >
                             <ArrowDownToLine size={14} />
@@ -368,19 +369,19 @@ export const StepRenderer: React.FC = () => {
                     )}
                     {biodataStep === 'age' && (
                       <div className="space-y-2">
-                        <input
-                          value={biodataValue}
-                          onChange={(e) => setBiodataValue(e.target.value)}
-                          type="number"
-                          min={0}
-                          max={125}
-                          className="w-full h-11 px-3 rounded-xl surface-strong text-sm"
-                          placeholder="Age"
-                        />
                         <div className="flex items-center gap-2">
+                          <input
+                            value={biodataValue}
+                            onChange={(e) => setBiodataValue(e.target.value)}
+                            type="number"
+                            min={0}
+                            max={125}
+                            className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm"
+                            placeholder="Age"
+                          />
                           <button
                             onClick={() => setBiodataDismissed(true)}
-                            className="h-10 w-10 rounded-xl surface-strong flex items-center justify-center text-content-dim"
+                            className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim"
                             aria-label="Skip biodata for now"
                           >
                             <SkipForward size={14} />
@@ -388,7 +389,7 @@ export const StepRenderer: React.FC = () => {
                           <button
                             onClick={submitBiodataStep}
                             disabled={!canSubmitBiodataStep}
-                            className="flex-1 h-10 rounded-xl bg-surface-active text-content-active flex items-center justify-center disabled:opacity-45"
+                            className="h-11 w-11 rounded-xl bg-surface-active text-content-active flex items-center justify-center disabled:opacity-45"
                             aria-label="Save age"
                           >
                             <ArrowDownToLine size={14} />
@@ -488,7 +489,7 @@ export const StepRenderer: React.FC = () => {
             className="flex flex-col h-full relative px-2 pb-24"
           >
             <div className="max-w-2xl mx-auto w-full space-y-6">
-              {currentMessage && (
+              {(currentMessage || state.status === 'active' || loading) && (
                 <div className="pt-6">
                   {gateProgress && (
                     <p className="text-[10px] uppercase tracking-[0.22em] text-content-dim text-center mb-2">
@@ -497,7 +498,7 @@ export const StepRenderer: React.FC = () => {
                   )}
                   <ClinicalQuestionCard
                     statement={statement}
-                    question={currentQuestion}
+                    question={resolvedQuestion}
                     reducedMotion={state.settings.reduced_motion}
                   />
                 </div>

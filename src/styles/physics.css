@@ -40,6 +40,7 @@
   --emergency-glow: rgba(255, 49, 49, 0.4);
   --shadow-glass: 0 20px 40px rgba(0,0,0,0.4);
   --focus-glow: 0 0 0 2px rgba(0, 245, 255, 0.35), 0 0 0 6px rgba(0, 245, 255, 0.08);
+  --ease-fluid: cubic-bezier(0.22, 1, 0.36, 1);
   
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -98,6 +99,42 @@ textarea {
 
 button {
   cursor: pointer;
+}
+
+.interactive-tap {
+  transition:
+    transform 180ms var(--ease-fluid),
+    box-shadow 220ms var(--ease-fluid),
+    background-color 220ms var(--ease-fluid),
+    opacity 220ms var(--ease-fluid),
+    filter 220ms var(--ease-fluid);
+  will-change: transform;
+}
+
+.interactive-tap:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.interactive-tap:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.interactive-soft:hover:not(:disabled) {
+  background: var(--color-surface-strong);
+}
+
+.icon-action {
+  height: 42px;
+  width: 42px;
+  border-radius: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon-action-danger {
+  background: rgba(255, 49, 49, 0.84);
+  color: #fff;
 }
 
 .focus-glow:focus-visible {

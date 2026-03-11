@@ -43,7 +43,13 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
   };
 
   const openFilePicker = () => {
+    feedback();
     fileInputRef.current?.click();
+  };
+
+  const closeSheet = () => {
+    feedback();
+    onClose();
   };
 
   const handleAvatarSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -87,11 +93,11 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
   };
 
   return (
-    <SideSheet isOpen={isOpen} side="left" onClose={onClose}>
+    <SideSheet isOpen={isOpen} side="left" onClose={closeSheet}>
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between px-5 py-5">
           <span className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">Profile</span>
-          <button onClick={onClose} className="h-9 w-9 rounded-full surface-raised flex items-center justify-center focus-glow">
+          <button onClick={closeSheet} className="h-9 w-9 rounded-full surface-raised flex items-center justify-center focus-glow interactive-tap interactive-soft">
             <X size={16} />
           </button>
         </div>
@@ -140,7 +146,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                   <button
                     onClick={openFilePicker}
                     disabled={isUploadingAvatar}
-                    className="h-10 rounded-xl surface-strong text-[10px] uppercase tracking-[0.2em] text-content-primary disabled:opacity-50"
+                    className="h-10 rounded-xl surface-strong text-[10px] uppercase tracking-[0.2em] text-content-primary disabled:opacity-50 interactive-tap interactive-soft"
                   >
                     <span className="inline-flex items-center gap-1.5">
                       <Upload size={12} /> {avatarSrc ? 'Replace' : 'Upload'}
@@ -149,7 +155,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                   <button
                     onClick={clearAvatar}
                     disabled={!avatarSrc || isUploadingAvatar}
-                    className="h-10 rounded-xl surface-strong text-[10px] uppercase tracking-[0.2em] text-content-primary disabled:opacity-45"
+                    className="h-10 rounded-xl surface-strong text-[10px] uppercase tracking-[0.2em] text-content-primary disabled:opacity-45 interactive-tap interactive-soft"
                   >
                     <span className="inline-flex items-center gap-1.5">
                       <Trash2 size={12} /> Remove
@@ -211,7 +217,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                   feedback();
                   dispatch({ type: 'TOGGLE_THEME' });
                 }}
-                className="w-full flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm focus-glow"
+                className="w-full flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm focus-glow interactive-tap interactive-soft"
               >
                 <span>Theme</span>
                 <span>{state.theme === 'dark' ? 'Dark' : 'Light'}</span>
@@ -255,7 +261,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                     <button
                       key={scale}
                       onClick={() => toggleSetting({ text_scale: scale })}
-                      className={`h-7 px-2 rounded-lg text-[10px] uppercase tracking-[0.18em] ${
+                      className={`h-7 px-2 rounded-lg text-[10px] uppercase tracking-[0.18em] interactive-tap ${
                         settings.text_scale === scale ? 'bg-surface-active text-content-active' : 'surface-raised'
                       }`}
                     >
@@ -273,13 +279,13 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
               <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Helper Pages</span>
             </div>
             <div className="surface-raised rounded-[24px] p-4 space-y-2">
-              <button onClick={() => setViewAndClose('consult')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm">
+              <button onClick={() => setViewAndClose('consult')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm interactive-tap interactive-soft">
                 <Stethoscope size={14} /> Consult
               </button>
-              <button onClick={() => setViewAndClose('history')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm">
+              <button onClick={() => setViewAndClose('history')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm interactive-tap interactive-soft">
                 <History size={14} /> History
               </button>
-              <button onClick={() => setViewAndClose('about')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm">
+              <button onClick={() => setViewAndClose('about')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm interactive-tap interactive-soft">
                 <Info size={14} /> About
               </button>
             </div>

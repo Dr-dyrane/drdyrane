@@ -34,13 +34,13 @@ const getVariant = (responseOptions: ResponseOptions): NonNullable<ResponseOptio
 
 const getOptionClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
   const base =
-    'option-button relative overflow-hidden transition-all duration-300 text-center group surface-raised shadow-glass focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
+    'option-button relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
 
-  if (variant === 'binary' || variant === 'segmented') return `${base} min-h-14 rounded-full px-3 py-4`;
-  if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3`;
-  if (variant === 'grid') return `${base} min-h-20 rounded-3xl px-4 py-6`;
-  if (variant === 'ladder') return `${base} min-h-14 rounded-2xl px-4 py-4 text-left`;
-  return `${base} min-h-16 rounded-2xl px-4 py-5`;
+  if (variant === 'binary' || variant === 'segmented') return `${base} min-h-12 rounded-[16px] px-3 py-3`;
+  if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3 surface-raised shadow-glass`;
+  if (variant === 'grid') return `${base} min-h-20 rounded-3xl px-4 py-6 surface-raised shadow-glass`;
+  if (variant === 'ladder') return `${base} min-h-14 rounded-2xl px-4 py-4 text-left surface-raised shadow-glass`;
+  return `${base} min-h-16 rounded-2xl px-4 py-5 surface-raised shadow-glass`;
 };
 
 const getSelectedSingleOption = (
@@ -66,6 +66,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   const isMultiple = responseOptions.mode === 'multiple';
   const isSingle = responseOptions.mode === 'single' || responseOptions.mode === 'confirm';
   const isScale = variant === 'scale';
+  const isSegmentedLike = variant === 'segmented' || variant === 'binary';
   const showMultipleSubmit = isMultiple && selectedOptionIds.length > 0;
   const showSingleSubmit = isSingle && (isScale || variant === 'ladder') && selectedOptionIds.length > 0;
 
@@ -95,6 +96,18 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4 surface-raised rounded-[24px] p-4 shadow-glass"
         >
+          <div className="flex items-center justify-between px-1">
+            <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">
+              {responseOptions.scale?.low_label || 'Low'}
+            </span>
+            <span className="h-8 min-w-[48px] px-2 rounded-full bg-surface-active text-content-active text-xs font-semibold inline-flex items-center justify-center">
+              {selectedScaleOption?.text || sliderValue}
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">
+              {responseOptions.scale?.high_label || 'High'}
+            </span>
+          </div>
+
           <input
             type="range"
             min={1}
@@ -134,16 +147,6 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             })}
           </div>
 
-          {responseOptions.scale && (
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">
-                {responseOptions.scale.low_label || 'Low'}
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">
-                {responseOptions.scale.high_label || 'High'}
-              </span>
-            </div>
-          )}
         </motion.div>
       ) : (
         <motion.div
@@ -153,7 +156,14 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             hidden: { opacity: 0 },
             show: { opacity: 1, transition: { staggerChildren: 0.03 } },
           }}
-          className={`grid gap-3 ${getGridByVariant(variant, responseOptions.options.length)}`}
+          className={`${
+            isSegmentedLike
+              ? `surface-raised rounded-[22px] p-1.5 grid gap-1.5 ${getGridByVariant(
+                  variant,
+                  responseOptions.options.length
+                )}`
+              : `grid gap-3 ${getGridByVariant(variant, responseOptions.options.length)}`
+          }`}
         >
           {responseOptions.options.map((option, index) => {
             const isSelected = selectedOptionIds.includes(option.id);
@@ -171,9 +181,13 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 whileHover={{ scale: 1.01, y: -1 }}
                 whileTap={{ scale: 0.97 }}
                 className={`${getOptionClass(variant)} ${
-                  isSelected
-                    ? 'scale-[1.01] bg-surface-active text-content-active shadow-[0_18px_40px_rgba(255,255,255,0.2)]'
-                    : 'text-content-primary'
+                  isSegmentedLike
+                    ? isSelected
+                      ? 'bg-surface-active text-content-active shadow-[0_10px_26px_rgba(255,255,255,0.2)]'
+                      : 'text-content-secondary bg-transparent'
+                    : isSelected
+                      ? 'scale-[1.01] bg-surface-active text-content-active shadow-[0_18px_40px_rgba(255,255,255,0.2)]'
+                      : 'text-content-primary'
                 }`}
               >
                 <AnimatePresence>
@@ -192,7 +206,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 <span
                   className={`relative z-10 block ${
                     isBinary
-                      ? 'text-[10px] uppercase tracking-[0.3em] font-semibold'
+                      ? 'text-[10px] uppercase tracking-[0.22em] font-semibold'
                       : isChip
                         ? 'text-[10px] uppercase tracking-[0.2em] font-semibold'
                         : isLadder
@@ -211,10 +225,14 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                   />
                 )}
 
-                {isSelected && !isLadder && (
+                {isSelected && !isLadder && !isSegmentedLike && (
                   <span className="absolute right-3 top-3 z-20 inline-flex h-5 w-5 items-center justify-center rounded-full bg-black/20">
                     <Check size={12} className="text-content-active" />
                   </span>
+                )}
+
+                {isSelected && isSegmentedLike && (
+                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 z-20 h-1.5 w-1.5 rounded-full bg-black/40" />
                 )}
               </motion.button>
             );

@@ -2,6 +2,7 @@ import React from 'react';
 import { Bell, CheckCheck, X } from 'lucide-react';
 import { SideSheet } from '../../components/shared/SideSheet';
 import { useClinical } from '../../core/context/ClinicalContext';
+import { signalFeedback } from '../../core/services/feedback';
 
 interface NotificationsSheetProps {
   isOpen: boolean;
@@ -11,20 +12,40 @@ interface NotificationsSheetProps {
 export const NotificationsSheet: React.FC<NotificationsSheetProps> = ({ isOpen, onClose }) => {
   const { state, dispatch } = useClinical();
   const notifications = state.notifications;
+  const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
+    signalFeedback(kind, {
+      hapticsEnabled: state.settings.haptics_enabled,
+      audioEnabled: state.settings.audio_enabled,
+    });
+
+  const markAllRead = () => {
+    dispatch({ type: 'MARK_ALL_NOTIFICATIONS_READ' });
+    feedback('submit');
+  };
+
+  const closeSheet = () => {
+    feedback('select');
+    onClose();
+  };
+
+  const markRead = (id: string) => {
+    dispatch({ type: 'MARK_NOTIFICATION_READ', payload: id });
+    feedback('select');
+  };
 
   return (
-    <SideSheet isOpen={isOpen} side="right" onClose={onClose}>
+    <SideSheet isOpen={isOpen} side="right" onClose={closeSheet}>
       <div className="h-full flex flex-col">
         <div className="flex items-center justify-between px-5 py-5">
           <span className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">Notifications</span>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => dispatch({ type: 'MARK_ALL_NOTIFICATIONS_READ' })}
-              className="h-9 w-9 rounded-full surface-raised flex items-center justify-center focus-glow"
+              onClick={markAllRead}
+              className="h-9 w-9 rounded-full surface-raised flex items-center justify-center focus-glow interactive-tap interactive-soft"
             >
               <CheckCheck size={15} />
             </button>
-            <button onClick={onClose} className="h-9 w-9 rounded-full surface-raised flex items-center justify-center focus-glow">
+            <button onClick={closeSheet} className="h-9 w-9 rounded-full surface-raised flex items-center justify-center focus-glow interactive-tap interactive-soft">
               <X size={16} />
             </button>
           </div>
@@ -39,8 +60,8 @@ export const NotificationsSheet: React.FC<NotificationsSheetProps> = ({ isOpen, 
             notifications.map((notification) => (
               <button
                 key={notification.id}
-                onClick={() => dispatch({ type: 'MARK_NOTIFICATION_READ', payload: notification.id })}
-                className={`w-full text-left rounded-[22px] p-4 transition-all ${
+                onClick={() => markRead(notification.id)}
+                className={`w-full text-left rounded-[22px] p-4 transition-all interactive-tap ${
                   notification.read ? 'surface-raised opacity-80' : 'surface-strong shadow-glass'
                 }`}
               >

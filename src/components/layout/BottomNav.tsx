@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { AppView } from '../../core/types/clinical';
 import {
@@ -6,6 +6,7 @@ import {
   FilePenLine,
   History,
   LineChart,
+  MoreHorizontal,
   Plus,
   Printer,
   RotateCcw,
@@ -29,17 +30,37 @@ export const BottomNav: React.FC = () => {
     fh: '',
   });
 
-  const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
-    signalFeedback(kind, {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+  const feedback = useCallback(
+    (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
+      signalFeedback(kind, {
+        hapticsEnabled: state.settings.haptics_enabled,
+        audioEnabled: state.settings.audio_enabled,
+      }),
+    [state.settings.audio_enabled, state.settings.haptics_enabled]
+  );
 
   const setView = (view: AppView) => {
     dispatch({ type: 'CLOSE_SHEETS' });
     dispatch({ type: 'SET_VIEW', payload: view });
     setMenuOpen(false);
   };
+
+  const openClerkingComposer = useCallback(() => {
+    setClerkingDraft({
+      hpc: state.clerking.hpc || '',
+      pmh: state.clerking.pmh || '',
+      dh: state.clerking.dh || '',
+      sh: state.clerking.sh || '',
+      fh: state.clerking.fh || '',
+    });
+    setClerkingOpen(true);
+  }, [
+    state.clerking.dh,
+    state.clerking.fh,
+    state.clerking.hpc,
+    state.clerking.pmh,
+    state.clerking.sh,
+  ]);
 
   const navItems = [
     { id: 'consult' as AppView, icon: Stethoscope, label: 'Consult' },
@@ -51,7 +72,7 @@ export const BottomNav: React.FC = () => {
     () => [
       {
         key: 'case-record',
-        label: 'Case Record',
+        label: 'Record',
         icon: ClipboardList,
         onClick: () => {
           dispatch({ type: 'TOGGLE_HX' });
@@ -60,23 +81,16 @@ export const BottomNav: React.FC = () => {
       },
       {
         key: 'clerking',
-        label: 'Patient Clerking',
+        label: 'Clerking',
         icon: FilePenLine,
         onClick: () => {
-          setClerkingDraft({
-            hpc: state.clerking.hpc || '',
-            pmh: state.clerking.pmh || '',
-            dh: state.clerking.dh || '',
-            sh: state.clerking.sh || '',
-            fh: state.clerking.fh || '',
-          });
-          setClerkingOpen(true);
+          openClerkingComposer();
           feedback('select');
         },
       },
       {
         key: 'process',
-        label: 'Clinical Process',
+        label: 'Process',
         icon: LineChart,
         onClick: () => {
           setProcessOpen(true);
@@ -85,7 +99,7 @@ export const BottomNav: React.FC = () => {
       },
       {
         key: 'print',
-        label: 'Print Record',
+        label: 'Print',
         icon: Printer,
         onClick: () => {
           feedback('submit');
@@ -94,7 +108,7 @@ export const BottomNav: React.FC = () => {
       },
       {
         key: 'revisit',
-        label: 'Revisit Last Visit',
+        label: 'Revisit',
         icon: History,
         disabled: !hasArchives,
         onClick: () => {
@@ -106,7 +120,7 @@ export const BottomNav: React.FC = () => {
       },
       {
         key: 'new',
-        label: 'New Visit',
+        label: 'Reset',
         icon: RotateCcw,
         onClick: () => {
           dispatch({ type: 'RESET' });
@@ -123,10 +137,80 @@ export const BottomNav: React.FC = () => {
       state.clerking.hpc,
       state.clerking.pmh,
       state.clerking.sh,
-      state.settings.audio_enabled,
-      state.settings.haptics_enabled,
+      feedback,
+      openClerkingComposer,
     ]
   );
+
+  const primaryAction = useMemo(() => {
+    if (state.view === 'history') {
+      if (hasArchives) {
+        return {
+          label: 'Revisit Last Visit',
+          icon: RotateCcw,
+          onClick: () => {
+            dispatch({ type: 'RESTORE_ARCHIVE', payload: state.archives[0].id });
+            dispatch({ type: 'SET_VIEW', payload: 'consult' });
+            feedback('question');
+          },
+          disabled: false,
+        };
+      }
+      return {
+        label: 'Start New Visit',
+        icon: Plus,
+        onClick: () => {
+          dispatch({ type: 'SET_VIEW', payload: 'consult' });
+          dispatch({ type: 'RESET' });
+          feedback('submit');
+        },
+        disabled: false,
+      };
+    }
+
+    if (state.status === 'idle') {
+      return {
+        label: 'Open Clerking',
+        icon: FilePenLine,
+        onClick: () => {
+          openClerkingComposer();
+          feedback('select');
+        },
+        disabled: false,
+      };
+    }
+
+    if (state.status === 'active' || state.status === 'intake') {
+      return {
+        label: 'Clinical Process',
+        icon: LineChart,
+        onClick: () => {
+          setProcessOpen(true);
+          feedback('question');
+        },
+        disabled: false,
+      };
+    }
+
+    return {
+      label: 'Reset Visit',
+      icon: RotateCcw,
+      onClick: () => {
+        dispatch({ type: 'RESET' });
+        feedback('submit');
+      },
+      disabled: false,
+    };
+  }, [dispatch, feedback, hasArchives, openClerkingComposer, state.archives, state.status, state.view]);
+
+  const triggerPrimaryAction = () => {
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+    if (primaryAction.disabled) return;
+    primaryAction.onClick();
+  };
 
   const commitClerking = () => {
     const payload = {
@@ -162,6 +246,8 @@ export const BottomNav: React.FC = () => {
     setClerkingOpen(false);
     setClerkingDraft({ hpc: '', pmh: '', dh: '', sh: '', fh: '' });
   };
+
+  const PrimaryIcon = primaryAction.icon;
 
   return (
     <>
@@ -204,24 +290,36 @@ export const BottomNav: React.FC = () => {
           </div>
 
           <div className="relative">
+            {!menuOpen && (
+              <motion.span
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute -top-9 right-0 h-7 px-3 rounded-full surface-raised text-[9px] uppercase tracking-[0.16em] text-content-secondary inline-flex items-center"
+              >
+                {primaryAction.label}
+              </motion.span>
+            )}
+
             <AnimatePresence>
               {menuOpen && (
                 <motion.div
                   initial={{ opacity: 0, y: 10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  className="absolute bottom-16 right-0 w-[220px] surface-raised rounded-[24px] p-2 shadow-[0_24px_42px_rgba(0,0,0,0.35)]"
+                  className="absolute bottom-16 right-0 w-[252px] surface-raised rounded-[28px] p-3 shadow-[0_24px_42px_rgba(0,0,0,0.35)]"
                 >
-                  <div className="space-y-1">
+                  <div className="grid grid-cols-3 gap-2">
                     {actionItems.map((item) => (
                       <button
                         key={item.key}
                         onClick={() => triggerAction(item.onClick, item.disabled)}
                         disabled={item.disabled}
-                        className="w-full h-11 rounded-xl surface-strong text-left px-3 text-[10px] uppercase tracking-[0.18em] text-content-primary disabled:opacity-45"
+                        className="h-[72px] rounded-2xl surface-strong text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow"
                       >
-                        <span className="inline-flex items-center gap-2">
-                          <item.icon size={13} />
+                        <span className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center">
+                          <item.icon size={14} />
+                        </span>
+                        <span className="text-[9px] uppercase tracking-[0.16em]">
                           {item.label}
                         </span>
                       </button>
@@ -231,18 +329,28 @@ export const BottomNav: React.FC = () => {
               )}
             </AnimatePresence>
 
-            <motion.button
-              whileHover={{ scale: 1.04, y: -1 }}
-              whileTap={{ scale: 0.96 }}
-              onClick={() => {
-                feedback('select');
-                setMenuOpen((prev) => !prev);
-              }}
-              className="h-14 w-14 rounded-full bg-neon-cyan text-black shadow-[0_20px_45px_rgba(0,245,255,0.34)] flex items-center justify-center"
-              aria-label="Open clinical actions"
-            >
-              {menuOpen ? <X size={18} /> : <Plus size={18} />}
-            </motion.button>
+            <div className="flex items-center gap-2 justify-end">
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  feedback('select');
+                  setMenuOpen((prev) => !prev);
+                }}
+                className="h-10 w-10 rounded-full surface-raised text-content-dim shadow-glass flex items-center justify-center"
+                aria-label="Open more clinical actions"
+              >
+                {menuOpen ? <X size={14} /> : <MoreHorizontal size={14} />}
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.04, y: -1 }}
+                whileTap={{ scale: 0.96 }}
+                onClick={triggerPrimaryAction}
+                className="h-14 w-14 rounded-full bg-neon-cyan text-black shadow-[0_20px_45px_rgba(0,245,255,0.34)] flex items-center justify-center"
+                aria-label={menuOpen ? 'Close actions' : primaryAction.label}
+              >
+                {menuOpen ? <X size={18} /> : <PrimaryIcon size={18} />}
+              </motion.button>
+            </div>
           </div>
         </div>
       </nav>

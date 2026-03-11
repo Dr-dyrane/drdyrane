@@ -64,20 +64,19 @@ export class AgentCoordinator {
       return await this.processConversationTurn(normalizedInput, patientMessage, stateForTurn);
     } catch (error) {
       console.error("Agent Coordinator Error:", error);
+      const fallbackQuestion = 'I had a brief interruption. What symptom feels worst right now?';
+      const fallbackDoctorMessage = this.createDoctorMessage(
+        fallbackQuestion,
+        'Thank you. I am still with you.'
+      );
 
       const fallbackState: Partial<ClinicalState> = {
         status: 'active',
-        conversation: [...this.state.conversation, patientMessage],
+        conversation: [...this.state.conversation, patientMessage, fallbackDoctorMessage],
         thinking: 'Attempting to reconnect with clinical engine...',
         profile: stateForTurn.profile,
         question_gate: null,
-        response_options: {
-          mode: 'freeform',
-          ui_variant: 'stack',
-          options: [],
-          allow_custom_input: true,
-          context_hint: 'Dr. Dyrane is experiencing connectivity issues. Please re-state your symptoms.',
-        },
+        response_options: this.buildLocalOptions(fallbackQuestion),
         selected_options: [],
       };
 
@@ -96,12 +95,13 @@ export class AgentCoordinator {
     );
 
     const optionTexts = selectedOptions.map(opt => opt.text).join(', ');
+    const normalizedOptionInput = optionTexts.trim() || selectedOptionIds.join(', ');
 
     if (this.state.question_gate?.active) {
-      return this.processGatedAnswer(optionTexts || selectedOptionIds.join(', '));
+      return this.processGatedAnswer(normalizedOptionInput);
     }
 
-    return this.processPatientInput(optionTexts);
+    return this.processPatientInput(normalizedOptionInput);
   }
 
   private async processConversationTurn(
@@ -112,12 +112,12 @@ export class AgentCoordinator {
     const conversationResult = await callConversationEngine(input, stateForTurn);
 
     const nextConversation: ConversationMessage[] = [...stateForTurn.conversation, patientMessage];
-    const question = conversationResult.message.metadata?.question || conversationResult.message.content;
+    let doctorMessage = this.buildDoctorMessageFromResult(conversationResult.message);
+    const question = doctorMessage.metadata?.question || this.getFallbackQuestion();
     const segments = conversationResult.lens_trigger || !conversationResult.needs_options
       ? []
       : this.extractBundledSegments(question);
 
-    let doctorMessage = conversationResult.message;
     let questionGate: QuestionGateState | null = null;
     let responseOptions: ResponseOptions | null = null;
 
@@ -237,25 +237,50 @@ export class AgentCoordinator {
       return await this.processConversationTurn(stackedInput, patientMessage, stateForTurn);
     } catch (error) {
       console.error('Question gate finalization failed:', error);
+      const fallbackQuestion = 'I can continue safely. What changed most since symptoms began?';
+      const fallbackDoctorMessage = this.createDoctorMessage(fallbackQuestion, 'Noted.');
       const fallbackState: Partial<ClinicalState> = {
         status: 'active',
+        conversation: [...this.state.conversation, patientMessage, fallbackDoctorMessage],
         question_gate: null,
-        response_options: {
-          mode: 'single',
-          ui_variant: 'binary',
-          options: [
-            { id: 'retry', text: 'Try again' },
-            { id: 'continue', text: 'Continue' },
-            { id: 'custom', text: 'Type response' },
-          ],
-          allow_custom_input: true,
-          context_hint: 'I can continue if you restate key details.',
-        },
+        response_options: this.buildLocalOptions(fallbackQuestion),
         selected_options: [],
       };
       this.state = { ...this.state, ...fallbackState };
       return fallbackState;
     }
+  }
+
+  private getFallbackQuestion(): string {
+    return 'What symptom is bothering you the most right now?';
+  }
+
+  private extractQuestionFromContent(content: string): string {
+    const normalized = (content || '').replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+
+    const questionMatches = normalized.match(/[^?]+\?/g);
+    if (!questionMatches || questionMatches.length === 0) return '';
+    return questionMatches[questionMatches.length - 1].trim();
+  }
+
+  private buildDoctorMessageFromResult(message: ConversationMessage): ConversationMessage {
+    const statement = message.metadata?.statement?.trim();
+    const candidateQuestion =
+      message.metadata?.question?.trim() || this.extractQuestionFromContent(message.content);
+    const question = candidateQuestion || this.getFallbackQuestion();
+
+    return {
+      ...message,
+      id: message.id || crypto.randomUUID(),
+      role: 'doctor',
+      content: [statement, question].filter(Boolean).join(' '),
+      metadata: {
+        ...message.metadata,
+        statement: statement || undefined,
+        question,
+      },
+    };
   }
 
   private createPatientMessage(input: string): ConversationMessage {

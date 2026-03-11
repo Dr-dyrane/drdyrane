@@ -5,6 +5,7 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle,
+  ClipboardList,
   ChevronRight,
   Plus,
   RotateCcw,
@@ -26,31 +27,33 @@ export const HistoryView: React.FC = () => {
     [archives]
   );
 
-  const openRecord = (session: SessionRecord) => {
-    setRecordModal(session);
-    signalFeedback('select', {
+  const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
+    signalFeedback(kind, {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
     });
+
+  const openRecord = (session: SessionRecord) => {
+    setRecordModal(session);
+    feedback('select');
   };
 
   const revisit = (session: SessionRecord) => {
     dispatch({ type: 'RESTORE_ARCHIVE', payload: session.id });
     dispatch({ type: 'SET_VIEW', payload: 'consult' });
-    signalFeedback('question', {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+    feedback('question');
+  };
+
+  const openSoap = (session: SessionRecord) => {
+    setSoapSession(session);
+    feedback('select');
   };
 
   const removeRecord = (session: SessionRecord) => {
     const ok = window.confirm(`Delete "${session.visit_label}"?`);
     if (!ok) return;
     dispatch({ type: 'DELETE_ARCHIVE', payload: session.id });
-    signalFeedback('error', {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+    feedback('error');
   };
 
   const createManualRecord = () => {
@@ -84,10 +87,7 @@ export const HistoryView: React.FC = () => {
     };
     dispatch({ type: 'UPSERT_ARCHIVE', payload: record });
     setRecordModal(record);
-    signalFeedback('submit', {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+    feedback('submit');
   };
 
   return (
@@ -102,10 +102,13 @@ export const HistoryView: React.FC = () => {
 
       <button
         onClick={createManualRecord}
-        className="w-full h-12 rounded-2xl surface-raised text-content-primary text-[10px] uppercase tracking-[0.24em] font-semibold focus-glow"
+        className="w-full h-12 rounded-2xl surface-raised text-content-primary text-[10px] uppercase tracking-[0.2em] font-semibold focus-glow interactive-tap interactive-soft"
       >
-        <span className="inline-flex items-center gap-2">
-          <Plus size={14} /> New Visit Record
+        <span className="inline-flex items-center gap-2.5">
+          <span className="h-8 w-8 rounded-xl bg-black/20 inline-flex items-center justify-center">
+            <Plus size={14} />
+          </span>
+          New Record
         </span>
       </button>
 
@@ -153,31 +156,30 @@ export const HistoryView: React.FC = () => {
                     e.stopPropagation();
                     revisit(session);
                   }}
-                  className="h-10 rounded-xl surface-strong text-[10px] uppercase tracking-[0.2em] text-content-primary"
+                  className="icon-action surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                  aria-label="Revisit visit"
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <RotateCcw size={12} /> Revisit
-                  </span>
+                  <RotateCcw size={14} />
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSoapSession(session);
+                    openSoap(session);
                   }}
-                  className="h-10 rounded-xl surface-strong text-[10px] uppercase tracking-[0.2em] text-content-primary"
+                  className="icon-action surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                  aria-label="Open SOAP details"
                 >
-                  SOAP
+                  <ClipboardList size={14} />
                 </button>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     removeRecord(session);
                   }}
-                  className="h-10 rounded-xl bg-neon-red/80 text-[10px] uppercase tracking-[0.2em] text-white"
+                  className="icon-action icon-action-danger focus-glow interactive-tap"
+                  aria-label="Delete visit"
                 >
-                  <span className="inline-flex items-center gap-1.5">
-                    <Trash2 size={12} /> Delete
-                  </span>
+                  <Trash2 size={14} />
                 </button>
               </div>
             </GlassContainer>

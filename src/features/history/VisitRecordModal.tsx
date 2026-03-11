@@ -50,6 +50,11 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
   const [visitLabel, setVisitLabel] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
+  const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
+    signalFeedback(kind, {
+      hapticsEnabled: state.settings.haptics_enabled,
+      audioEnabled: state.settings.audio_enabled,
+    });
 
   useEffect(() => {
     if (!record) return;
@@ -91,10 +96,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
       },
     });
 
-    signalFeedback('submit', {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+    feedback('submit');
   };
 
   const deleteRecord = () => {
@@ -102,10 +104,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
     const ok = window.confirm('Delete this visit record permanently?');
     if (!ok) return;
     dispatch({ type: 'DELETE_ARCHIVE', payload: record.id });
-    signalFeedback('error', {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+    feedback('error');
     onClose();
   };
 
@@ -113,15 +112,13 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
     if (!record) return;
     dispatch({ type: 'RESTORE_ARCHIVE', payload: record.id });
     dispatch({ type: 'SET_VIEW', payload: 'consult' });
-    signalFeedback('question', {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+    feedback('question');
     onClose();
   };
 
   const printRecord = () => {
     if (!record) return;
+    feedback('submit');
     const payload = buildPrintableText({
       ...record,
       visit_label: visitLabel.trim() || record.visit_label,
@@ -140,6 +137,17 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
     }
   };
 
+  const handleClose = () => {
+    feedback('select');
+    onClose();
+  };
+
+  const openHxFromRecord = () => {
+    if (!record) return;
+    feedback('select');
+    onOpenHx(record);
+  };
+
   return (
     <AnimatePresence>
       {isOpen && record && (
@@ -148,7 +156,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
+            onClick={handleClose}
             className="fixed inset-0 z-[72] bg-black/30 backdrop-blur-sm"
           />
 
@@ -167,8 +175,8 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                 </p>
               </div>
               <button
-                onClick={onClose}
-                className="h-10 w-10 rounded-full surface-strong flex items-center justify-center focus-glow"
+                onClick={handleClose}
+                className="h-10 w-10 rounded-full surface-strong flex items-center justify-center focus-glow interactive-tap interactive-soft"
                 aria-label="Close visit modal"
               >
                 <X size={16} />
@@ -243,43 +251,53 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
             </div>
 
             <div className="absolute bottom-0 inset-x-0 px-4 pb-6 pt-3 bg-gradient-to-t from-black/40 to-transparent">
-              <div className="surface-raised rounded-[26px] p-3 grid grid-cols-2 gap-2">
-                <button
-                  onClick={saveRecord}
-                  disabled={!isDirty}
-                  className="h-12 rounded-2xl surface-strong text-content-primary text-[10px] uppercase tracking-[0.22em] font-semibold disabled:opacity-50"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Save size={14} /> Save
-                  </span>
-                </button>
-                <button
-                  onClick={revisitRecord}
-                  className="h-12 rounded-2xl surface-strong text-content-primary text-[10px] uppercase tracking-[0.22em] font-semibold"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <RotateCcw size={14} /> Revisit
-                  </span>
-                </button>
-                <button
-                  onClick={printRecord}
-                  className="h-12 rounded-2xl surface-strong text-content-primary text-[10px] uppercase tracking-[0.22em] font-semibold"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Printer size={14} /> Print
-                  </span>
-                </button>
-                <button
-                  onClick={() => onOpenHx(record)}
-                  className="h-12 rounded-2xl surface-strong text-content-primary text-[10px] uppercase tracking-[0.22em] font-semibold"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <ClipboardList size={14} /> SOAP
-                  </span>
-                </button>
+              <div className="surface-raised rounded-[26px] p-3 space-y-2">
+                <div className="grid grid-cols-4 gap-2">
+                  <button
+                    onClick={saveRecord}
+                    disabled={!isDirty}
+                    className="h-[64px] rounded-2xl surface-strong text-content-primary disabled:opacity-50 focus-glow interactive-tap interactive-soft"
+                    aria-label="Save visit record"
+                  >
+                    <span className="inline-flex flex-col items-center gap-1.5">
+                      <Save size={15} />
+                      <span className="text-[9px] uppercase tracking-[0.16em]">Save</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={revisitRecord}
+                    className="h-[64px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                    aria-label="Revisit this consultation"
+                  >
+                    <span className="inline-flex flex-col items-center gap-1.5">
+                      <RotateCcw size={15} />
+                      <span className="text-[9px] uppercase tracking-[0.16em]">Revisit</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={printRecord}
+                    className="h-[64px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                    aria-label="Print visit record"
+                  >
+                    <span className="inline-flex flex-col items-center gap-1.5">
+                      <Printer size={15} />
+                      <span className="text-[9px] uppercase tracking-[0.16em]">Print</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={openHxFromRecord}
+                    className="h-[64px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                    aria-label="Open SOAP data"
+                  >
+                    <span className="inline-flex flex-col items-center gap-1.5">
+                      <ClipboardList size={15} />
+                      <span className="text-[9px] uppercase tracking-[0.16em]">SOAP</span>
+                    </span>
+                  </button>
+                </div>
                 <button
                   onClick={deleteRecord}
-                  className="h-12 rounded-2xl bg-neon-red/85 text-white text-[10px] uppercase tracking-[0.22em] font-semibold col-span-2"
+                  className="h-12 rounded-2xl bg-neon-red/85 text-white text-[10px] uppercase tracking-[0.2em] font-semibold focus-glow interactive-tap"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Trash2 size={14} /> Delete Visit
