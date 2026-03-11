@@ -1,51 +1,7 @@
 import { ClinicalState, ConversationMessage, AgentState } from '../types/clinical';
+import { getPromptCache, recordPromptUsage, setPromptCache } from '../storage/promptCache';
 
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
-
-const CONVERSATION_SYSTEM_PROMPT = `You are Dr. Dyrane, a Senior Clinical Registrar speaking directly to your patient.
-
-CONVERSATION PROTOCOLS:
-1. SPEAK DIRECTLY: Address the patient as "you" in natural conversation, not as a third party
-2. CLINICAL AUTHORITY: Be authoritative yet compassionate, zero filler words
-3. ONE-QUESTION RULE: Ask exactly one focused clinical question per turn. Never aggregate queries.
-4. OPTION-DRIVEN: When asking a question, ALWAYS set "needs_options": true so the options engine can generate button responses.
-5. CLINICAL REASONING: Show your thinking process visibly.
-6. URGENCY ASSESSMENT: Evaluate case urgency continuously.
-7. NATURAL FLOW: Respond conversationally, but with extreme brevity. Avoid repeating what the patient just said back to them.
-8. RELEVANCE: Do NOT ask for info already in SOAP or Patient Input.
-9. NO SUMMARIES: Never summarize the "discussion so far". The patient is sick and in a hurry.
-10. SINGULAR FOCUS: Give a 1-sentence acknowledgment and ask exactly one question. Nothing else.
-11. PATIENT-FACING: The "message" field is for direct, short communication. Keep reasoning inside "thinking".
-12. CLINICAL RIGOR: Move quickly to high-fidelity inquiry once the complaint is established.
-13. NO AGGREGATION: NEVER ask for two variables in one question.
-    - BAD EXAMPLE: "When did the fever start and do you have chills?"
-    - GOOD EXAMPLE: "When did the fever start?"
-    - RATIONALE: Aggregated questions break the button UI. We must gather one discrete clinical variable per turn.
-
-RESPONSE FORMAT (STRICT JSON):
-You MUST return ONLY a JSON object. No pre-conversation, no "Assistant:", no reasoning before the JSON. All reasoning MUST be inside the "thinking" field.
-
-{
-  "statement": "A concise clinical confirmation or empathetic acknowledgment of the patient's state. Keep it brief (Rule 24).",
-  "question": "The high-fidelity question or directive that requires user input.",
-  "soap_updates": { "S": {}, "O": {}, "A": {}, "P": {} },
-  "ddx": ["Condition 1", "Condition 2"],
-  "agent_state": {
-    "phase": "intake|assessment|differential|resolution|followup",
-    "confidence": number,
-    "focus_area": "current focus",
-    "pending_actions": [],
-    "last_decision": ""
-  },
-  "urgency": "low|medium|high|critical",
-  "probability": number,
-  "thinking": "Internal reasoning",
-  "needs_options": boolean,
-  "status": "active|emergency|complete"
-}
-
-CRITICAL: "question" MUST be a single, clear question or instruction. NEVER leave the flow "stale" with just a statement. If you are confirming data, follow it with the next logical clinical inquiry.
-`;
+const CONVERSATION_CACHE_TTL_MS = 1000 * 45;
 
 export const callConversationEngine = async (
   patientInput: string,
@@ -59,93 +15,76 @@ export const callConversationEngine = async (
   probability: number;
   thinking: string;
   needs_options: boolean;
+  lens_trigger: string | null;
   status: ClinicalState['status'];
 }> => {
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error("Missing Anthropic API key");
+  const conversationCacheKey = [
+    'conversation',
+    patientInput.trim().toLowerCase(),
+    state.urgency,
+    state.agent_state.phase,
+    JSON.stringify(state.soap),
+  ].join('::');
+
+  const cached = getPromptCache<{
+    message: ConversationMessage;
+    soap_updates: Partial<ClinicalState['soap']>;
+    ddx: string[];
+    agent_state: AgentState;
+    urgency: ClinicalState['urgency'];
+    probability: number;
+    thinking: string;
+    needs_options: boolean;
+    lens_trigger: string | null;
+    status: ClinicalState['status'];
+  }>(conversationCacheKey);
+
+  if (cached) {
+    return {
+      ...cached,
+      message: { ...cached.message, id: crypto.randomUUID(), timestamp: Date.now() },
+    };
   }
 
-  // Build conversation history for context
-  const conversationContext = state.conversation
-    .slice(-10) // Last 10 messages for context
-    .map(msg => ({
-      role: msg.role === 'doctor' ? 'assistant' : 'user',
-      content: msg.content
-    }));
+  recordPromptUsage('conversation', conversationCacheKey);
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('/api/consult', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY.trim(),
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        // Stable model for initial setup. Upgrade to 'claude-3-5-sonnet-latest' for premium clinical fidelity.
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 1024,
-        system: [
-          {
-            type: 'text',
-            text: CONVERSATION_SYSTEM_PROMPT,
-            cache_control: { type: 'ephemeral' }
-          }
-        ],
-        messages: [
-          ...conversationContext,
-          {
-            role: 'user',
-            content: `CONTEXT:
-Current SOAP: ${JSON.stringify(state.soap)}
-Agent State: ${JSON.stringify(state.agent_state)}
-Differential (DDX): ${state.ddx.join(', ')}
-Urgency: ${state.urgency}
-Confidence: ${state.probability}%
-
-Patient Input: "${patientInput}"
-
-Review the memory above to avoid redundant questions. Advance the clinical assessment.`
-          }
-        ]
+        patientInput,
+        state: {
+          soap: state.soap,
+          agent_state: state.agent_state,
+          ddx: state.ddx,
+          urgency: state.urgency,
+          probability: state.probability,
+          profile: {
+            display_name: state.profile.display_name,
+            age: state.profile.age ?? null,
+            sex: state.profile.sex ?? null,
+            pronouns: state.profile.pronouns ?? null,
+            allergies: state.profile.allergies ?? null,
+            chronic_conditions: state.profile.chronic_conditions ?? null,
+            medications: state.profile.medications ?? null,
+          },
+          conversation: state.conversation.slice(-10).map((msg) => ({
+            role: msg.role,
+            content: msg.content,
+          })),
+        },
       })
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Conversation API Error: ${errorData.error?.message || response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Conversation API Error: ${errorData.error || response.status}`);
     }
 
-    const data = await response.json();
-    const rawContent = data.content[0].text;
-    
-    // Robust JSON extraction and repair (Rule 5: Nothing fails silently)
-    let aiResponse;
-    const repairJson = (str: string) => {
-      return str
-        .replace(/"\s*\n?\s*"/g, '", "')
-        .replace(/}\s*\n?\s*"/g, '}, "')
-        .replace(/]\s*\n?\s*"/g, '], "')
-        // Fix set-like structures {"Value"} -> {"recorded": "Value"}
-        .replace(/\{\s*"([^"]+)"\s*(?!\:)\}/g, '{"recorded": "$1"}')
-        // Fix trailing commas
-        .replace(/,\s*([}\]])/g, '$1');
-    };
-
-    try {
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      const targetStr = jsonMatch ? jsonMatch[0] : rawContent;
-      try {
-        aiResponse = JSON.parse(targetStr);
-      } catch (innerError) {
-        // Attempt repair
-        aiResponse = JSON.parse(repairJson(targetStr));
-      }
-    } catch (e) {
-      console.error("Critical: Failed to parse AI Response JSON after repair attempt:", rawContent);
-      throw new Error("Dr. Dyrane's internal model returned an invalid structure. Please try again.");
-    }
+    const aiResponse = await response.json();
 
     // Create conversation message
     const fullContent = [aiResponse.statement, aiResponse.question].filter(Boolean).join(' ');
@@ -161,11 +100,12 @@ Review the memory above to avoid redundant questions. Advance the clinical asses
         probability: aiResponse.probability,
         thinking: aiResponse.thinking,
         statement: aiResponse.statement,
-        question: aiResponse.question
+        question: aiResponse.question,
+        lens_trigger: aiResponse.lens_trigger ?? null
       }
     };
 
-    return {
+    const normalizedResult = {
       message: doctorMessage,
       soap_updates: aiResponse.soap_updates || {},
       agent_state: aiResponse.agent_state,
@@ -174,8 +114,11 @@ Review the memory above to avoid redundant questions. Advance the clinical asses
       probability: aiResponse.probability,
       thinking: aiResponse.thinking,
       needs_options: aiResponse.needs_options,
+      lens_trigger: aiResponse.lens_trigger ?? null,
       status: aiResponse.status
     };
+    setPromptCache(conversationCacheKey, normalizedResult, CONVERSATION_CACHE_TTL_MS);
+    return normalizedResult;
 
   } catch (error) {
     console.error("Conversation Engine Error:", error);

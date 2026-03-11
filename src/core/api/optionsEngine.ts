@@ -1,120 +1,197 @@
 import { ClinicalState, ResponseOptions } from '../types/clinical';
+import { getPromptCache, recordPromptUsage, setPromptCache } from '../storage/promptCache';
 
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY;
+const OPTIONS_CACHE_TTL_MS = 1000 * 60 * 20;
 
-const OPTIONS_SYSTEM_PROMPT = `You are an expert clinical decision support system generating response options for patients.
+const VALID_VARIANTS = new Set(['stack', 'grid', 'binary', 'segmented', 'scale', 'ladder', 'chips']);
 
-OPTION GENERATION PROTOCOLS:
-1. CONTEXT AWARENESS: Options must be relevant to current clinical context
-2. CLINICAL ACCURACY: Ensure medical appropriateness
-3. PATIENT FRIENDLY: Use clear, understandable language
-4. COMPREHENSIVE COVERAGE: Include all reasonable possibilities
-5. PRIORITIZATION: Order by clinical relevance and likelihood
-6. MULTIPLE MODES: Support single/multiple selection based on context
-7. RESTRICTION: Prefer closed-ended options.
-8. ATOMICITY: Each option MUST represent a single, discrete variable.
-9. SINGULAR DOMAIN: Never mix categories (e.g. Duration vs Symptom) in one turn.
-10. NO BUNDLING: If the doctor asked a bundled question (BAD), DO NOT bundle the options. Pick the MOST CRITICAL part of the question and provide options for ONLY that part.
+const FUNCTIONAL_SCALE_OPTIONS = [
+  { id: 'none', text: 'No difficulty', category: 'functional_impact', priority: 10 },
+  { id: 'mild', text: 'Mild difficulty', category: 'functional_impact', priority: 9 },
+  { id: 'moderate', text: 'Moderate difficulty', category: 'functional_impact', priority: 8 },
+  { id: 'severe', text: 'Severe difficulty', category: 'functional_impact', priority: 7 },
+  { id: 'unable', text: 'Unable to perform tasks', category: 'functional_impact', priority: 6 },
+];
 
-RESPONSE FORMAT (STRICT JSON):
-{
-  "mode": "single|multiple|freeform|confirm",
-  "options": [
-    {
-      "id": "unique_id",
-      "text": "Option text",
-      "category": "symptom|severity|duration|location|etc",
-      "priority": number (1-10),
-      "requires_confirmation": boolean
-    }
-  ],
-  "context_hint": "explanation",
-  "allow_custom_input": boolean
-}`;
+const BINARY_TOKENS = new Set([
+  'yes',
+  'no',
+  'not sure',
+  'unsure',
+  'unknown',
+  'maybe',
+  'sometimes',
+]);
+
+const slugify = (value: string): string =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48);
+
+const sanitizeOptions = (options: ResponseOptions['options']): ResponseOptions['options'] => {
+  const usedIds = new Set<string>();
+
+  return options
+    .filter((option) => option && typeof option.text === 'string' && option.text.trim())
+    .map((option, idx) => {
+      const baseId = option.id?.trim() || slugify(option.text) || `option-${idx + 1}`;
+      let nextId = baseId;
+      let suffix = 1;
+      while (usedIds.has(nextId)) {
+        nextId = `${baseId}-${suffix}`;
+        suffix += 1;
+      }
+      usedIds.add(nextId);
+      return { ...option, id: nextId, text: option.text.trim() };
+    })
+    .slice(0, 12);
+};
+
+const isBinaryLike = (options: ResponseOptions['options']): boolean => {
+  if (options.length === 0 || options.length > 3) return false;
+  return options.every((option) => BINARY_TOKENS.has(option.text.toLowerCase().trim()));
+};
+
+const inferVariant = (
+  mode: ResponseOptions['mode'],
+  options: ResponseOptions['options'],
+  hinted?: ResponseOptions['ui_variant']
+): NonNullable<ResponseOptions['ui_variant']> => {
+  if (hinted && VALID_VARIANTS.has(hinted)) {
+    return hinted;
+  }
+
+  if (mode === 'multiple') {
+    return options.length > 6 ? 'grid' : 'chips';
+  }
+
+  if (isBinaryLike(options)) {
+    return 'segmented';
+  }
+
+  if (
+    options.length >= 3 &&
+    options.length <= 6 &&
+    options.some((option) => /(mild|moderate|severe|worst|very)/i.test(option.text))
+  ) {
+    return 'ladder';
+  }
+
+  if (
+    options.length >= 5 &&
+    options.every((option) => /^(\d+|none|mild|moderate|severe)$/i.test(option.text))
+  ) {
+    return 'scale';
+  }
+
+  if (options.length <= 4 && mode === 'single') return 'segmented';
+  return options.length >= 6 ? 'grid' : 'stack';
+};
+
+const shouldUseFunctionalScale = (
+  question: string,
+  options: ResponseOptions['options']
+): boolean => {
+  const functionalPattern =
+    /(daily|function|activity|activities|task|tasks|difficulty|energy|fatigue|impact|functioning)/i;
+  return functionalPattern.test(question) && (options.length === 0 || isBinaryLike(options));
+};
+
+const normalizeResponseOptions = (
+  raw: Partial<ResponseOptions>,
+  question: string
+): ResponseOptions => {
+  const mode: ResponseOptions['mode'] =
+    raw.mode === 'multiple' || raw.mode === 'freeform' || raw.mode === 'confirm'
+      ? raw.mode
+      : 'single';
+
+  let options = sanitizeOptions(raw.options || []);
+
+  if (shouldUseFunctionalScale(question, options)) {
+    options = FUNCTIONAL_SCALE_OPTIONS;
+  }
+
+  if (options.length === 0) {
+    options = [
+      { id: 'yes', text: 'Yes', category: 'confirmation' },
+      { id: 'no', text: 'No', category: 'confirmation' },
+      { id: 'unsure', text: 'Not sure', category: 'confirmation' },
+    ];
+  }
+
+  const uiVariant = inferVariant(mode, options, raw.ui_variant);
+
+  return {
+    mode,
+    options,
+    ui_variant: uiVariant,
+    scale:
+      uiVariant === 'scale'
+        ? {
+            min: 1,
+            max: options.length,
+            step: 1,
+            low_label: 'Low',
+            high_label: 'High',
+          }
+        : undefined,
+    context_hint: raw.context_hint || 'Select the best match.',
+    allow_custom_input: raw.allow_custom_input ?? true,
+  };
+};
 
 export const generateResponseOptions = async (
   lastQuestion: string,
   agentState: ClinicalState['agent_state'],
   currentSOAP: ClinicalState['soap']
 ): Promise<ResponseOptions> => {
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error("Missing Anthropic API key");
+  const optionsCacheKey = [
+    'options',
+    lastQuestion.trim().toLowerCase(),
+    agentState.phase,
+    agentState.focus_area,
+  ].join('::');
+
+  const cached = getPromptCache<ResponseOptions>(optionsCacheKey);
+  if (cached) {
+    return normalizeResponseOptions(cached, lastQuestion);
   }
 
+  recordPromptUsage('options', optionsCacheKey);
+
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('/api/options', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY.trim(),
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-3-haiku-20240307',
-        max_tokens: 800,
-        system: [
-          {
-            type: 'text',
-            text: OPTIONS_SYSTEM_PROMPT,
-            cache_control: { type: 'ephemeral' }
-          }
-        ],
-        messages: [{
-          role: 'user',
-          content: `LAST DOCTOR QUESTION: "${lastQuestion}"
-AGENT STATE: ${JSON.stringify(agentState)}
-CURRENT SOAP: ${JSON.stringify(currentSOAP)}
- 
-CRITICAL:
-- ATOMIC OPTIONS: One answer per button. No "coupled" responses (e.g., don't mix severity and timing).
-- SINGULAR SCOPE: If the question is about one symptom, provide ONLY options for that symptom.
-- Return ONLY valid JSON.
-`
-        }]
+        lastQuestion,
+        agentState,
+        currentSOAP,
       })
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(`Options API Error: ${errorData.error?.message || response.status}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Options API Error: ${errorData.error || response.status}`);
     }
 
-    const data = await response.json();
-    const rawContent = data.content[0].text;
-    
-    // Robust clinical data extraction and repair (Rule 5: State is Design)
-    const repairJson = (str: string) => {
-      return str
-        .replace(/"\s*\n?\s*"/g, '", "')
-        .replace(/}\s*\n?\s*"/g, '}, "')
-        .replace(/]\s*\n?\s*"/g, '], "')
-        // Fix set-like structures {"Value"} -> {"recorded": "Value"}
-        .replace(/\{\s*"([^"]+)"\s*(?!\:)\}/g, '{"recorded": "$1"}')
-        // Fix trailing commas
-        .replace(/,\s*([}\]])/g, '$1');
-    };
-
-    try {
-      const jsonMatch = rawContent.match(/\{[\s\S]*\}/);
-      const targetStr = jsonMatch ? jsonMatch[0] : rawContent;
-      let optionsResponse;
-      try {
-        optionsResponse = JSON.parse(targetStr);
-      } catch (innerError) {
-        optionsResponse = JSON.parse(repairJson(targetStr));
-      }
-      return optionsResponse;
-    } catch (e) {
-      console.error("Critical: Options JSON Parsing Failed:", rawContent);
-      throw new Error("Dr. Dyrane's suggestion model failed to structure its response. Reverting to manual entry.");
-    }
+    const optionsResponse = await response.json();
+    const normalized = normalizeResponseOptions(optionsResponse, lastQuestion);
+    setPromptCache(optionsCacheKey, normalized, OPTIONS_CACHE_TTL_MS);
+    return normalized;
 
   } catch (error) {
     console.error("Options Engine Error:", error);
     // Fallback options
-    return {
+    const fallback: ResponseOptions = {
       mode: 'single',
+      ui_variant: 'binary',
       options: [
         { id: 'yes', text: 'Yes', category: 'confirmation' },
         { id: 'no', text: 'No', category: 'confirmation' },
@@ -123,5 +200,7 @@ CRITICAL:
       context_hint: 'Basic confirmation options',
       allow_custom_input: true
     };
+    setPromptCache(optionsCacheKey, fallback, 1000 * 60 * 3);
+    return fallback;
   }
 };

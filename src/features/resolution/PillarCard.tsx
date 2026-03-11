@@ -43,7 +43,7 @@ export const PillarCard: React.FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 + idx * 0.1 }}
-            className="p-8 bg-surface-muted border border-content-primary/5 rounded-[40px] space-y-4 shadow-glass"
+            className="p-8 bg-surface-muted rounded-[40px] space-y-4 shadow-glass"
           >
             <div className="flex items-center gap-4">
               <div className="p-2.5 bg-neon-cyan/5 rounded-2xl">

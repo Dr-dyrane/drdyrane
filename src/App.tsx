@@ -14,6 +14,8 @@ import { PillarCard } from './features/resolution/PillarCard';
 import { HistoryView } from './features/history/HistoryView';
 import { AboutView } from './features/about/AboutView';
 import { EmergencyOverlay } from './features/emergency/EmergencyOverlay';
+import { ProfileSheet } from './features/profile/ProfileSheet';
+import { NotificationsSheet } from './features/notifications/NotificationsSheet';
 
 import { TheHx } from './features/consultation/TheHx';
 
@@ -25,22 +27,28 @@ const MainApp: React.FC = () => {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', state.theme);
-  }, [state.theme]);
-
-  const toggleTheme = () => dispatch({ type: 'TOGGLE_THEME' });
-  const toggleHx = () => dispatch({ type: 'TOGGLE_HX' });
+    document.documentElement.setAttribute('data-text-scale', state.settings.text_scale);
+  }, [state.theme, state.settings.text_scale]);
 
   return (
     <div className="min-h-screen bg-surface-primary text-content-primary selection:bg-neon-cyan selection:text-black flex justify-center transition-colors duration-500 overflow-hidden">
       {/* Mobile Frame Container */}
       <div className="w-full max-w-[440px] h-screen overflow-y-auto relative flex flex-col no-scrollbar">
         <DepthLayer />
-        <Header onToggleTheme={toggleTheme} onToggleHx={toggleHx} />
+        <Header />
 
         {/* Global Overlays */}
         <EmergencyOverlay />
         <TheLens />
-        <TheHx isOpen={state.isHxOpen} onClose={toggleHx} />
+        <TheHx isOpen={state.isHxOpen} onClose={() => dispatch({ type: 'TOGGLE_HX' })} />
+        <ProfileSheet
+          isOpen={state.active_sheet === 'profile'}
+          onClose={() => dispatch({ type: 'CLOSE_SHEETS' })}
+        />
+        <NotificationsSheet
+          isOpen={state.active_sheet === 'notifications'}
+          onClose={() => dispatch({ type: 'CLOSE_SHEETS' })}
+        />
 
         {/* Main Routing Context */}
         <main className="relative z-10 flex-1 flex flex-col px-4 pt-20 pb-32 min-h-full">
@@ -89,7 +97,7 @@ const MainApp: React.FC = () => {
 
         {/* Universal Navigation */}
         <AnimatePresence>
-          {(state.status === 'idle' || state.status === 'complete') && (
+          {state.status !== 'emergency' && state.status !== 'lens' && (
             <motion.div
               initial={{ y: 100, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}

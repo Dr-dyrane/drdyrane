@@ -1,11 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { attachAnthropicProxy } from './server/anthropicProxy'
 
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [
     react(),
+    {
+      name: 'dr-dyrane-anthropic-proxy',
+      configureServer(server) {
+        attachAnthropicProxy(server.middlewares)
+      },
+      configurePreviewServer(server) {
+        attachAnthropicProxy(server.middlewares)
+      },
+    },
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['logo.png', 'logo_light.png'],
@@ -38,14 +48,4 @@ export default defineConfig({
       }
     })
   ],
-  server: {
-    proxy: {
-      '/api/anthropic': {
-        target: 'https://api.anthropic.com',
-        changeOrigin: true,
-        secure: true,
-        rewrite: (path) => path.replace(/^\/api\/anthropic/, '/v1/messages'),
-      },
-    },
-  },
 })

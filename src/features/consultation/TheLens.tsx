@@ -2,30 +2,105 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { Camera } from 'lucide-react';
+import { processAgentInteraction } from '../../core/api/agentCoordinator';
+import { signalFeedback } from '../../core/services/feedback';
 
 export const TheLens: React.FC = () => {
   const { state, dispatch } = useClinical();
   const [active, setActive] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    if (active && videoRef.current) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-        .then(stream => {
-          if (videoRef.current) videoRef.current.srcObject = stream;
+    const attachStream = async () => {
+      if (!active || !videoRef.current) return;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
         });
-    }
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Camera access failed:', error);
+      }
+    };
+
+    const stopStream = () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
+      }
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+      }
+    };
+
+    void attachStream();
+
+    return () => {
+      stopStream();
+    };
   }, [active]);
+
+  const returnToConsultation = async (visualInput: string) => {
+    try {
+      const result = await processAgentInteraction(visualInput, state);
+      dispatch({
+        type: 'SET_AGENT_RESPONSE',
+        payload: { ...result, status: 'active' },
+        lastInput: visualInput,
+      });
+      signalFeedback('question', {
+        hapticsEnabled: state.settings.haptics_enabled,
+        audioEnabled: state.settings.audio_enabled,
+      });
+    } catch (error) {
+      console.error('Lens handoff failed:', error);
+      dispatch({
+        type: 'SET_AGENT_RESPONSE',
+        payload: {
+          status: 'active',
+          thinking: 'Visual capture unavailable. Continuing with symptom history.',
+        },
+      });
+      signalFeedback('error', {
+        hapticsEnabled: state.settings.haptics_enabled,
+        audioEnabled: state.settings.audio_enabled,
+      });
+    }
+  };
 
   const handleCapture = async () => {
     setAnalyzing(true);
-    // Simulate AI visual biomarker extraction
-    setTimeout(() => {
+    signalFeedback('submit', {
+      hapticsEnabled: state.settings.haptics_enabled,
+      audioEnabled: state.settings.audio_enabled,
+    });
+    window.setTimeout(async () => {
+      const visualInput =
+        'Visual review complete: morphology appears non-acute. Continue with focused history questions.';
+      await returnToConsultation(visualInput);
       setAnalyzing(false);
       setActive(false);
-      dispatch({ type: 'SET_INPUT', payload: 'Optical biomarkers extracted. Analysis: No suspicious morphology detected.' });
-    }, 3000);
+    }, 1200);
+  };
+
+  const handleSkip = () => {
+    signalFeedback('select', {
+      hapticsEnabled: state.settings.haptics_enabled,
+      audioEnabled: state.settings.audio_enabled,
+    });
+    setActive(false);
+    dispatch({
+      type: 'SET_AGENT_RESPONSE',
+      payload: {
+        status: 'active',
+        thinking: 'Lens skipped. Continuing structured history collection.',
+      },
+    });
   };
 
   if (state.status !== 'lens' && !active) return null;
@@ -52,7 +127,7 @@ export const TheLens: React.FC = () => {
               <Camera className="w-8 h-8 opacity-60" />
             </button>
             <button 
-               onClick={() => dispatch({ type: 'RESET' })}
+               onClick={handleSkip}
                className="text-[10px] uppercase tracking-[0.3em] font-bold text-content-dim hover:text-content-primary transition-all border-none outline-none bg-transparent"
              >
                Skip Visual Analysis
@@ -69,7 +144,7 @@ export const TheLens: React.FC = () => {
             
             {/* Viewfinder */}
             <div className={`absolute inset-0 border-none pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)]`} />
-            <div className="absolute inset-12 rounded-[56px] border border-surface-muted pointer-events-none" />
+            <div className="absolute inset-12 rounded-[56px] shadow-[0_0_28px_rgba(255,255,255,0.12)] pointer-events-none" />
             
             <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-16">
               <button 

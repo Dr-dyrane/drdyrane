@@ -5,7 +5,7 @@ import { Orb } from '../consultation/Orb';
 
 export const AboutView: React.FC = () => {
   const specs = [
-    { title: 'Core Processor', value: 'Claude 3.5 Sonnet', icon: Cpu },
+    { title: 'Core Processor', value: 'Anthropic Multi-Model', icon: Cpu },
     { title: 'Clinical Scope', value: 'Adult Registrar Level', icon: ShieldCheck },
     { title: 'Logic Pattern', value: 'SOAP Induction', icon: Activity },
     { title: 'Privacy Mode', value: 'Local Persistence', icon: Database },
@@ -42,7 +42,7 @@ export const AboutView: React.FC = () => {
       </div>
 
       <div className="text-center opacity-40">
-        <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-content-dim">Version 1.0.5 • Dr. Dyrane Digital</p>
+        <p className="text-[9px] uppercase tracking-[0.2em] font-bold text-content-dim">Version 1.0.5 | Dr. Dyrane Digital</p>
       </div>
     </div>
   );
