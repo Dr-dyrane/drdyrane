@@ -58,7 +58,7 @@ export const TheHx: React.FC<{
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 bg-black/40 backdrop-blur-md z-[100] pointer-events-auto"
+              className="fixed inset-0 overlay-backdrop backdrop-blur-md z-[100] pointer-events-auto"
             />
 
             {/* Hx Drawer */}

@@ -23,7 +23,7 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ checked, onToggle, a
         layout
         transition={{ type: 'spring', stiffness: 450, damping: 30 }}
         className={`absolute top-1 h-6 w-6 rounded-full ${
-          checked ? 'left-7 bg-black' : 'left-1 bg-white/90'
+          checked ? 'left-7 bg-content-active' : 'left-1 bg-content-primary'
         }`}
       />
     </button>

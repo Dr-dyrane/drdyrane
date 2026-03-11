@@ -15,10 +15,10 @@ export const Orb: React.FC<{ loading?: boolean }> = ({ loading }) => {
         <motion.div
           animate={{
             filter: isEmergency
-              ? 'drop-shadow(0 0 20px rgba(255, 49, 49, 0.4))'
+              ? 'var(--orb-drop-emergency)'
               : loading
-                ? ['drop-shadow(0 0 10px rgba(0, 243, 255, 0.2))', 'drop-shadow(0 0 30px rgba(0, 243, 255, 0.5))', 'drop-shadow(0 0 10px rgba(0, 243, 255, 0.2))']
-                : 'drop-shadow(0 0 10px rgba(0, 243, 255, 0.1))',
+                ? ['var(--orb-drop-soft)', 'var(--orb-drop-active)', 'var(--orb-drop-soft)']
+                : 'var(--orb-drop-idle)',
             scale: isEmergency ? [1, 1.05, 1] : loading ? [0.98, 1.02, 0.98] : 1
           }}
           transition={{
@@ -43,7 +43,7 @@ export const Orb: React.FC<{ loading?: boolean }> = ({ loading }) => {
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1.5, opacity: 0 }}
             transition={{ repeat: Infinity, duration: 2, ease: "easeOut" }}
-            className="absolute inset-0 bg-neon-cyan/10 rounded-full blur-2xl"
+            className="absolute inset-0 surface-chip rounded-full blur-2xl"
           />
         )}
       </div>

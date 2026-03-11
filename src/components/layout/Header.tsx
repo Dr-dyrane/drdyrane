@@ -11,7 +11,7 @@ export const Header: React.FC = () => {
     : 0;
 
   return (
-    <header className="fixed top-0 max-w-[440px] w-full z-30 px-6 pt-7 flex items-center justify-between pointer-events-none">
+    <header className="fixed top-0 max-w-[440px] w-full z-30 px-2 pt-7 flex items-center justify-between pointer-events-none">
       <div className="pointer-events-auto">
         <button
           onClick={() => dispatch({ type: 'TOGGLE_SHEET', payload: 'profile' })}
@@ -37,7 +37,7 @@ export const Header: React.FC = () => {
         >
           <Bell size={18} />
           {unreadCount > 0 && (
-            <span className="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full bg-neon-cyan text-black text-[9px] font-bold leading-4 text-center">
+            <span className="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full badge-accent text-[9px] font-bold leading-4 text-center">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           )}

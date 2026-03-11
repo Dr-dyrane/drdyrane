@@ -33,7 +33,7 @@ const getVariant = (responseOptions: ResponseOptions): NonNullable<ResponseOptio
 
 const getOptionClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
   const base =
-    'option-button option-live relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
+    'option-button option-live option-live-smooth relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
 
   if (variant === 'binary' || variant === 'segmented') return `${base} min-h-12 rounded-[16px] px-3 py-3`;
   if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3 surface-raised shadow-glass`;
@@ -47,9 +47,9 @@ const getToneClass = (index: number): string => {
   return tones[index % tones.length];
 };
 
-const getOptionEmoji = (index: number): string => {
-  const emojis = ['✨', '🎯', '⚡', '💡', '🩺', '💫'];
-  return emojis[index % emojis.length];
+const getOptionMarker = (index: number): string => {
+  const markers = ['*', '+', '^', '~', 'o', '>'];
+  return markers[index % markers.length];
 };
 
 const getSelectedSingleOption = (
@@ -60,6 +60,8 @@ const getSelectedSingleOption = (
   if (!id) return null;
   return responseOptions.options.find((option) => option.id === id) || null;
 };
+
+const SPRING_CONFIG = { type: 'spring' as const, stiffness: 320, damping: 28 };
 
 export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   responseOptions,
@@ -101,8 +103,10 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
 
       {isScale ? (
         <motion.div
+          layout
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={SPRING_CONFIG}
           className="space-y-4 surface-raised rounded-[24px] p-4 shadow-glass"
         >
           <div className="flex items-center justify-between px-1">
@@ -129,7 +133,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
               const option = responseOptions.options[index];
               if (option) onSelect(option.id);
             }}
-            className="w-full accent-white"
+            className="w-full range-accent"
             aria-label="Severity slider"
           />
 
@@ -138,29 +142,32 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
               const isSelected = selectedOptionIds.includes(option.id);
               const depth = index + 1;
               return (
-                <button
+                <motion.button
+                  layout
                   key={option.id}
                   onClick={(event) => onSelect(option.id, event)}
                   disabled={loading}
                   aria-pressed={isSelected}
+                  transition={SPRING_CONFIG}
                   style={!isSelected ? { opacity: Math.max(0.45, depth * 0.1) } : undefined}
-                  className={`h-11 rounded-xl transition-all text-sm font-semibold option-live ${
+                  className={`h-11 rounded-xl transition-all text-sm font-semibold option-live option-live-smooth ${
                     isSelected
-                      ? 'option-live-selected text-content-active shadow-[0_14px_28px_rgba(255,255,255,0.18)]'
+                      ? 'option-live-selected text-content-active selected-elevation'
                       : `surface-strong text-content-primary ${getToneClass(index)}`
                   }`}
                 >
                   {option.text}
-                </button>
+                </motion.button>
               );
             })}
           </div>
-
         </motion.div>
       ) : (
         <motion.div
+          layout
           initial="hidden"
           animate="show"
+          transition={SPRING_CONFIG}
           variants={{
             hidden: { opacity: 0 },
             show: { opacity: 1, transition: { staggerChildren: 0.03 } },
@@ -182,20 +189,22 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
 
             return (
               <motion.button
+                layout
                 key={option.id}
                 onClick={(event) => onSelect(option.id, event)}
                 disabled={loading}
                 aria-pressed={isSelected}
                 variants={{ hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}
+                transition={SPRING_CONFIG}
                 whileHover={{ scale: 1.01, y: -1 }}
                 whileTap={{ scale: 0.97 }}
                 className={`${getOptionClass(variant)} ${
                   isSegmentedLike
                     ? isSelected
-                      ? 'option-live-selected text-content-active shadow-[0_10px_26px_rgba(255,255,255,0.2)]'
+                      ? 'option-live-selected text-content-active selected-elevation'
                       : 'text-content-secondary bg-transparent'
                     : isSelected
-                      ? 'scale-[1.01] option-live-selected text-content-active shadow-[0_18px_40px_rgba(255,255,255,0.2)]'
+                      ? 'scale-[1.01] option-live-selected text-content-active selected-elevation'
                       : 'text-content-primary'
                 } ${isSelected ? '' : getToneClass(index)}`}
               >
@@ -229,19 +238,19 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 {isLadder && (
                   <span
                     className={`absolute right-0 top-0 h-full rounded-r-2xl transition-all ${
-                      isSelected ? 'w-4 bg-black/20' : 'w-2 bg-white/10'
+                      isSelected ? 'w-4 option-ladder-bar-active' : 'w-2 option-ladder-bar'
                     } ${index >= Math.floor(responseOptions.options.length * 0.6) ? 'opacity-90' : 'opacity-50'}`}
                   />
                 )}
 
                 {isSelected && !isLadder && !isSegmentedLike && (
-                  <span className="absolute right-3 top-3 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full bg-black/18 text-[12px]">
-                    {getOptionEmoji(index)}
+                  <span className="absolute right-3 top-3 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full option-selected-badge text-[12px]">
+                    {getOptionMarker(index)}
                   </span>
                 )}
 
                 {isSelected && isSegmentedLike && (
-                  <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 text-[10px]">✨</span>
+                  <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 text-[10px]">*</span>
                 )}
               </motion.button>
             );
@@ -251,25 +260,27 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
 
       {showSingleSubmit && (
         <motion.button
+          layout
           onClick={onSubmitSingle}
           disabled={loading}
           whileHover={{ scale: 1.01, y: -1 }}
           whileTap={{ scale: 0.97 }}
           className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.35em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue ✨ ({selectedScaleOption?.text || 'Selected'})
+          Continue ({selectedScaleOption?.text || 'Selected'})
         </motion.button>
       )}
 
       {showMultipleSubmit && (
         <motion.button
+          layout
           onClick={onSubmitMultiple}
           disabled={loading}
           whileHover={{ scale: 1.01, y: -1 }}
           whileTap={{ scale: 0.97 }}
           className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.4em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Continue ✨ ({selectedOptionIds.length})
+          Continue ({selectedOptionIds.length})
         </motion.button>
       )}
     </div>

@@ -35,7 +35,7 @@ export const EmergencyOverlay: React.FC = () => {
           className="fixed inset-0 z-[270] bg-neon-red/10 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center space-y-10 overflow-hidden"
         >
           <div className="space-y-4">
-            <AlertCircle className="w-16 h-16 text-neon-red mx-auto animate-pulse shadow-[0_0_20px_rgba(255,49,49,0.4)]" />
+            <AlertCircle className="w-16 h-16 text-neon-red mx-auto animate-pulse emergency-icon-glow" />
             <h1 className="text-3xl font-bold text-neon-red tracking-tight leading-none uppercase">EMERGENCY</h1>
             <p className="text-lg text-content-primary/60 font-light">
               Must-not-miss pathophysiology detected.

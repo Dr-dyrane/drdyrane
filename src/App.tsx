@@ -31,7 +31,7 @@ const MainApp: React.FC = () => {
   }, [state.theme, state.settings.text_scale]);
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-surface-primary text-content-primary selection:bg-neon-cyan selection:text-black flex justify-center transition-colors duration-500 overflow-hidden">
+    <div className="min-h-screen min-h-[100dvh] bg-surface-primary text-content-primary selection:bg-neon-cyan selection:text-content-active flex justify-center transition-colors duration-500 overflow-hidden">
       {/* Mobile Frame Container */}
       <div className="w-full max-w-[440px] min-h-screen min-h-[100dvh] overflow-y-auto relative isolate flex flex-col no-scrollbar">
         <DepthLayer />
@@ -51,7 +51,7 @@ const MainApp: React.FC = () => {
         />
 
         {/* Main Routing Context */}
-        <main className="relative z-10 flex-1 flex flex-col px-4 pt-20 pb-32 min-h-full">
+        <main className="relative z-10 flex-1 flex flex-col px-2 pt-20 pb-32 min-h-full">
           <AnimatePresence mode="wait">
             {state.view === 'consult' && (
               <motion.div

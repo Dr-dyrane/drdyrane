@@ -494,7 +494,7 @@ export const StepRenderer: React.FC = () => {
                       >
                         <span className="inline-flex items-center justify-center gap-2">
                           <ArrowUp size={14} />
-                          Start ✨
+                          Start
                         </span>
                       </motion.button>
                     )}

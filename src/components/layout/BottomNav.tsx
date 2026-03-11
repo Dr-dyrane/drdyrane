@@ -256,7 +256,7 @@ export const BottomNav: React.FC = () => {
 
   return (
     <>
-      <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-6 pb-7 pointer-events-none">
+      <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-2 pb-7 pointer-events-none">
         <div className="flex items-end justify-between pointer-events-auto">
           <div className="surface-raised rounded-full px-2 py-2 shadow-glass flex items-center gap-1 backdrop-blur-xl">
             {navItems.map((item) => {
@@ -311,7 +311,7 @@ export const BottomNav: React.FC = () => {
                   initial={{ opacity: 0, y: 10, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  className="absolute bottom-16 right-0 w-[252px] surface-raised rounded-[28px] p-3 shadow-[0_24px_42px_rgba(0,0,0,0.35)]"
+                  className="absolute bottom-16 right-0 w-[252px] surface-raised rounded-[28px] p-3 shadow-float"
                 >
                   <div className="grid grid-cols-3 gap-2">
                     {actionItems.map((item) => (
@@ -321,7 +321,7 @@ export const BottomNav: React.FC = () => {
                         disabled={item.disabled}
                         className="h-[72px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
                       >
-                        <span className="h-8 w-8 rounded-xl bg-black/20 flex items-center justify-center">
+                        <span className="h-8 w-8 rounded-xl surface-chip flex items-center justify-center">
                           <item.icon size={14} />
                         </span>
                         <span className="text-[9px] uppercase tracking-[0.16em]">
@@ -369,7 +369,7 @@ export const BottomNav: React.FC = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={closeComposer}
-                className="fixed inset-0 z-[150] bg-black/42 backdrop-blur-md"
+                className="fixed inset-0 z-[150] overlay-backdrop backdrop-blur-md"
               />
               <motion.div
                 initial={{ y: '100%' }}
@@ -378,7 +378,7 @@ export const BottomNav: React.FC = () => {
                 transition={{ type: 'spring', damping: 28, stiffness: 280 }}
                 className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[160] px-4 pb-6 pointer-events-auto"
               >
-                <div className="surface-raised rounded-[30px] p-4 shadow-[0_24px_48px_rgba(0,0,0,0.35)] space-y-3">
+                <div className="surface-raised rounded-[30px] p-4 shadow-float space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">
                       Patient Clerking

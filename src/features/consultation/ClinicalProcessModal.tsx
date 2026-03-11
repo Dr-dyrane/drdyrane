@@ -41,21 +41,21 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 z-[140] bg-black/44 backdrop-blur-md"
+              className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-md"
             />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 290 }}
-              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[150] rounded-t-[34px] surface-raised shadow-[0_26px_54px_rgba(0,0,0,0.4)] pointer-events-auto"
+              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[150] rounded-t-[34px] surface-raised shadow-modal pointer-events-auto"
             >
             <div className="px-5 py-5 flex items-center justify-between">
               <div className="space-y-1">
                 <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">Clinical Process</p>
                 <p className="text-sm text-content-secondary">Current consult trajectory</p>
               </div>
-              <button onClick={onClose} className="h-10 w-10 rounded-full surface-strong flex items-center justify-center">
+              <button onClick={onClose} className="h-10 w-10 rounded-full surface-strong flex items-center justify-center" aria-label="Close clinical process modal">
                 <X size={15} />
               </button>
             </div>

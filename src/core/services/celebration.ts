@@ -7,8 +7,13 @@ interface CelebrationBurstOptions {
   intensity?: BurstIntensity;
 }
 
-const COLORS = ['#00F5FF', '#7CFFB2', '#FFD166', '#FF7DAA'];
-const EMOJIS = ['✨', '🎉', '🩺', '💙', '🌟', '🎯'];
+const COLORS = [
+  'var(--color-neon-cyan)',
+  'var(--color-neon-mint)',
+  'var(--color-neon-amber)',
+  'var(--color-neon-rose)',
+];
+const MARKERS = ['*', '+', '^', '~', 'o', '>'];
 
 const resolveCount = (intensity: BurstIntensity): number => {
   if (intensity === 'strong') return 24;
@@ -40,8 +45,8 @@ export const playCelebrationBurst = (options: CelebrationBurstOptions = {}): voi
 
   for (let i = 0; i < count; i += 1) {
     const node = document.createElement('span');
-    const isEmoji = i % 4 === 0;
-    const size = isEmoji ? random(14, 20) : random(5, 10);
+    const isMarker = i % 4 === 0;
+    const size = isMarker ? random(14, 20) : random(5, 10);
     const dx = random(-120, 120);
     const dy = random(-200, -80);
     const rotate = random(-180, 220);
@@ -54,16 +59,16 @@ export const playCelebrationBurst = (options: CelebrationBurstOptions = {}): voi
     node.style.transform = 'translate(-50%, -50%)';
     node.style.willChange = 'transform, opacity';
 
-    if (isEmoji) {
-      node.textContent = EMOJIS[i % EMOJIS.length];
+    if (isMarker) {
+      node.textContent = MARKERS[i % MARKERS.length];
       node.style.fontSize = `${size}px`;
-      node.style.filter = 'drop-shadow(0 6px 12px rgba(0,0,0,0.35))';
+      node.style.filter = 'drop-shadow(0 6px 12px var(--color-overlay-backdrop-soft))';
     } else {
       node.style.width = `${size}px`;
       node.style.height = `${size}px`;
       node.style.borderRadius = '999px';
       node.style.background = COLORS[i % COLORS.length];
-      node.style.boxShadow = '0 6px 14px rgba(0,0,0,0.3)';
+      node.style.boxShadow = '0 6px 14px var(--color-overlay-backdrop-soft)';
     }
 
     layer.appendChild(node);
@@ -95,4 +100,3 @@ export const playCelebrationBurst = (options: CelebrationBurstOptions = {}): voi
     }
   }, 1300);
 };
-

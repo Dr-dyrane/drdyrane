@@ -21,7 +21,7 @@ export const PillarCard: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 px-4 py-8 space-y-8 animate-emergence">
+    <div className="flex-1 px-2 py-8 space-y-8 animate-emergence">
       <div className="flex justify-center">
         <Orb />
       </div>

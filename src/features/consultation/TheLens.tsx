@@ -143,8 +143,8 @@ export const TheLens: React.FC = () => {
             />
             
             {/* Viewfinder */}
-            <div className={`absolute inset-0 border-none pointer-events-none shadow-[inset_0_0_150px_rgba(0,0,0,0.9)]`} />
-            <div className="absolute inset-12 rounded-[56px] shadow-[0_0_28px_rgba(255,255,255,0.12)] pointer-events-none" />
+            <div className="absolute inset-0 border-none pointer-events-none lens-vignette" />
+            <div className="absolute inset-12 rounded-[56px] lens-frame pointer-events-none" />
             
             <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-16">
               <button 
@@ -179,9 +179,9 @@ export const TheLens: React.FC = () => {
                           scale: [1, 1.2, 1],
                           opacity: [0.3, 0.7, 0.3],
                           boxShadow: [
-                            '0 0 10px rgba(0, 245, 255, 0.2)',
-                            '0 0 40px rgba(0, 245, 255, 0.5)',
-                            '0 0 10px rgba(0, 245, 255, 0.2)'
+                            'var(--analysis-pulse-soft)',
+                            'var(--analysis-pulse-strong)',
+                            'var(--analysis-pulse-soft)'
                           ]
                         }}
                         transition={{ repeat: Infinity, duration: 2 }}

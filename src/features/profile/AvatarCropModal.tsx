@@ -97,14 +97,14 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 z-[170] bg-black/46 backdrop-blur-md"
+              className="fixed inset-0 z-[170] overlay-backdrop-strong backdrop-blur-md"
             />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[180] rounded-t-[34px] surface-raised p-5 space-y-4 shadow-[0_28px_60px_rgba(0,0,0,0.45)] pointer-events-auto"
+              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[180] rounded-t-[34px] surface-raised p-5 space-y-4 shadow-modal pointer-events-auto"
             >
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -137,7 +137,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
                   step={0.01}
                   value={zoom}
                   onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-full accent-white"
+                  className="w-full range-accent"
                 />
               </label>
 
@@ -152,7 +152,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
                   step={1}
                   value={offsetX}
                   onChange={(e) => setOffsetX(Number(e.target.value))}
-                  className="w-full accent-white"
+                  className="w-full range-accent"
                 />
               </label>
 
@@ -167,7 +167,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
                   step={1}
                   value={offsetY}
                   onChange={(e) => setOffsetY(Number(e.target.value))}
-                  className="w-full accent-white"
+                  className="w-full range-accent"
                 />
               </label>
             </div>
@@ -181,7 +181,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               </button>
               <button
                 onClick={confirmCrop}
-                className="h-11 rounded-xl bg-neon-cyan text-black text-[10px] uppercase tracking-[0.2em] font-semibold"
+                className="h-11 rounded-xl cta-live-icon text-[10px] uppercase tracking-[0.2em] font-semibold"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Scissors size={12} /> Crop

@@ -77,7 +77,7 @@ export const HistoryView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 px-4 py-8 space-y-6 animate-emergence">
+    <div className="flex-1 px-2 py-8 space-y-6 animate-emergence">
       <div className="flex justify-center">
         <Orb />
       </div>
@@ -91,7 +91,7 @@ export const HistoryView: React.FC = () => {
         className="w-full h-12 rounded-2xl surface-raised text-content-primary text-[10px] uppercase tracking-[0.2em] font-semibold focus-glow interactive-tap interactive-soft"
       >
         <span className="inline-flex items-center gap-2.5">
-          <span className="h-8 w-8 rounded-xl bg-black/20 inline-flex items-center justify-center">
+          <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
             <Plus size={14} />
           </span>
           New Record

@@ -159,7 +159,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={handleClose}
-              className="fixed inset-0 z-[140] bg-black/44 backdrop-blur-md"
+              className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-md"
             />
 
             <motion.div
@@ -167,7 +167,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 h-[88vh] z-[150] rounded-t-[36px] surface-raised shadow-[0_30px_60px_rgba(0,0,0,0.35)] flex flex-col overflow-hidden pointer-events-auto"
+              className="fixed inset-x-0 bottom-0 h-[88vh] z-[150] rounded-t-[36px] surface-raised shadow-modal flex flex-col overflow-hidden pointer-events-auto"
             >
             <div className="px-5 py-5 flex items-center justify-between">
               <div>
@@ -252,7 +252,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
               </section>
             </div>
 
-            <div className="absolute bottom-0 inset-x-0 px-4 pb-6 pt-3 bg-gradient-to-t from-black/40 to-transparent">
+            <div className="absolute bottom-0 inset-x-0 px-4 pb-6 pt-3 overlay-fade-bottom">
               <div className="surface-raised rounded-[26px] p-3 space-y-2">
                 <div className="grid grid-cols-4 gap-2">
                   <button
@@ -299,7 +299,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                 </div>
                 <button
                   onClick={deleteRecord}
-                  className="h-12 rounded-2xl bg-neon-red/85 text-white text-[10px] uppercase tracking-[0.2em] font-semibold focus-glow interactive-tap"
+                  className="h-12 rounded-2xl cta-danger text-[10px] uppercase tracking-[0.2em] font-semibold focus-glow interactive-tap"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Trash2 size={14} /> Delete Visit

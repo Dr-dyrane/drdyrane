@@ -341,6 +341,40 @@ export class AgentCoordinator {
   private buildLocalOptions(question: string): ResponseOptions {
     const normalized = question.toLowerCase();
     const knownAge = this.state.profile.age;
+    const onsetPattern = /(when did|since when|how long|when .* start|started|start)/;
+    const tempPattern = /(temperature|temp|fever|highest.*measure|how high)/;
+
+    if (onsetPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'stack',
+        options: [
+          { id: 'onset-today', text: 'Started today', category: 'timeline', priority: 10 },
+          { id: 'onset-1-2d', text: '1-2 days ago', category: 'timeline', priority: 9 },
+          { id: 'onset-3-4d', text: '3-4 days ago', category: 'timeline', priority: 8 },
+          { id: 'onset-5-7d', text: '5-7 days ago', category: 'timeline', priority: 7 },
+          { id: 'onset-gt-7d', text: 'More than a week ago', category: 'timeline', priority: 6 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Choose when symptoms began.',
+      };
+    }
+
+    if (tempPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'grid',
+        options: [
+          { id: 'temp-37', text: '< 37.5 C (99.5 F)', category: 'temperature', priority: 10 },
+          { id: 'temp-38', text: '37.5-38.0 C (99.5-100.4 F)', category: 'temperature', priority: 9 },
+          { id: 'temp-39', text: '38.1-39.0 C (100.5-102.2 F)', category: 'temperature', priority: 8 },
+          { id: 'temp-40', text: '39.1-40.0 C (102.3-104.0 F)', category: 'temperature', priority: 7 },
+          { id: 'temp-40-plus', text: '> 40.0 C (> 104.0 F)', category: 'temperature', priority: 6 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Select your highest measured temperature.',
+      };
+    }
 
     if (
       /(scale|1-10|1 to 10|rate|severity|intensity|worst)/.test(normalized)

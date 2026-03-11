@@ -45,6 +45,28 @@
   --accent-amber: rgba(255, 209, 102, 0.36);
   --shadow-glass: 0 20px 40px rgba(0,0,0,0.4);
   --focus-glow: 0 0 0 2px rgba(0, 245, 255, 0.35), 0 0 0 6px rgba(0, 245, 255, 0.08);
+  --color-accent-primary: var(--color-neon-cyan);
+  --color-accent-on-primary: #031018;
+  --color-danger-primary: rgba(255, 49, 49, 0.84);
+  --color-danger-on-primary: #ffffff;
+  --color-overlay-backdrop: rgba(0, 0, 0, 0.44);
+  --color-overlay-backdrop-soft: rgba(0, 0, 0, 0.38);
+  --color-overlay-backdrop-strong: rgba(0, 0, 0, 0.48);
+  --color-chip-soft: rgba(255, 255, 255, 0.1);
+  --color-chip-strong: rgba(255, 255, 255, 0.18);
+  --shadow-modal: 0 30px 60px rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 24px 48px rgba(0, 0, 0, 0.35);
+  --shadow-selected: 0 18px 40px rgba(255, 255, 255, 0.2);
+  --overlay-fade-start: rgba(0, 0, 0, 0.4);
+  --emergency-icon-shadow: 0 0 20px rgba(255, 49, 49, 0.4);
+  --orb-drop-idle: drop-shadow(0 0 10px rgba(0, 243, 255, 0.1));
+  --orb-drop-active: drop-shadow(0 0 30px rgba(0, 243, 255, 0.5));
+  --orb-drop-soft: drop-shadow(0 0 10px rgba(0, 243, 255, 0.2));
+  --orb-drop-emergency: drop-shadow(0 0 20px rgba(255, 49, 49, 0.4));
+  --lens-vignette-shadow: inset 0 0 150px rgba(0, 0, 0, 0.9);
+  --lens-frame-shadow: 0 0 28px rgba(255, 255, 255, 0.12);
+  --analysis-pulse-soft: 0 0 10px rgba(0, 245, 255, 0.2);
+  --analysis-pulse-strong: 0 0 40px rgba(0, 245, 255, 0.5);
   --ease-fluid: cubic-bezier(0.22, 1, 0.36, 1);
   
   background-color: var(--bg-primary);
@@ -96,6 +118,28 @@ body,
   --color-surface-raised: rgba(15, 23, 42, 0.12);
   --color-surface-strong: rgba(15, 23, 42, 0.18);
   --focus-glow: 0 0 0 2px rgba(0, 132, 255, 0.35), 0 0 0 6px rgba(0, 132, 255, 0.1);
+  --color-accent-primary: #0ea5e9;
+  --color-accent-on-primary: #eff6ff;
+  --color-danger-primary: rgba(220, 38, 38, 0.88);
+  --color-danger-on-primary: #ffffff;
+  --color-overlay-backdrop: rgba(2, 6, 23, 0.38);
+  --color-overlay-backdrop-soft: rgba(2, 6, 23, 0.3);
+  --color-overlay-backdrop-strong: rgba(2, 6, 23, 0.44);
+  --color-chip-soft: rgba(15, 23, 42, 0.12);
+  --color-chip-strong: rgba(15, 23, 42, 0.2);
+  --shadow-modal: 0 28px 50px rgba(2, 6, 23, 0.2);
+  --shadow-float: 0 20px 40px rgba(2, 6, 23, 0.16);
+  --shadow-selected: 0 16px 30px rgba(2, 6, 23, 0.16);
+  --overlay-fade-start: rgba(2, 6, 23, 0.32);
+  --emergency-icon-shadow: 0 0 18px rgba(220, 38, 38, 0.28);
+  --orb-drop-idle: drop-shadow(0 0 8px rgba(14, 165, 233, 0.2));
+  --orb-drop-active: drop-shadow(0 0 20px rgba(14, 165, 233, 0.32));
+  --orb-drop-soft: drop-shadow(0 0 8px rgba(14, 165, 233, 0.24));
+  --orb-drop-emergency: drop-shadow(0 0 16px rgba(220, 38, 38, 0.28));
+  --lens-vignette-shadow: inset 0 0 130px rgba(2, 6, 23, 0.42);
+  --lens-frame-shadow: 0 0 20px rgba(15, 23, 42, 0.12);
+  --analysis-pulse-soft: 0 0 10px rgba(14, 165, 233, 0.24);
+  --analysis-pulse-strong: 0 0 32px rgba(14, 165, 233, 0.32);
 }
 
 /* Global Reset (Alexander Canon) */
@@ -152,8 +196,8 @@ button {
 }
 
 .icon-action-danger {
-  background: rgba(255, 49, 49, 0.84);
-  color: #fff;
+  background: var(--color-danger-primary);
+  color: var(--color-danger-on-primary);
 }
 
 .focus-glow:focus-visible {
@@ -185,6 +229,68 @@ button {
 
 .surface-strong {
   background: var(--color-surface-strong);
+}
+
+.surface-chip {
+  background: var(--color-chip-soft);
+}
+
+.surface-chip-strong {
+  background: var(--color-chip-strong);
+}
+
+.overlay-backdrop {
+  background: var(--color-overlay-backdrop);
+}
+
+.overlay-backdrop-soft {
+  background: var(--color-overlay-backdrop-soft);
+}
+
+.overlay-backdrop-strong {
+  background: var(--color-overlay-backdrop-strong);
+}
+
+.shadow-modal {
+  box-shadow: var(--shadow-modal);
+}
+
+.shadow-float {
+  box-shadow: var(--shadow-float);
+}
+
+.selected-elevation {
+  box-shadow: var(--shadow-selected);
+}
+
+.badge-accent {
+  background: var(--color-accent-primary);
+  color: var(--color-accent-on-primary);
+}
+
+.cta-danger {
+  background: var(--color-danger-primary);
+  color: var(--color-danger-on-primary);
+}
+
+.overlay-fade-bottom {
+  background: linear-gradient(to top, var(--overlay-fade-start), transparent);
+}
+
+.emergency-icon-glow {
+  box-shadow: var(--emergency-icon-shadow);
+}
+
+.lens-vignette {
+  box-shadow: var(--lens-vignette-shadow);
+}
+
+.lens-frame {
+  box-shadow: var(--lens-frame-shadow);
+}
+
+.range-accent {
+  accent-color: var(--color-accent-primary);
 }
 
 .option-button:hover:not(:disabled) {
@@ -267,6 +373,14 @@ button {
   overflow: hidden;
 }
 
+.option-live-smooth {
+  transition:
+    transform 240ms var(--ease-fluid),
+    box-shadow 260ms var(--ease-fluid),
+    background 260ms var(--ease-fluid),
+    opacity 220ms var(--ease-fluid);
+}
+
 .option-live::before {
   content: '';
   position: absolute;
@@ -299,6 +413,18 @@ button {
     0 20px 44px rgba(0, 245, 255, 0.26),
     0 12px 20px rgba(124, 255, 178, 0.2);
   animation: option-spark 680ms var(--ease-fluid);
+}
+
+.option-ladder-bar {
+  background: var(--color-chip-soft);
+}
+
+.option-ladder-bar-active {
+  background: var(--color-chip-strong);
+}
+
+.option-selected-badge {
+  background: var(--color-chip-strong);
 }
 
 .segment-live-shell {
