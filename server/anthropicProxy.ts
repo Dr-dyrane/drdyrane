@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { Connect } from 'vite';
 
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
-const DEFAULT_MODEL = 'claude-3-haiku-20240307';
+const FALLBACK_MODELS = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022'];
 
 const CONVERSATION_SYSTEM_PROMPT = `You are Dr. Dyrane, a Senior Clinical Registrar speaking directly to your patient.
 
@@ -64,6 +64,15 @@ const getApiKey = (): string => {
   return candidates.find((value) => value.length > 0) || '';
 };
 
+const getModelCandidates = (): string[] => {
+  const candidates = [
+    normalizeEnvValue(process.env.ANTHROPIC_MODEL),
+    normalizeEnvValue(process.env.CLAUDE_MODEL),
+    ...FALLBACK_MODELS,
+  ];
+  return [...new Set(candidates.filter((value) => value.length > 0))];
+};
+
 const readJsonBody = async <T>(req: IncomingMessage): Promise<T> => {
   const chunks: Buffer[] = [];
   for await (const chunk of req) {
@@ -85,10 +94,10 @@ const repairJson = (value: string): string =>
     .replace(/"\s*\n?\s*"/g, '", "')
     .replace(/}\s*\n?\s*"/g, '}, "')
     .replace(/]\s*\n?\s*"/g, '], "')
-    .replace(/\{\s*"([^"]+)"\s*(?!\:)\}/g, '{"recorded": "$1"}')
+    .replace(/\{\s*"([^"]+)"\s*(?!:)\}/g, '{"recorded": "$1"}')
     .replace(/,\s*([}\]])/g, '$1');
 
-const parseFirstJsonObject = (text: string): any => {
+const parseFirstJsonObject = (text: string): unknown => {
   const jsonMatch = text.match(/\{[\s\S]*\}/);
   const target = jsonMatch ? jsonMatch[0] : text;
   try {
@@ -98,7 +107,12 @@ const parseFirstJsonObject = (text: string): any => {
   }
 };
 
-const callAnthropic = async (payload: unknown): Promise<string> => {
+const shouldRetryWithNextModel = (status: number, body: string): boolean => {
+  if (status !== 400 && status !== 404) return false;
+  return /model|not[_\s-]?found|invalid_request_error/i.test(body);
+};
+
+const callAnthropic = async (payload: Record<string, unknown>): Promise<string> => {
   const apiKey = getApiKey().trim();
   if (!apiKey) {
     throw new Error(
@@ -106,23 +120,43 @@ const callAnthropic = async (payload: unknown): Promise<string> => {
     );
   }
 
-  const response = await fetch(ANTHROPIC_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify(payload),
-  });
-
-  if (!response.ok) {
-    const body = await response.text();
-    throw new Error(`Anthropic request failed (${response.status}): ${body}`);
+  const models = getModelCandidates();
+  if (models.length === 0) {
+    throw new Error('No Anthropic model configured. Set ANTHROPIC_MODEL or CLAUDE_MODEL.');
   }
 
-  const data: any = await response.json();
-  return data?.content?.[0]?.text || '';
+  const basePayload = Object.fromEntries(
+    Object.entries(payload).filter(([key]) => key !== 'model')
+  );
+  let lastErrorMessage = 'Unknown Anthropic failure.';
+
+  for (let index = 0; index < models.length; index += 1) {
+    const model = models[index];
+    const response = await fetch(ANTHROPIC_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({ ...basePayload, model }),
+    });
+
+    if (response.ok) {
+      const data = (await response.json()) as { content?: Array<{ text?: string }> };
+      return data?.content?.[0]?.text || '';
+    }
+
+    const body = await response.text();
+    lastErrorMessage = `Anthropic request failed (${response.status}) [model:${model}]: ${body}`;
+    const hasAnotherCandidate = index < models.length - 1;
+    if (hasAnotherCandidate && shouldRetryWithNextModel(response.status, body)) {
+      continue;
+    }
+    throw new Error(lastErrorMessage);
+  }
+
+  throw new Error(lastErrorMessage);
 };
 
 const getClientId = (req: IncomingMessage): string => {
@@ -200,7 +234,6 @@ Patient Profile Memory: ${JSON.stringify(body.state?.profile || {})}
 Advance clinical assessment and ask one question.`;
 
   const raw = await callAnthropic({
-    model: DEFAULT_MODEL,
     max_tokens: 1024,
     system: [{ type: 'text', text: CONVERSATION_SYSTEM_PROMPT }],
     messages: [
@@ -217,7 +250,6 @@ const handleOptions = async (req: IncomingMessage, res: ServerResponse): Promise
   const body = await readJsonBody<OptionsRequest>(req);
 
   const raw = await callAnthropic({
-    model: DEFAULT_MODEL,
     max_tokens: 900,
     system: [{ type: 'text', text: OPTIONS_SYSTEM_PROMPT }],
     messages: [
