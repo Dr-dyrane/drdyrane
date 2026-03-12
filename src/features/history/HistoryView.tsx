@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { GlassContainer } from '../../components/shared/GlassContainer';
 import {
@@ -6,7 +6,6 @@ import {
   AlertCircle,
   CheckCircle,
   ChevronRight,
-  Plus,
 } from 'lucide-react';
 import { TheHx } from '../consultation/TheHx';
 import { SessionRecord } from '../../core/types/clinical';
@@ -25,11 +24,14 @@ export const HistoryView: React.FC = () => {
     [state.archives]
   );
 
-  const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
-    signalFeedback(kind, {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+  const feedback = useCallback(
+    (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
+      signalFeedback(kind, {
+        hapticsEnabled: state.settings.haptics_enabled,
+        audioEnabled: state.settings.audio_enabled,
+      }),
+    [state.settings.audio_enabled, state.settings.haptics_enabled]
+  );
 
   const openRecord = (session: SessionRecord) => {
     setRecordModal(session);
@@ -41,7 +43,7 @@ export const HistoryView: React.FC = () => {
     feedback('select');
   };
 
-  const createManualRecord = () => {
+  const createManualRecord = useCallback(() => {
     const now = Date.now();
     const record: SessionRecord = {
       id: crypto.randomUUID(),
@@ -73,27 +75,35 @@ export const HistoryView: React.FC = () => {
     dispatch({ type: 'UPSERT_ARCHIVE', payload: record });
     setRecordModal(record);
     feedback('submit');
-  };
+  }, [
+    dispatch,
+    feedback,
+    state.agent_state,
+    state.clerking,
+    state.conversation,
+    state.ddx,
+    state.pillars,
+    state.probability,
+    state.profile,
+    state.redFlag,
+    state.soap,
+    state.status,
+    state.thinking,
+    state.urgency,
+  ]);
+
+  useEffect(() => {
+    const handleCreateRecord = () => {
+      createManualRecord();
+    };
+    window.addEventListener('drdyrane:history:create-record', handleCreateRecord);
+    return () => {
+      window.removeEventListener('drdyrane:history:create-record', handleCreateRecord);
+    };
+  }, [createManualRecord]);
 
   return (
     <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-4 space-y-4 animate-emergence">
-      <div className="text-center space-y-2">
-        <span className="text-content-dim text-xs font-medium">Past visits</span>
-        <h1 className="display-type text-[1.7rem] text-content-primary">Clinical History</h1>
-      </div>
-
-      <button
-        onClick={createManualRecord}
-        className="w-full min-w-0 h-11 rounded-2xl surface-strong text-content-primary text-sm font-semibold focus-glow interactive-tap interactive-soft"
-      >
-        <span className="inline-flex items-center gap-2.5">
-          <span className="h-7 w-7 rounded-xl surface-chip inline-flex items-center justify-center">
-            <Plus size={14} />
-          </span>
-          Create Record
-        </span>
-      </button>
-
       <div className="space-y-4 pb-24">
         {orderedArchives.length === 0 ? (
           <div className="text-center py-20 text-content-dim font-light space-y-4">

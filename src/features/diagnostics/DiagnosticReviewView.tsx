@@ -350,12 +350,6 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   return (
     <>
       <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-4 space-y-4 animate-emergence">
-
-        <div className="text-center space-y-2">
-          <span className="text-content-dim text-xs font-medium">{config.pageLabel}</span>
-          <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">{config.headline}</h1>
-        </div>
-
         <section className="surface-raised rounded-[24px] p-4 space-y-3">
           <input
             ref={fileInputRef}
