@@ -112,6 +112,19 @@ export class AgentCoordinator {
     }
 
     if (this.state.question_gate?.active) {
+      if (HYBRID_CHAT_FIRST_MODE && this.state.question_gate.kind !== 'safety_checkpoint') {
+        this.state = {
+          ...this.state,
+          question_gate: null,
+          response_options: null,
+          selected_options: [],
+        };
+      } else {
+        return this.processGatedAnswer(normalizedInput);
+      }
+    }
+
+    if (this.state.question_gate?.active) {
       return this.processGatedAnswer(normalizedInput);
     }
 
@@ -168,6 +181,15 @@ export class AgentCoordinator {
     const normalizedOptionInput = optionTexts.trim() || selectedOptionIds.join(', ');
 
     if (this.state.question_gate?.active) {
+      if (HYBRID_CHAT_FIRST_MODE && this.state.question_gate.kind !== 'safety_checkpoint') {
+        this.state = {
+          ...this.state,
+          question_gate: null,
+          response_options: null,
+          selected_options: [],
+        };
+        return this.processPatientInput(normalizedOptionInput);
+      }
       return this.processGatedAnswer(normalizedOptionInput);
     }
 
@@ -756,7 +778,7 @@ export class AgentCoordinator {
       const safetyQuestion = this.buildSafetyCheckpointQuestion(conversationResult.ddx);
       const safetyDoctorMessage = createDoctorMessage(
         safetyQuestion,
-        'Before I finalize your diagnosis, I need one safety check.'
+        'I need one final safety check.'
       );
       nextConversation.push(safetyDoctorMessage);
 
@@ -1539,6 +1561,15 @@ export class AgentCoordinator {
   }
 
   updateState(newState: Partial<ClinicalState>): void {
+    const shouldDropIncomingGate =
+      HYBRID_CHAT_FIRST_MODE &&
+      Boolean(newState.question_gate?.active) &&
+      newState.question_gate?.kind !== 'safety_checkpoint';
+    const resolvedQuestionGate = shouldDropIncomingGate ? null : newState.question_gate;
+    const resolvedResponseOptions = shouldDropIncomingGate
+      ? null
+      : newState.response_options;
+
     const mergedConversation = Array.isArray(newState.conversation)
       ? newState.conversation.length >= this.state.conversation.length
         ? newState.conversation
@@ -1576,6 +1607,14 @@ export class AgentCoordinator {
     this.state = {
       ...this.state,
       ...newState,
+      question_gate:
+        resolvedQuestionGate !== undefined
+          ? resolvedQuestionGate
+          : this.state.question_gate,
+      response_options:
+        resolvedResponseOptions !== undefined
+          ? resolvedResponseOptions
+          : this.state.response_options,
       conversation: mergedConversation,
       agent_state: mergedAgentState,
     };

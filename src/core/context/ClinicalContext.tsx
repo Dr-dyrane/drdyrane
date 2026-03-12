@@ -692,6 +692,13 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
         if (parsed.selected_options === undefined) parsed.selected_options = [];
         if (parsed.question_gate === undefined) parsed.question_gate = null;
+        if (
+          parsed.question_gate &&
+          parsed.question_gate.active &&
+          parsed.question_gate.kind !== 'safety_checkpoint'
+        ) {
+          parsed.question_gate = null;
+        }
         if (!parsed.profile) parsed.profile = defaultProfile();
         parsed.profile.weight_kg = sanitizeWeightKg(parsed.profile.weight_kg);
         parsed.settings = sanitizeSettings(parsed.settings as Partial<AppSettings> | undefined);
