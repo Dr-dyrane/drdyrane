@@ -63,8 +63,14 @@ const NON_COMPLAINT_OPENER_PATTERN = /^(hi|hello|hey|good (morning|afternoon|eve
 const YES_ANSWER_PATTERN = /\b(yes|yeah|yep|affirmative|correct|absolutely|certainly)\b/i;
 const NO_ANSWER_PATTERN = /\b(no|none|nothing else|nope)\b/i;
 const UNSURE_ANSWER_PATTERN = /\b(not sure|unsure|unknown|maybe|don'?t know|cannot tell|idk)\b/i;
+const NON_SUBSTANTIVE_PATIENT_RESPONSE_PATTERN = /^(ok|okay|alright|fine|hmm+|uh+h*|ah+h*|k|kk)$/i;
+const MOST_LIMITING_QUESTION_PATTERN = /\bmost limiting\b|\bstands?\s*out\b/i;
+const SYMPTOM_CHANGE_QUESTION_PATTERN = /\bchanged since\b|\bhow has\b|\bbetter|worse|improved\b/i;
 const CHECKPOINT_DANGER_SIGNAL_PATTERN =
   /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
+const PATTERN_QUESTION_PATTERN = /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b/i;
+const DANGER_SIGNS_QUESTION_PATTERN =
+  /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b/i;
 const SYMPTOM_CLUSTER_PROMPT = 'Which symptom cluster stands out most right now?';
 const FEVER_PATTERN_DETAIL_PROMPT = 'Within fever pattern, which cue stands out most?';
 const HEAD_PAIN_DETAIL_PROMPT = 'Within head/pain pattern, which symptom stands out most?';
@@ -1093,8 +1099,10 @@ export class AgentCoordinator {
     phase: ClinicalState['agent_state']['phase']
   ): string {
     const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
+    const hardBlockIntentRepeat = this.shouldHardBlockIntentRepeat(sanitized, conversation);
     const recentQuestions = getRecentDoctorQuestions(conversation, 8);
     const shouldFallback =
+      hardBlockIntentRepeat ||
       isLikelyRepeatedQuestion(sanitized, recentQuestions) ||
       isLikelyAnsweredTopicQuestion(sanitized, conversation) ||
       isRecentlyAnsweredQuestionIntent(sanitized, conversation) ||
@@ -1127,13 +1135,111 @@ export class AgentCoordinator {
         return 'With your cough, are you also having sputum, wheeze, or shortness of breath?';
       }
       if (/\bfever\b/.test(patientMentions)) {
-        return 'Do fever episodes come in cycles (evening chills, night spike, morning relief) or stay constant?';
+        if (!this.hasRecentlyAnsweredIntent(conversation, PATTERN_QUESTION_PATTERN, 24)) {
+          return 'Do fever episodes come in cycles (evening chills, night spike, morning relief) or stay constant?';
+        }
+        if (!this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 24)) {
+          return 'Any danger signs now: breathlessness, confusion, chest pain, persistent vomiting, or bleeding?';
+        }
+        return this.buildDifferentialProgressQuestion(conversation);
       }
-      return 'What is the one symptom worrying you most right now?';
+      return phase === 'differential'
+        ? this.buildDifferentialProgressQuestion(conversation)
+        : 'What is the one symptom worrying you most right now?';
+    }
+
+    if (phase === 'differential') {
+      return this.buildDifferentialProgressQuestion(conversation);
     }
 
     const recentQuestions = getRecentDoctorQuestions(conversation, 8);
     return getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
+  }
+
+  private buildDifferentialProgressQuestion(
+    conversation: ClinicalState['conversation']
+  ): string {
+    const sequence: Array<{ pattern: RegExp; question: string }> = [
+      {
+        pattern: MOST_LIMITING_QUESTION_PATTERN,
+        question: 'Which one symptom is most limiting right now?',
+      },
+      {
+        pattern: SYMPTOM_CHANGE_QUESTION_PATTERN,
+        question: 'How has that symptom changed since it began?',
+      },
+      {
+        pattern: PATTERN_QUESTION_PATTERN,
+        question: 'What pattern do you notice most: day, night, intermittent, or constant?',
+      },
+      {
+        pattern: DANGER_SIGNS_QUESTION_PATTERN,
+        question:
+          'Any danger signs now: breathlessness, confusion, chest pain, persistent vomiting, or bleeding?',
+      },
+    ];
+
+    for (const step of sequence) {
+      if (!this.hasRecentlyAnsweredIntent(conversation, step.pattern, 24)) {
+        return step.question;
+      }
+    }
+
+    return 'What other detail should I clarify before I summarize your working diagnosis?';
+  }
+
+  private shouldHardBlockIntentRepeat(
+    question: string,
+    conversation: ClinicalState['conversation']
+  ): boolean {
+    if (PATTERN_QUESTION_PATTERN.test(question)) {
+      return this.hasRecentlyAnsweredIntent(conversation, PATTERN_QUESTION_PATTERN, 24);
+    }
+    if (DANGER_SIGNS_QUESTION_PATTERN.test(question)) {
+      return this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 24);
+    }
+    if (MOST_LIMITING_QUESTION_PATTERN.test(question)) {
+      return this.hasRecentlyAnsweredIntent(conversation, MOST_LIMITING_QUESTION_PATTERN, 24);
+    }
+    if (SYMPTOM_CHANGE_QUESTION_PATTERN.test(question)) {
+      return this.hasRecentlyAnsweredIntent(conversation, SYMPTOM_CHANGE_QUESTION_PATTERN, 24);
+    }
+    return false;
+  }
+
+  private hasRecentlyAnsweredIntent(
+    conversation: ClinicalState['conversation'],
+    intentPattern: RegExp,
+    lookback = 20
+  ): boolean {
+    const window = conversation.slice(-lookback);
+    for (let i = window.length - 1; i >= 0; i -= 1) {
+      const entry = window[i];
+      if (entry.role !== 'doctor') continue;
+      const askedQuestion = (entry.metadata?.question || entry.content || '').trim();
+      if (!intentPattern.test(askedQuestion)) continue;
+
+      for (let j = i + 1; j < window.length; j += 1) {
+        const followup = window[j];
+        if (followup.role === 'doctor') break;
+        if (
+          followup.role === 'patient' &&
+          this.isSubstantivePatientResponse(followup.content || '')
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  private isSubstantivePatientResponse(response: string): boolean {
+    const normalized = response.trim();
+    if (!normalized) return false;
+    if (UNSURE_ANSWER_PATTERN.test(normalized)) return false;
+    if (NON_SUBSTANTIVE_PATIENT_RESPONSE_PATTERN.test(normalized)) return false;
+    return /[a-z0-9]/i.test(normalized);
   }
 
   private resolveSymptomCluster(answerText: string): 'fever' | 'head_pain' | 'airway' | 'gut' | 'general' | 'none' {
