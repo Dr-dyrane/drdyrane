@@ -66,6 +66,10 @@ const UNSURE_ANSWER_PATTERN = /\b(not sure|unsure|unknown|maybe|don'?t know|cann
 const NON_SUBSTANTIVE_PATIENT_RESPONSE_PATTERN = /^(ok|okay|alright|fine|hmm+|uh+h*|ah+h*|k|kk)$/i;
 const MOST_LIMITING_QUESTION_PATTERN = /\bmost limiting\b|\bstands?\s*out\b/i;
 const SYMPTOM_CHANGE_QUESTION_PATTERN = /\bchanged since\b|\bhow has\b|\bbetter|worse|improved\b/i;
+const SUMMARY_CLARIFY_QUESTION_PATTERN =
+  /\bwhat other detail should i clarify before i summarize your working diagnosis\b|\bworking diagnosis and plan\b/i;
+const SUMMARY_READY_RESPONSE_PATTERN =
+  /\bready for summary\b|\bno\b|\bnone\b|\bnothing else\b|\bno more\b|\bthat'?s all\b|\bdone\b|\byes\b/i;
 const CHECKPOINT_DANGER_SIGNAL_PATTERN =
   /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
 const PATTERN_QUESTION_PATTERN =
@@ -568,13 +572,7 @@ export class AgentCoordinator {
     );
     const stagedOptions =
       typeof firstSegment.timeout_seconds === 'number' && firstSegment.timeout_seconds > 0
-        ? {
-            ...stagedOptionsBase,
-            allow_custom_input: true,
-            context_hint:
-              stagedOptionsBase.context_hint ||
-              `Step 1 of ${segments.length}: Capture complaint timing.`,
-          }
+        ? this.buildTimedBinaryOptions(firstSegment.prompt, `Step 1 of ${segments.length}: Quick yes/no.`)
         : stagedOptionsBase;
 
     const conversation = [...stateForTurn.conversation, patientMessage, stagedDoctor];
@@ -590,6 +588,27 @@ export class AgentCoordinator {
 
     this.state = { ...stateForTurn, ...stagedState };
     return stagedState;
+  }
+
+  private buildTimedBinaryOptions(question: string, contextHint: string): ResponseOptions {
+    const normalized = question.toLowerCase();
+    const negativeLabel = /danger signs?|breathlessness|confusion|persistent vomiting|bleeding|chest pain/.test(
+      normalized
+    )
+      ? 'None of these'
+      : 'No';
+
+    return {
+      mode: 'single',
+      ui_variant: 'segmented',
+      options: [
+        { id: 'yes', text: 'Yes', category: 'confirmation', priority: 10 },
+        { id: 'no', text: negativeLabel, category: 'confirmation', priority: 9 },
+        { id: 'unsure', text: 'Not sure', category: 'confirmation', priority: 8 },
+      ],
+      allow_custom_input: true,
+      context_hint: contextHint,
+    };
   }
 
   private async stageNextGateStep(
@@ -616,13 +635,10 @@ export class AgentCoordinator {
           );
     const stagedOptions =
       stagedOptionsBase && typeof nextSegment.timeout_seconds === 'number' && nextSegment.timeout_seconds > 0
-        ? {
-            ...stagedOptionsBase,
-            allow_custom_input: true,
-            context_hint:
-              stagedOptionsBase.context_hint ||
-              `Step ${nextIndex + 1} of ${gate.segments.length}: Quick yes/no.`,
-          }
+        ? this.buildTimedBinaryOptions(
+            nextSegment.prompt,
+            `Step ${nextIndex + 1} of ${gate.segments.length}: Quick yes/no.`
+          )
         : stagedOptionsBase;
     const conversation = [...this.state.conversation, patientMessage, stagedDoctor];
     const stagedState: Partial<ClinicalState> = {
@@ -1186,7 +1202,7 @@ export class AgentCoordinator {
       }
     }
 
-    return 'What other detail should I clarify before I summarize your working diagnosis?';
+    return 'I can summarize now. Would you like your working diagnosis and plan?';
   }
 
   private shouldHardBlockIntentRepeat(
@@ -1372,8 +1388,50 @@ export class AgentCoordinator {
       patientTurns >= 3 &&
       subjectiveDensity >= 4 &&
       supportSignals >= 3;
+    const summaryReady = this.hasSummaryReadySignal(conversation);
+    const dangerSignsCovered =
+      this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28) ||
+      /no immediate danger signs|no danger signs|none of these/.test(evidenceCorpus);
+    const hasLeadDiagnosis = Boolean(leadDx);
+    const summaryFastTrack =
+      summaryReady &&
+      hasLeadDiagnosis &&
+      patientTurns >= 4 &&
+      dangerSignsCovered;
 
-    return malariaFastTrack || highCertaintyGeneral;
+    return malariaFastTrack || highCertaintyGeneral || summaryFastTrack;
+  }
+
+  private hasSummaryReadySignal(conversation: ClinicalState['conversation']): boolean {
+    const window = conversation.slice(-24);
+    let summaryAskIndex = -1;
+
+    for (let i = window.length - 1; i >= 0; i -= 1) {
+      const entry = window[i];
+      if (entry.role !== 'doctor') continue;
+      const question = (entry.metadata?.question || entry.content || '').trim().toLowerCase();
+      if (SUMMARY_CLARIFY_QUESTION_PATTERN.test(question)) {
+        summaryAskIndex = i;
+        break;
+      }
+    }
+
+    if (summaryAskIndex < 0) {
+      return window
+        .filter((entry) => entry.role === 'patient')
+        .some((entry) => /\bready for summary\b/i.test(entry.content || ''));
+    }
+
+    for (let i = summaryAskIndex + 1; i < window.length; i += 1) {
+      const followup = window[i];
+      if (followup.role === 'doctor') break;
+      if (followup.role !== 'patient') continue;
+      const normalized = (followup.content || '').trim().toLowerCase();
+      if (!normalized) continue;
+      return SUMMARY_READY_RESPONSE_PATTERN.test(normalized);
+    }
+
+    return false;
   }
 
   getState(): ClinicalState {
