@@ -145,6 +145,50 @@ const sanitizeDiagnosticReviewRecord = (
   const updatedAt = Number(record.updated_at) || Date.now();
   const note = typeof record.context_note === 'string' ? record.context_note.trim() : '';
   const imageName = typeof record.image_name === 'string' ? record.image_name.trim() : '';
+  const clampVisionConfidencePercent = (value: unknown): number => {
+    const num = Number(value);
+    if (Number.isNaN(num)) return 0;
+    const scaled = num > 0 && num <= 1 ? num * 100 : num;
+    return Math.max(0, Math.min(100, Math.round(scaled)));
+  };
+  const differentials = Array.isArray(record.analysis?.differentials)
+    ? record.analysis.differentials
+        .map((entry) => {
+          if (!entry || typeof entry !== 'object') return null;
+          const raw = entry as {
+            label?: unknown;
+            icd10?: unknown;
+            likelihood?: unknown;
+            rationale?: unknown;
+          };
+          const label = typeof raw.label === 'string' ? raw.label.trim() : '';
+          if (!label) return null;
+          const likelihoodRaw =
+            typeof raw.likelihood === 'string' ? raw.likelihood.trim().toLowerCase() : '';
+          const likelihood =
+            likelihoodRaw === 'high' || likelihoodRaw === 'low' || likelihoodRaw === 'medium'
+              ? (likelihoodRaw as 'high' | 'medium' | 'low')
+              : 'medium';
+          return {
+            label,
+            icd10: typeof raw.icd10 === 'string' ? raw.icd10.trim() || undefined : undefined,
+            likelihood,
+            rationale:
+              typeof raw.rationale === 'string' ? raw.rationale.trim() || undefined : undefined,
+          };
+        })
+        .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+        .slice(0, 6)
+    : [];
+  const treatmentLines = Array.isArray(record.analysis?.treatment_lines)
+    ? record.analysis.treatment_lines.map(String).filter(Boolean).slice(0, 8)
+    : [];
+  const investigations = Array.isArray(record.analysis?.investigations)
+    ? record.analysis.investigations.map(String).filter(Boolean).slice(0, 8)
+    : [];
+  const counseling = Array.isArray(record.analysis?.counseling)
+    ? record.analysis.counseling.map(String).filter(Boolean).slice(0, 8)
+    : [];
   const analysis = record.analysis && typeof record.analysis === 'object'
     ? {
         summary:
@@ -157,10 +201,7 @@ const sanitizeDiagnosticReviewRecord = (
         red_flags: Array.isArray(record.analysis.red_flags)
           ? record.analysis.red_flags.map(String).filter(Boolean).slice(0, 6)
           : [],
-        confidence: Math.max(
-          0,
-          Math.min(100, Math.round(Number(record.analysis.confidence) || 0))
-        ),
+        confidence: clampVisionConfidencePercent(record.analysis.confidence),
         recommendation:
           typeof record.analysis.recommendation === 'string'
             ? record.analysis.recommendation.trim()
@@ -173,68 +214,26 @@ const sanitizeDiagnosticReviewRecord = (
             ? {
                 label: record.analysis.spot_diagnosis.label.trim(),
                 icd10:
-                  typeof record.analysis.spot_diagnosis.icd10 === 'string' &&
-                  record.analysis.spot_diagnosis.icd10.trim()
-                    ? record.analysis.spot_diagnosis.icd10.trim()
+                  typeof record.analysis.spot_diagnosis.icd10 === 'string'
+                    ? record.analysis.spot_diagnosis.icd10.trim() || undefined
                     : undefined,
-                confidence: Math.max(
-                  0,
-                  Math.min(
-                    100,
-                    Math.round(Number(record.analysis.spot_diagnosis.confidence) || 0)
-                  )
+                confidence: clampVisionConfidencePercent(
+                  record.analysis.spot_diagnosis.confidence
                 ),
                 rationale:
-                  typeof record.analysis.spot_diagnosis.rationale === 'string' &&
-                  record.analysis.spot_diagnosis.rationale.trim()
-                    ? record.analysis.spot_diagnosis.rationale.trim()
+                  typeof record.analysis.spot_diagnosis.rationale === 'string'
+                    ? record.analysis.spot_diagnosis.rationale.trim() || undefined
                     : undefined,
               }
             : undefined,
-        differentials: Array.isArray(record.analysis.differentials)
-          ? record.analysis.differentials
-              .map((entry) => {
-                if (!entry || typeof entry !== 'object') return null;
-                const label =
-                  typeof entry.label === 'string' ? entry.label.trim() : '';
-                if (!label) return null;
-                const likelihoodRaw =
-                  typeof entry.likelihood === 'string'
-                    ? entry.likelihood.trim().toLowerCase()
-                    : '';
-                const likelihood = ['high', 'medium', 'low'].includes(likelihoodRaw)
-                  ? (likelihoodRaw as 'high' | 'medium' | 'low')
-                  : 'medium';
-                return {
-                  label,
-                  icd10:
-                    typeof entry.icd10 === 'string' && entry.icd10.trim()
-                      ? entry.icd10.trim()
-                      : undefined,
-                  likelihood,
-                  rationale:
-                    typeof entry.rationale === 'string' && entry.rationale.trim()
-                      ? entry.rationale.trim()
-                      : undefined,
-                };
-              })
-              .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-              .slice(0, 6)
-          : [],
+        differentials: differentials.length > 0 ? differentials : undefined,
         treatment_summary:
-          typeof record.analysis.treatment_summary === 'string' &&
-          record.analysis.treatment_summary.trim()
-            ? record.analysis.treatment_summary.trim()
+          typeof record.analysis.treatment_summary === 'string'
+            ? record.analysis.treatment_summary.trim() || undefined
             : undefined,
-        treatment_lines: Array.isArray(record.analysis.treatment_lines)
-          ? record.analysis.treatment_lines.map(String).filter(Boolean).slice(0, 8)
-          : [],
-        investigations: Array.isArray(record.analysis.investigations)
-          ? record.analysis.investigations.map(String).filter(Boolean).slice(0, 8)
-          : [],
-        counseling: Array.isArray(record.analysis.counseling)
-          ? record.analysis.counseling.map(String).filter(Boolean).slice(0, 8)
-          : [],
+        treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
+        investigations: investigations.length > 0 ? investigations : undefined,
+        counseling: counseling.length > 0 ? counseling : undefined,
       }
     : null;
 

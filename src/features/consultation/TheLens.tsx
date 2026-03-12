@@ -120,34 +120,7 @@ export const TheLens: React.FC = () => {
       const redFlagText = analysis.red_flags.length > 0
         ? `Possible red flags: ${analysis.red_flags.join('; ')}.`
         : 'No immediate red flag visual cues detected.';
-      const spotDxText = analysis.spot_diagnosis?.label
-        ? `Spot diagnosis: ${analysis.spot_diagnosis.label}${
-            analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
-          }.`
-        : 'Spot diagnosis not established from image alone.';
-      const differentialText =
-        analysis.differentials.length > 0
-          ? `Differentials: ${analysis.differentials
-              .map(
-                (entry) =>
-                  `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''} [${entry.likelihood}]`
-              )
-              .join('; ')}.`
-          : 'No ranked differentials available.';
-      const treatmentText =
-        analysis.treatment_summary ||
-        (analysis.treatment_lines.length > 0
-          ? `Treatment lines: ${analysis.treatment_lines.join('; ')}.`
-          : 'Treatment pathway pending.');
-      const investigationText =
-        analysis.investigations.length > 0
-          ? `Investigations: ${analysis.investigations.join('; ')}.`
-          : '';
-      const counselingText =
-        analysis.counseling.length > 0
-          ? `Counseling: ${analysis.counseling.join('; ')}.`
-          : '';
-      const visualInput = `Visual analysis summary: ${analysis.summary}. Findings: ${findingText}. ${redFlagText} ${spotDxText} ${differentialText} ${treatmentText} ${investigationText} ${counselingText} Recommendation: ${analysis.recommendation}. Confidence: ${analysis.confidence}%.`;
+      const visualInput = `Visual analysis summary: ${analysis.summary}. Findings: ${findingText}. ${redFlagText} Recommendation: ${analysis.recommendation}. Confidence: ${analysis.confidence}%.`;
       await returnToConsultation(visualInput);
     } catch (error) {
       console.error('Lens analysis failed:', error);

@@ -183,18 +183,19 @@ export const BottomNav: React.FC = () => {
   }, [dispatch, feedback]);
 
   const triggerDiagnostic = useCallback(
-    (
-      action:
-        | 'open-upload'
-        | 'open-scanner'
-        | 'run-review'
-        | 'send-consult'
-        | 'print-review'
-    ) => {
+    (action: 'open-upload' | 'open-scanner' | 'run-review' | 'send-consult' | 'print-review') => {
       emitEvent(`drdyrane:diagnostic:${action}`, { kind: 'scan' });
-      feedback(action === 'send-consult' ? 'submit' : 'select');
+      feedback(action === 'send-consult' || action === 'print-review' ? 'submit' : 'select');
     },
     [emitEvent, feedback]
+  );
+
+  const hasScanAnalysis = useMemo(
+    () =>
+      state.diagnostic_reviews.some(
+        (review) => review.kind === 'scan' && review.analysis && review.analysis.summary
+      ),
+    [state.diagnostic_reviews]
   );
 
   const actionItems = useMemo<NavAction[]>(() => {
@@ -225,7 +226,7 @@ export const BottomNav: React.FC = () => {
           { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') },
           { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review') },
           { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult') },
-          { key: 'pdf', label: 'PDF', icon: Printer, onClick: () => triggerDiagnostic('print-review') },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: () => triggerDiagnostic('print-review'), disabled: !hasScanAnalysis },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       default:
@@ -242,6 +243,7 @@ export const BottomNav: React.FC = () => {
     exportPdf,
     hasArchives,
     hasCompletedEncounter,
+    hasScanAnalysis,
     openProcess,
     openView,
     resetVisit,
@@ -265,11 +267,14 @@ export const BottomNav: React.FC = () => {
       case 'drug':
         return { label: 'Open Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator') };
       case 'scan':
+        if (hasScanAnalysis) {
+          return { label: 'Print Review', icon: Printer, onClick: () => triggerDiagnostic('print-review') };
+        }
         return { label: 'Open Scanner', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') };
       default:
         return { label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') };
     }
-  }, [emitEvent, exportPdf, hasArchives, hasCompletedEncounter, openProcess, openView, revisitLatest, state.view, triggerDiagnostic]);
+  }, [emitEvent, exportPdf, hasArchives, hasCompletedEncounter, hasScanAnalysis, openProcess, openView, revisitLatest, state.view, triggerDiagnostic]);
 
   const triggerPrimaryAction = () => {
     if (menuOpen) {

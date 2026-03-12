@@ -38,37 +38,6 @@ interface TreatmentPdfRow {
   duration: string;
 }
 
-export interface DiagnosticReviewPdfInput {
-  filename?: string;
-  generatedAt?: number;
-  pageLabel: string;
-  lens: 'general' | 'lab' | 'radiology';
-  imageName?: string;
-  patient?: PatientMeta;
-  contextNote?: string;
-  summary: string;
-  findings: string[];
-  redFlags: string[];
-  confidence: number;
-  recommendation: string;
-  spotDiagnosis?: {
-    label: string;
-    icd10?: string;
-    confidence: number;
-    rationale?: string;
-  };
-  differentials?: Array<{
-    label: string;
-    icd10?: string;
-    likelihood: 'high' | 'medium' | 'low';
-    rationale?: string;
-  }>;
-  treatmentSummary?: string;
-  treatmentLines?: string[];
-  investigations?: string[];
-  counseling?: string[];
-}
-
 export interface EncounterPdfInput {
   filename?: string;
   generatedAt?: number;
@@ -114,6 +83,39 @@ export interface VisitRecordPdfInput {
     sh?: string;
     fh?: string;
   };
+}
+
+export interface DiagnosticReviewPdfInput {
+  filename?: string;
+  generatedAt?: number;
+  patient?: PatientMeta;
+  pageLabel?: string;
+  lens?: string;
+  confidence?: number;
+  observation: string;
+  keyFindings?: string[];
+  differentialDiagnosis?: Array<{
+    label: string;
+    icd10?: string;
+    likelihood?: 'high' | 'medium' | 'low' | string;
+    rationale?: string;
+  }>;
+  mostLikelyDiagnosis?: {
+    label: string;
+    icd10?: string;
+    confidence?: number;
+    rationale?: string;
+  };
+  management?: {
+    recommendation?: string;
+    summary?: string;
+    lines?: string[];
+  };
+  investigations?: string[];
+  counseling?: string[];
+  redFlags?: string[];
+  imageDataUrl?: string;
+  contextNote?: string;
 }
 
 const COLORS = {
@@ -568,90 +570,140 @@ export const exportDiagnosticReviewPdf = (input: DiagnosticReviewPdfInput) => {
   const frame = createFrame();
   const generatedAt = formatTimestamp(input.generatedAt || Date.now());
   const patientMetaLine = buildPatientMetaLine(input.patient);
+  const confidenceValue = Math.max(0, Math.min(100, Math.round(Number(input.confidence) || 0)));
   const chips = [
-    `${input.pageLabel} Report`,
-    `Lens: ${input.lens}`,
-    input.spotDiagnosis?.label || '',
+    'Spot Diagnosis Review',
+    input.pageLabel || 'Investigation',
+    input.lens ? `Lens: ${input.lens}` : '',
+    `Confidence: ${confidenceValue}%`,
   ].filter(Boolean);
 
   drawHeader(
     frame,
-    `Dr Dyrane ${input.pageLabel} Report`,
-    'Structured AI scan output with diagnosis, differentials, treatment, and safety markers.',
-    [
-      `Generated: ${generatedAt}`,
-      patientMetaLine,
-      input.imageName ? `Image: ${input.imageName}` : '',
-    ],
+    'Dr Dyrane Clinical Review',
+    'Structured diagnostic publication with prioritized differentials and management pathway.',
+    [`Generated: ${generatedAt}`, patientMetaLine],
     chips
   );
 
-  if (input.spotDiagnosis?.label) {
-    const spotLine = `${input.spotDiagnosis.label}${
-      input.spotDiagnosis.icd10 ? ` (ICD-10: ${input.spotDiagnosis.icd10})` : ''
-    }`;
-    const spotConfidence = `Confidence: ${Math.max(
-      0,
-      Math.min(100, Math.round(input.spotDiagnosis.confidence))
-    )}%`;
-    drawParagraphSection(
-      frame,
-      'Spot Diagnosis',
-      [spotLine, spotConfidence, input.spotDiagnosis.rationale || '']
+  if (input.imageDataUrl && input.imageDataUrl.startsWith('data:image/')) {
+    const { doc, contentX, contentWidth } = frame;
+    frame.ensureSpace(250);
+
+    setFill(doc, COLORS.sectionBg);
+    doc.roundedRect(contentX, frame.cursorY, contentWidth, 220, 14, 14, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    setTextColor(doc, COLORS.muted);
+    doc.text('CLINICAL SNAPSHOT', contentX + 12, frame.cursorY + 18);
+
+    const formatMatch = input.imageDataUrl.match(/^data:image\/([a-zA-Z0-9+.-]+);/i);
+    const formatRaw = (formatMatch?.[1] || 'jpeg').toLowerCase();
+    const format = formatRaw === 'png' ? 'PNG' : 'JPEG';
+    const imageX = contentX + 12;
+    const imageY = frame.cursorY + 28;
+    const imageMaxWidth = contentWidth - 24;
+    const imageMaxHeight = 180;
+
+    try {
+      const props = doc.getImageProperties(input.imageDataUrl);
+      let drawWidth = imageMaxWidth;
+      let drawHeight = (props.height / props.width) * drawWidth;
+      if (drawHeight > imageMaxHeight) {
+        drawHeight = imageMaxHeight;
+        drawWidth = (props.width / props.height) * drawHeight;
+      }
+      const offsetX = imageX + (imageMaxWidth - drawWidth) / 2;
+      doc.addImage(input.imageDataUrl, format, offsetX, imageY, drawWidth, drawHeight);
+    } catch {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      setTextColor(doc, COLORS.muted);
+      doc.text('Image preview unavailable for this export.', imageX, imageY + 14);
+    }
+
+    frame.cursorY += 232;
+  }
+
+  drawParagraphSection(frame, 'Observation', input.observation || 'Not recorded.');
+
+  const drawListOrFallback = (title: string, items: string[], fallback: string) => {
+    if (items.length > 0) {
+      drawListSection(frame, title, items);
+      return;
+    }
+    drawParagraphSection(frame, title, fallback);
+  };
+
+  drawListOrFallback(
+    'Key Findings',
+    input.keyFindings || [],
+    'No key findings were extracted from this review.'
+  );
+
+  const differentialLines = (input.differentialDiagnosis || []).map((item, index) => {
+    const code = item.icd10 ? ` (ICD-10: ${item.icd10})` : '';
+    const likelihood = item.likelihood ? ` [${String(item.likelihood).toUpperCase()}]` : '';
+    const rationale = item.rationale ? ` - ${item.rationale}` : '';
+    return `${index + 1}. ${item.label}${code}${likelihood}${rationale}`;
+  });
+  drawParagraphSection(
+    frame,
+    'Differential Diagnosis',
+    differentialLines.length > 0
+      ? differentialLines.join('\n')
+      : 'Differential diagnosis list not provided.'
+  );
+
+  const likelyDx = input.mostLikelyDiagnosis;
+  const likelyDxText = likelyDx?.label
+    ? [
+        `${likelyDx.label}${likelyDx.icd10 ? ` (ICD-10: ${likelyDx.icd10})` : ''}`,
+        typeof likelyDx.confidence === 'number'
+          ? `Confidence: ${Math.max(0, Math.min(100, Math.round(likelyDx.confidence)))}%`
+          : '',
+        likelyDx.rationale || '',
+      ]
         .filter(Boolean)
         .join('\n')
-    );
+    : 'Most likely diagnosis not provided.';
+  drawParagraphSection(frame, 'Most Likely Diagnosis', likelyDxText);
+
+  const managementLines = [
+    input.management?.recommendation || '',
+    input.management?.summary || '',
+    ...(input.management?.lines || []).map((line, index) => `${index + 1}. ${line}`),
+  ].filter(Boolean);
+  drawParagraphSection(
+    frame,
+    'Management',
+    managementLines.length > 0
+      ? managementLines.join('\n')
+      : 'Management plan not provided.'
+  );
+
+  drawListOrFallback(
+    'Investigations',
+    input.investigations || [],
+    'No investigations were generated.'
+  );
+  drawListOrFallback(
+    'Counseling',
+    input.counseling || [],
+    'No counseling points were generated.'
+  );
+  drawListOrFallback(
+    'Red Flags',
+    input.redFlags || [],
+    'No immediate red flags were generated.'
+  );
+
+  if (input.contextNote && input.contextNote.trim()) {
+    drawParagraphSection(frame, 'Clinical Note', input.contextNote.trim());
   }
 
-  if ((input.differentials || []).length > 0) {
-    drawListSection(
-      frame,
-      'Differentials',
-      (input.differentials || []).map((entry) =>
-        [
-          `${entry.label}${entry.icd10 ? ` (ICD-10: ${entry.icd10})` : ''}`,
-          `[${entry.likelihood}]`,
-          entry.rationale || '',
-        ]
-          .filter(Boolean)
-          .join(' ')
-      )
-    );
-  }
-
-  drawParagraphSection(frame, 'Summary', input.summary || 'Not recorded.');
-  drawListSection(frame, 'Key Findings', input.findings || []);
-  drawListSection(frame, 'Red Flags', input.redFlags || []);
-
-  if ((input.investigations || []).length > 0) {
-    drawListSection(frame, 'Investigations', input.investigations || []);
-  }
-
-  if (input.treatmentSummary || (input.treatmentLines || []).length > 0) {
-    drawParagraphSection(
-      frame,
-      'Treatment Summary',
-      input.treatmentSummary || 'Provisional treatment pathway generated from scan context.'
-    );
-    drawListSection(frame, 'Treatment Lines', input.treatmentLines || []);
-  }
-
-  if ((input.counseling || []).length > 0) {
-    drawListSection(frame, 'Counseling', input.counseling || []);
-  }
-
-  drawParagraphSection(frame, 'Recommendation', input.recommendation || 'Continue clinical assessment.');
-
-  if ((input.contextNote || '').trim().length > 0) {
-    drawParagraphSection(frame, 'Clinical Note', input.contextNote || '');
-  }
-
-  drawFooters(frame, 'Dr Dyrane - Scan Diagnostic Report');
+  drawFooters(frame, 'Dr Dyrane - Diagnostic Review');
   frame.doc.save(
-    input.filename ||
-      toFileName(
-        'dr-dyrane-scan-report',
-        input.spotDiagnosis?.label || input.pageLabel
-      )
+    input.filename || toFileName('dr-dyrane-diagnostic-review', likelyDx?.label || input.pageLabel)
   );
 };

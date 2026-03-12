@@ -75,7 +75,7 @@ export interface DiagnosticReviewAnalysis {
   spot_diagnosis?: {
     label: string;
     icd10?: string;
-    confidence: number;
+    confidence?: number;
     rationale?: string;
   };
   differentials?: Array<{

@@ -7,19 +7,19 @@ export interface VisionAnalysisResult {
   spot_diagnosis?: {
     label: string;
     icd10?: string;
-    confidence: number;
+    confidence?: number;
     rationale?: string;
   };
-  differentials: Array<{
+  differentials?: Array<{
     label: string;
     icd10?: string;
     likelihood: 'high' | 'medium' | 'low';
     rationale?: string;
   }>;
   treatment_summary?: string;
-  treatment_lines: string[];
-  investigations: string[];
-  counseling: string[];
+  treatment_lines?: string[];
+  investigations?: string[];
+  counseling?: string[];
 }
 
 const sanitizeText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
@@ -29,15 +29,17 @@ const sanitizeList = (value: unknown, maxItems: number): string[] =>
     ? value.map((item) => sanitizeText(item)).filter(Boolean).slice(0, maxItems)
     : [];
 
-const clampPercent = (value: unknown): number => {
+const clampVisionConfidencePercent = (value: unknown): number => {
   const num = typeof value === 'number' ? value : Number(value);
   if (Number.isNaN(num)) return 0;
-  return Math.max(0, Math.min(100, Math.round(num)));
+  const scaled = num > 0 && num <= 1 ? num * 100 : num;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
 };
 
 const sanitizeLikelihood = (value: unknown): 'high' | 'medium' | 'low' => {
   const normalized = sanitizeText(value).toLowerCase();
-  if (normalized === 'high' || normalized === 'low') return normalized;
+  if (normalized === 'high') return 'high';
+  if (normalized === 'low') return 'low';
   return 'medium';
 };
 
@@ -58,25 +60,26 @@ export const analyzeClinicalImage = async (payload: {
   }
 
   const data = (await response.json()) as Record<string, unknown>;
-  const spotDiagnosisRaw =
+  const spotRaw =
     data.spot_diagnosis && typeof data.spot_diagnosis === 'object'
       ? (data.spot_diagnosis as Record<string, unknown>)
-      : null;
-  const spotDiagnosisLabel = sanitizeText(spotDiagnosisRaw?.label);
+      : {};
+  const spotLabel = sanitizeText(spotRaw.label);
   const differentialsRaw = Array.isArray(data.differentials)
     ? (data.differentials as Array<Record<string, unknown>>)
     : [];
+  const treatmentLines = sanitizeList(data.treatment_lines, 8);
+  const investigations = sanitizeList(data.investigations, 8);
+  const counseling = sanitizeList(data.counseling, 8);
   const differentials = differentialsRaw
     .map((entry) => {
-      const label = sanitizeText(entry?.label);
+      const label = sanitizeText(entry.label);
       if (!label) return null;
-      const icd10 = sanitizeText(entry?.icd10);
-      const rationale = sanitizeText(entry?.rationale);
       return {
         label,
-        icd10: icd10 || undefined,
-        likelihood: sanitizeLikelihood(entry?.likelihood),
-        rationale: rationale || undefined,
+        icd10: sanitizeText(entry.icd10) || undefined,
+        likelihood: sanitizeLikelihood(entry.likelihood),
+        rationale: sanitizeText(entry.rationale) || undefined,
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
@@ -86,20 +89,21 @@ export const analyzeClinicalImage = async (payload: {
     summary: sanitizeText(data.summary) || 'No conclusive visual finding.',
     findings: sanitizeList(data.findings, 8),
     red_flags: sanitizeList(data.red_flags, 6),
-    confidence: clampPercent(data.confidence),
+    confidence: clampVisionConfidencePercent(data.confidence),
     recommendation: sanitizeText(data.recommendation) || 'Continue structured history collection.',
-    spot_diagnosis: spotDiagnosisLabel
+    spot_diagnosis: spotLabel
       ? {
-          label: spotDiagnosisLabel,
-          icd10: sanitizeText(spotDiagnosisRaw?.icd10) || undefined,
-          confidence: clampPercent(spotDiagnosisRaw?.confidence),
-          rationale: sanitizeText(spotDiagnosisRaw?.rationale) || undefined,
+          label: spotLabel,
+          icd10: sanitizeText(spotRaw.icd10) || undefined,
+          confidence: clampVisionConfidencePercent(spotRaw.confidence),
+          rationale: sanitizeText(spotRaw.rationale) || undefined,
         }
       : undefined,
-    differentials,
+    differentials: differentials.length > 0 ? differentials : undefined,
     treatment_summary: sanitizeText(data.treatment_summary) || undefined,
-    treatment_lines: sanitizeList(data.treatment_lines, 8),
-    investigations: sanitizeList(data.investigations, 8),
-    counseling: sanitizeList(data.counseling, 8),
+    treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
+    investigations: investigations.length > 0 ? investigations : undefined,
+    counseling: counseling.length > 0 ? counseling : undefined,
   };
 };
+

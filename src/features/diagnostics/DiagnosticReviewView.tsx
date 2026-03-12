@@ -50,17 +50,17 @@ const SCAN_LENS_CONFIG: Record<ScanLens, LensPromptConfig> = {
   general: {
     contextHint: 'Analyze this clinical image and identify relevant findings with urgency signals.',
     lensPrompt:
-      'Review this clinical image for key findings, danger signs, a provisional spot diagnosis, ranked differentials, and safe next-step recommendations.',
+      'Review this clinical image for key findings, danger signs, and safe next-step recommendations.',
   },
   lab: {
     contextHint: 'Analyze this laboratory report image and identify clinically relevant abnormalities.',
     lensPrompt:
-      'Review this laboratory report image. Extract critical findings, dangerous abnormalities, a provisional spot diagnosis, ranked differentials, and immediate next actions.',
+      'Review this laboratory report image. Extract critical findings, dangerous abnormalities, and immediate next actions.',
   },
   radiology: {
     contextHint: 'Analyze this radiology image and identify key findings with urgency indicators.',
     lensPrompt:
-      'Review this radiology image for major findings, red flags, a provisional spot diagnosis, ranked differentials, and safe next-step recommendations.',
+      'Review this radiology image for major findings, red flags, and safe next-step recommendations.',
   },
 };
 
@@ -72,10 +72,10 @@ const readFileAsDataUrl = (file: File): Promise<string> =>
     reader.readAsDataURL(file);
   });
 
-const formatNumber = (value: number): string => {
-  if (!Number.isFinite(value)) return '0';
-  const rounded = Math.round(value * 10) / 10;
-  return Number.isInteger(rounded) ? String(Math.round(rounded)) : String(rounded);
+const normalizeConfidenceDisplay = (value: number): number => {
+  if (!Number.isFinite(value)) return 0;
+  const scaled = value > 0 && value <= 1 ? value * 100 : value;
+  return Math.max(0, Math.min(100, Math.round(scaled)));
 };
 
 const nextScanReviewId = (): string => `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -121,6 +121,26 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   const imageName = activeReview?.image_name || '';
   const contextNote = activeReview?.context_note || '';
   const analysis = activeReview?.analysis || null;
+  const confidenceDisplay = useMemo(
+    () => normalizeConfidenceDisplay(analysis?.confidence ?? 0),
+    [analysis?.confidence]
+  );
+  const confidenceDonut = useMemo(() => {
+    const radius = 16;
+    const circumference = 2 * Math.PI * radius;
+    const progress = confidenceDisplay / 100;
+    return {
+      radius,
+      circumference,
+      dashOffset: circumference * (1 - progress),
+    };
+  }, [confidenceDisplay]);
+  const confidenceStroke = useMemo(() => {
+    if (confidenceDisplay >= 85) return '#22c55e';
+    if (confidenceDisplay >= 60) return '#3b82f6';
+    if (confidenceDisplay >= 35) return '#f59e0b';
+    return '#ef4444';
+  }, [confidenceDisplay]);
 
   const [error, setError] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
@@ -155,30 +175,14 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       const now = Date.now();
       const mergedReviews = [review, ...state.diagnostic_reviews.filter((item) => item.id !== review.id)];
       const hasRedFlags = Boolean(review.analysis && review.analysis.red_flags.length > 0);
-      const spotDx = review.analysis?.spot_diagnosis?.label;
-      const spotCode = review.analysis?.spot_diagnosis?.icd10;
-      const diagnosis = spotDx
-        ? `${spotDx}${spotCode ? ` (ICD-10: ${spotCode})` : ''}`
-        : review.analysis?.summary || `${config.pageLabel} review pending interpretation`;
+      const diagnosis = review.analysis?.summary || `${config.pageLabel} review pending interpretation`;
       const visitLabel = `${config.pageLabel} ${new Date(now).toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
       })}`;
-      const differentialSummary =
-        review.analysis?.differentials && review.analysis.differentials.length > 0
-          ? `Differentials: ${review.analysis.differentials
-              .map((entry) => `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''}`)
-              .join('; ')}`
-          : '';
-      const treatmentSummary =
-        review.analysis?.treatment_lines && review.analysis.treatment_lines.length > 0
-          ? `Treatment: ${review.analysis.treatment_lines.join('; ')}`
-          : review.analysis?.treatment_summary || '';
       const noteParts = [
         review.context_note || '',
         review.analysis?.recommendation || '',
-        differentialSummary,
-        treatmentSummary,
       ].filter(Boolean);
       const complaint = `${config.pageLabel} ${review.lens} review`;
       const archive: SessionRecord = {
@@ -409,35 +413,6 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   const handoffSummary = useMemo(() => {
     const lines: string[] = [`${config.pageLabel} review handoff:`];
     if (analysis) {
-      if (analysis.spot_diagnosis?.label) {
-        lines.push(
-          `Spot diagnosis: ${analysis.spot_diagnosis.label}${
-            analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
-          }.`
-        );
-      }
-      if (analysis.differentials && analysis.differentials.length > 0) {
-        lines.push(
-          `Differentials: ${analysis.differentials
-            .map(
-              (entry) =>
-                `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''} [${entry.likelihood}]`
-            )
-            .join('; ')}.`
-        );
-      }
-      if (analysis.investigations && analysis.investigations.length > 0) {
-        lines.push(`Investigations: ${analysis.investigations.join('; ')}.`);
-      }
-      if (analysis.treatment_summary) {
-        lines.push(`Treatment summary: ${analysis.treatment_summary}.`);
-      }
-      if (analysis.treatment_lines && analysis.treatment_lines.length > 0) {
-        lines.push(`Treatment lines: ${analysis.treatment_lines.join('; ')}.`);
-      }
-      if (analysis.counseling && analysis.counseling.length > 0) {
-        lines.push(`Counseling: ${analysis.counseling.join('; ')}.`);
-      }
       lines.push(`Summary: ${analysis.summary}`);
       if (analysis.findings.length > 0) {
         lines.push(`Findings: ${analysis.findings.join('; ')}`);
@@ -445,8 +420,36 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       if (analysis.red_flags.length > 0) {
         lines.push(`Red flags: ${analysis.red_flags.join('; ')}`);
       }
+      if (analysis.spot_diagnosis?.label) {
+        lines.push(
+          `Spot diagnosis: ${analysis.spot_diagnosis.label}${
+            analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
+          }`
+        );
+      }
+      if (analysis.differentials && analysis.differentials.length > 0) {
+        lines.push(
+          `Differentials: ${analysis.differentials
+            .map((item) =>
+              `${item.label}${item.icd10 ? ` (ICD-10: ${item.icd10})` : ''} [${item.likelihood}]`
+            )
+            .join('; ')}`
+        );
+      }
+      if (analysis.treatment_summary) {
+        lines.push(`Treatment intent: ${analysis.treatment_summary}`);
+      }
+      if (analysis.treatment_lines && analysis.treatment_lines.length > 0) {
+        lines.push(`Treatment lines: ${analysis.treatment_lines.join('; ')}`);
+      }
+      if (analysis.investigations && analysis.investigations.length > 0) {
+        lines.push(`Investigations: ${analysis.investigations.join('; ')}`);
+      }
+      if (analysis.counseling && analysis.counseling.length > 0) {
+        lines.push(`Counseling: ${analysis.counseling.join('; ')}`);
+      }
       lines.push(`Recommendation: ${analysis.recommendation}`);
-      lines.push(`Confidence: ${analysis.confidence}%`);
+      lines.push(`Confidence: ${confidenceDisplay}%`);
     }
 
     if (contextNote.trim()) {
@@ -458,52 +461,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     }
 
     return lines.join(' ');
-  }, [analysis, config.pageLabel, contextNote]);
-
-  const exportReviewPdf = useCallback(async () => {
-    if (!analysis) {
-      setError('Run AI review before exporting PDF.');
-      return;
-    }
-
-    const { exportDiagnosticReviewPdf } = await import('../../core/pdf/clinicalPdf');
-    exportDiagnosticReviewPdf({
-      generatedAt: Date.now(),
-      pageLabel: config.pageLabel,
-      lens: scanLens,
-      imageName: imageName || undefined,
-      patient: {
-        displayName: state.profile.display_name,
-        age: state.profile.age,
-        sex: state.profile.sex,
-        weightKg: state.profile.weight_kg ?? null,
-      },
-      contextNote: contextNote.trim() || undefined,
-      summary: analysis.summary,
-      findings: analysis.findings,
-      redFlags: analysis.red_flags,
-      confidence: analysis.confidence,
-      recommendation: analysis.recommendation,
-      spotDiagnosis: analysis.spot_diagnosis,
-      differentials: analysis.differentials || [],
-      treatmentSummary: analysis.treatment_summary,
-      treatmentLines: analysis.treatment_lines || [],
-      investigations: analysis.investigations || [],
-      counseling: analysis.counseling || [],
-    });
-    feedback('submit');
-  }, [
-    analysis,
-    config.pageLabel,
-    contextNote,
-    feedback,
-    imageName,
-    scanLens,
-    state.profile.age,
-    state.profile.display_name,
-    state.profile.sex,
-    state.profile.weight_kg,
-  ]);
+  }, [analysis, confidenceDisplay, config.pageLabel, contextNote]);
 
   const pushToConsultation = useCallback(async () => {
     if (!analysis && !contextNote.trim()) {
@@ -546,6 +504,55 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     handoffSummary,
     state,
     upsertReviewArchive,
+  ]);
+
+  const exportReviewPdf = useCallback(async () => {
+    if (!analysis) {
+      setError('Run AI review before printing.');
+      return;
+    }
+    const { exportDiagnosticReviewPdf } = await import('../../core/pdf/clinicalPdf');
+    exportDiagnosticReviewPdf({
+      generatedAt: Date.now(),
+      pageLabel: config.pageLabel,
+      lens: scanLens,
+      confidence: confidenceDisplay,
+      patient: state.profile,
+      observation: analysis.summary,
+      keyFindings: analysis.findings,
+      differentialDiagnosis: analysis.differentials || [],
+      mostLikelyDiagnosis: analysis.spot_diagnosis
+        ? {
+            label: analysis.spot_diagnosis.label,
+            icd10: analysis.spot_diagnosis.icd10,
+            confidence:
+              typeof analysis.spot_diagnosis.confidence === 'number'
+                ? normalizeConfidenceDisplay(analysis.spot_diagnosis.confidence)
+                : undefined,
+            rationale: analysis.spot_diagnosis.rationale,
+          }
+        : undefined,
+      management: {
+        recommendation: analysis.recommendation,
+        summary: analysis.treatment_summary,
+        lines: analysis.treatment_lines || [],
+      },
+      investigations: analysis.investigations || [],
+      counseling: analysis.counseling || [],
+      redFlags: analysis.red_flags,
+      imageDataUrl,
+      contextNote: contextNote.trim() || undefined,
+    });
+    feedback('submit');
+  }, [
+    analysis,
+    config.pageLabel,
+    confidenceDisplay,
+    contextNote,
+    feedback,
+    imageDataUrl,
+    scanLens,
+    state.profile,
   ]);
 
   useEffect(() => {
@@ -592,7 +599,6 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       applyFocusFromEvent(event);
       void pushToConsultation();
     };
-
     const handlePrint = (event: Event) => {
       if (!matchesKind(event)) return;
       applyFocusFromEvent(event);
@@ -647,38 +653,6 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
             </button>
           </div>
 
-          <div className="surface-strong rounded-[18px] p-1 grid grid-cols-3 gap-1.5">
-            {(
-              [
-                { id: 'general', label: 'General' },
-                { id: 'lab', label: 'Lab' },
-                { id: 'radiology', label: 'Radiology' },
-              ] as const
-            ).map((option) => {
-              const selected = scanLens === option.id;
-              return (
-                <button
-                  key={option.id}
-                  onClick={() => setScanLens(option.id)}
-                  className={`relative h-9 rounded-xl text-[11px] font-semibold uppercase tracking-wide interactive-tap ${
-                    selected ? 'text-content-active' : 'text-content-secondary'
-                  }`}
-                >
-                  {selected ? (
-                    <motion.span
-                      layoutId="scan-lens-pill"
-                      className="absolute inset-0 rounded-xl bg-surface-active selected-elevation"
-                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                    />
-                  ) : (
-                    <span className="absolute inset-0 rounded-xl surface-chip" />
-                  )}
-                  <span className="relative z-10">{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
           {imageDataUrl && (
             <div className="surface-strong rounded-[20px] p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
@@ -720,7 +694,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => void runAnalysis()}
                   disabled={analyzing || !imageDataUrl}
@@ -737,15 +711,6 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                 >
                   {pushing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   Send to Consult
-                </button>
-
-                <button
-                  onClick={() => void exportReviewPdf()}
-                  disabled={!analysis}
-                  className="h-11 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
-                >
-                  <Printer size={14} />
-                  Print PDF
                 </button>
               </div>
             </>
@@ -767,101 +732,49 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
           <section className="surface-raised rounded-[24px] p-4 space-y-3 pb-24">
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-content-dim uppercase tracking-wide">Review Output</p>
-              <span className="h-7 px-3 rounded-full surface-chip text-[11px] font-semibold inline-flex items-center">
-                {formatNumber(analysis.confidence)}% confidence
-              </span>
+              <div className="inline-flex items-center gap-2 surface-chip rounded-full">
+                <svg width="38" height="38" viewBox="0 0 38 38" aria-label="Confidence meter">
+                  <circle
+                    cx="19"
+                    cy="19"
+                    r={confidenceDonut.radius}
+                    stroke="currentColor"
+                    strokeOpacity="0.18"
+                    strokeWidth="4"
+                    fill="none"
+                  />
+                  <circle
+                    cx="19"
+                    cy="19"
+                    r={confidenceDonut.radius}
+                    stroke={confidenceStroke}
+                    strokeWidth="4"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeDasharray={confidenceDonut.circumference}
+                    strokeDashoffset={confidenceDonut.dashOffset}
+                    transform="rotate(-90 19 19)"
+                  />
+                  <text
+                    x="19"
+                    y="22"
+                    textAnchor="middle"
+                    className="fill-current text-[9px] font-semibold"
+                  >
+                    {confidenceDisplay}
+                  </text>
+                </svg>
+              </div>
             </div>
 
-            {analysis.spot_diagnosis?.label && (
-              <div className="surface-strong rounded-2xl p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <p className="text-[11px] text-content-dim uppercase tracking-wide">Spot Diagnosis</p>
-                  <span className="h-6 px-2.5 rounded-full surface-chip text-[10px] font-semibold inline-flex items-center">
-                    {formatNumber(analysis.spot_diagnosis.confidence)}%
-                  </span>
-                </div>
-                <p className="text-sm text-content-primary leading-relaxed font-semibold">
-                  {analysis.spot_diagnosis.label}
-                  {analysis.spot_diagnosis.icd10
-                    ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})`
-                    : ''}
-                </p>
-                {analysis.spot_diagnosis.rationale && (
-                  <p className="text-sm text-content-secondary leading-relaxed">
-                    {analysis.spot_diagnosis.rationale}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {analysis.differentials && analysis.differentials.length > 0 && (
-              <div className="surface-strong rounded-2xl p-3 space-y-2">
-                <p className="text-[11px] text-content-dim uppercase tracking-wide">Differentials</p>
-                <div className="space-y-2">
-                  {analysis.differentials.map((item, index) => (
-                    <div key={`${item.label}-${index}`} className="surface-chip rounded-xl px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-sm text-content-primary leading-snug font-medium">
-                          {item.label}
-                          {item.icd10 ? ` (ICD-10: ${item.icd10})` : ''}
-                        </p>
-                        <span className="text-[10px] text-content-secondary uppercase tracking-wide">
-                          {item.likelihood}
-                        </span>
-                      </div>
-                      {item.rationale && (
-                        <p className="text-xs text-content-secondary leading-relaxed mt-1">
-                          {item.rationale}
-                        </p>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {(analysis.treatment_summary ||
-              (analysis.treatment_lines && analysis.treatment_lines.length > 0)) && (
-              <div className="surface-strong rounded-2xl p-3 space-y-2">
-                <p className="text-[11px] text-content-dim uppercase tracking-wide">Treatment Plan</p>
-                {analysis.treatment_summary && (
-                  <p className="text-sm text-content-primary leading-relaxed">
-                    {analysis.treatment_summary}
-                  </p>
-                )}
-                {analysis.treatment_lines && analysis.treatment_lines.length > 0 && (
-                  <div className="space-y-1.5">
-                    {analysis.treatment_lines.map((item, index) => (
-                      <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
-                        {index + 1}. {item}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {analysis.investigations && analysis.investigations.length > 0 && (
-              <div className="surface-strong rounded-2xl p-3 space-y-2">
-                <p className="text-[11px] text-content-dim uppercase tracking-wide">Investigations</p>
-                <div className="space-y-1.5">
-                  {analysis.investigations.map((item, index) => (
-                    <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
-                      {index + 1}. {item}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            )}
-
             <div className="surface-strong rounded-2xl p-3 space-y-2">
-              <p className="text-[11px] text-content-dim uppercase tracking-wide">Summary</p>
+              <p className="text-[11px] text-content-dim uppercase tracking-wide">Observation</p>
               <p className="text-sm text-content-primary leading-relaxed">{analysis.summary}</p>
             </div>
 
-            {analysis.findings.length > 0 && (
-              <div className="surface-strong rounded-2xl p-3 space-y-2">
-                <p className="text-[11px] text-content-dim uppercase tracking-wide">Key Findings</p>
+            <div className="surface-strong rounded-2xl p-3 space-y-2">
+              <p className="text-[11px] text-content-dim uppercase tracking-wide">Key Findings</p>
+              {analysis.findings.length > 0 ? (
                 <div className="space-y-1.5">
                   {analysis.findings.map((item, index) => (
                     <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
@@ -869,17 +782,98 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                     </p>
                   ))}
                 </div>
-              </div>
-            )}
-
-            <div className="surface-strong rounded-2xl p-3 space-y-2">
-              <p className="text-[11px] text-content-dim uppercase tracking-wide">Recommendation</p>
-              <p className="text-sm text-content-primary leading-relaxed">{analysis.recommendation}</p>
+              ) : (
+                <p className="text-sm text-content-secondary leading-relaxed">
+                  No key findings extracted yet.
+                </p>
+              )}
             </div>
 
-            {analysis.counseling && analysis.counseling.length > 0 && (
-              <div className="surface-strong rounded-2xl p-3 space-y-2">
-                <p className="text-[11px] text-content-dim uppercase tracking-wide">Counseling</p>
+            <div className="surface-strong rounded-2xl p-3 space-y-2">
+              <p className="text-[11px] text-content-dim uppercase tracking-wide">Differential Diagnosis</p>
+              {analysis.differentials && analysis.differentials.length > 0 ? (
+                <div className="space-y-1.5">
+                  {analysis.differentials.map((item, index) => (
+                    <p key={`${item.label}-${index}`} className="text-sm text-content-primary leading-snug">
+                      {index + 1}. {item.label}
+                      {item.icd10 ? ` (ICD-10: ${item.icd10})` : ''} [{item.likelihood}]
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-content-secondary leading-relaxed">
+                  Differential list not generated yet.
+                </p>
+              )}
+            </div>
+
+            <div className="surface-strong rounded-2xl p-3 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="text-[11px] text-content-dim uppercase tracking-wide">Most Likely Diagnosis</p>
+                {typeof analysis.spot_diagnosis?.confidence === 'number' && (
+                  <span className="h-6 px-2.5 rounded-full surface-chip text-[10px] font-semibold inline-flex items-center">
+                    {normalizeConfidenceDisplay(analysis.spot_diagnosis.confidence)}%
+                  </span>
+                )}
+              </div>
+              {analysis.spot_diagnosis?.label ? (
+                <>
+                  <p className="text-sm text-content-primary leading-relaxed font-semibold">
+                    {analysis.spot_diagnosis.label}
+                    {analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''}
+                  </p>
+                  {analysis.spot_diagnosis.rationale && (
+                    <p className="text-sm text-content-secondary leading-relaxed">
+                      {analysis.spot_diagnosis.rationale}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-content-secondary leading-relaxed">
+                  Most likely diagnosis is not available yet.
+                </p>
+              )}
+            </div>
+
+            <div className="surface-strong rounded-2xl p-3 space-y-2">
+              <p className="text-[11px] text-content-dim uppercase tracking-wide">Management</p>
+              <p className="text-sm text-content-primary leading-relaxed">{analysis.recommendation}</p>
+              {analysis.treatment_summary && (
+                <p className="text-sm text-content-secondary leading-relaxed">
+                  {analysis.treatment_summary}
+                </p>
+              )}
+              {analysis.treatment_lines && analysis.treatment_lines.length > 0 && (
+                <div className="space-y-1.5">
+                  {analysis.treatment_lines.map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
+                      {index + 1}. {item}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="surface-strong rounded-2xl p-3 space-y-2">
+              <p className="text-[11px] text-content-dim uppercase tracking-wide">Investigations</p>
+              {analysis.investigations && analysis.investigations.length > 0 ? (
+                <div className="space-y-1.5">
+                  {analysis.investigations.map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
+                      {index + 1}. {item}
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-content-secondary leading-relaxed">
+                  No investigations suggested yet.
+                </p>
+              )}
+            </div>
+
+            <div className="surface-strong rounded-2xl p-3 space-y-2">
+              <p className="text-[11px] text-content-dim uppercase tracking-wide">Counseling</p>
+              {analysis.counseling && analysis.counseling.length > 0 ? (
                 <div className="space-y-1.5">
                   {analysis.counseling.map((item, index) => (
                     <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
@@ -887,12 +881,16 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                     </p>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-sm text-content-secondary leading-relaxed">
+                  Counseling points not generated yet.
+                </p>
+              )}
+            </div>
 
-            {analysis.red_flags.length > 0 && (
-              <div className="surface-strong rounded-2xl p-3 space-y-2">
-                <p className="text-[11px] text-danger-primary uppercase tracking-wide">Red Flags</p>
+            <div className="surface-strong rounded-2xl p-3 space-y-2">
+              <p className="text-[11px] text-danger-primary uppercase tracking-wide">Red Flags</p>
+              {analysis.red_flags.length > 0 ? (
                 <div className="space-y-1.5">
                   {analysis.red_flags.map((flag, index) => (
                     <p key={`${flag}-${index}`} className="text-sm text-content-primary leading-snug">
@@ -900,15 +898,27 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                     </p>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-sm text-content-secondary leading-relaxed">
+                  No immediate red flags extracted.
+                </p>
+              )}
+            </div>
+
+            <button
+              onClick={() => void exportReviewPdf()}
+              className="h-11 w-full rounded-2xl cta-live text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap"
+            >
+              <Printer size={14} />
+              Print PDF
+            </button>
           </section>
         )}
 
         {!analysis && (
           <section className="surface-raised rounded-[24px] p-4 pb-24">
             <p className="text-sm text-content-secondary leading-relaxed">
-              Upload or scan first, run AI review to get spot diagnosis + differentials, then send structured findings into consultation reasoning.
+              Upload or scan first, run AI review, then send structured findings back into consultation reasoning.
             </p>
           </section>
         )}
