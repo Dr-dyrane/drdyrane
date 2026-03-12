@@ -48,6 +48,7 @@ const clerkingFields = [
   { key: 'sh', label: 'SH' },
   { key: 'fh', label: 'FH' },
 ] as const;
+const MODAL_HANDOFF_MS = 240;
 
 export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
   record,
@@ -159,7 +160,10 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
   const openHxFromRecord = () => {
     if (!record) return;
     feedback('select');
-    onOpenHx(record);
+    onClose();
+    window.setTimeout(() => {
+      onOpenHx(record);
+    }, MODAL_HANDOFF_MS);
   };
 
   const statusLabel = record
@@ -211,7 +215,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                   hidden: { opacity: 0 },
                   show: { opacity: 1, transition: { staggerChildren: 0.03 } },
                 }}
-                className="flex-1 overflow-y-auto no-scrollbar px-5 pb-36 space-y-4"
+                className="flex-1 overflow-y-auto no-scrollbar px-5 pb-7 space-y-4"
               >
                 <motion.section
                   variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
@@ -312,14 +316,15 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                     })}
                   </div>
                 </motion.section>
-              </motion.div>
 
-              <div className="absolute bottom-0 inset-x-0 px-4 pb-6 pt-3 overlay-fade-bottom">
-                <div className="surface-raised rounded-[26px] p-3 space-y-2.5">
+                <motion.section
+                  variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+                  className="surface-raised rounded-[24px] p-3.5 space-y-2.5"
+                >
                   <button
                     onClick={saveRecord}
                     disabled={!isDirty}
-                    className={`h-12 w-full rounded-2xl text-sm font-semibold focus-glow interactive-tap ${
+                    className={`h-12 w-full rounded-2xl px-4 text-sm font-semibold focus-glow interactive-tap ${
                       isDirty ? 'cta-live' : 'surface-strong text-content-dim'
                     }`}
                     aria-label="Save visit record"
@@ -365,14 +370,14 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
 
                   <button
                     onClick={deleteRecord}
-                    className="h-12 rounded-2xl cta-danger text-sm font-semibold focus-glow interactive-tap"
+                    className="h-12 w-full rounded-2xl px-4 cta-danger text-sm font-semibold focus-glow interactive-tap"
                   >
                     <span className="inline-flex items-center gap-2">
                       <Trash2 size={14} /> Delete Visit
                     </span>
                   </button>
-                </div>
-              </div>
+                </motion.section>
+              </motion.div>
             </motion.div>
           </>
         )}

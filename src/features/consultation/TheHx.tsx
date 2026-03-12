@@ -77,7 +77,7 @@ export const TheHx: React.FC<TheHxProps> = ({ isOpen, onClose, overrideState }) 
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 overlay-backdrop backdrop-blur-sm z-[100] pointer-events-auto"
+              className="fixed inset-0 overlay-backdrop backdrop-blur-sm z-[160] pointer-events-auto"
             />
 
             <motion.div
@@ -85,7 +85,7 @@ export const TheHx: React.FC<TheHxProps> = ({ isOpen, onClose, overrideState }) 
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 290 }}
-              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto h-[88dvh] z-[110] pointer-events-auto"
+              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto h-[88dvh] z-[170] pointer-events-auto"
             >
               <div className="ios-sheet-surface h-full rounded-t-[32px] shadow-modal overflow-hidden">
                 <div className="flex items-center justify-center pt-2 pb-1">
@@ -221,4 +221,3 @@ export const TheHx: React.FC<TheHxProps> = ({ isOpen, onClose, overrideState }) 
     </OverlayPortal>
   );
 };
-

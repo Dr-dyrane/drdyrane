@@ -153,6 +153,7 @@ export const HistoryView: React.FC = () => {
         isOpen={!!recordModal}
         onClose={() => setRecordModal(null)}
         onOpenHx={(record) => {
+          setRecordModal(null);
           openSoap(record);
         }}
       />
