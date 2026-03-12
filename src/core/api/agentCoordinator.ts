@@ -46,6 +46,13 @@ const GATE_FINALIZATION_FALLBACK = {
   statement: 'Noted.',
 };
 
+const OPTION_STACK_MIN_CHOICES = 8;
+const STACKED_BINARY_TIMEOUT_SECONDS = 10;
+const STACKED_SYMPTOM_SURVEY_PATTERN =
+  /(which|what).*(associated symptom|symptom).*(stand out|most|prominent)|most prominent symptom with fever|associated symptom stands out/i;
+const SYMPTOM_SURVEY_SIGNAL_PATTERN =
+  /(headache|chills?|rigors?|nausea|vomit|aches?|fatigue|sweating|abdominal pain|diarrh|cough)/i;
+
 export class AgentCoordinator {
   private state: ClinicalState;
 
@@ -188,7 +195,7 @@ export class AgentCoordinator {
       conversationResult.message.metadata?.statement
     );
 
-    const questionGate: QuestionGateState | null = null;
+    let questionGate: QuestionGateState | null = null;
     let responseOptions: ResponseOptions | null = null;
 
     if (conversationResult.lens_trigger) {
@@ -200,6 +207,17 @@ export class AgentCoordinator {
         { ...stateForTurn.soap, ...conversationResult.soap_updates },
         stateForTurn.profile
       );
+
+      questionGate = this.buildStackedSymptomSurvey(question, responseOptions);
+      if (questionGate) {
+        responseOptions = {
+          ...responseOptions,
+          allow_custom_input: false,
+          context_hint:
+            responseOptions.context_hint ||
+            `Step 1 of ${questionGate.segments.length}: Choose the symptom that stands out most.`,
+        };
+      }
     }
 
     nextConversation.push(doctorMessage);
@@ -287,12 +305,22 @@ export class AgentCoordinator {
       };
 
       const stagedDoctor = createDoctorMessage(nextSegment.prompt, 'Noted');
-      const stagedOptions = await this.resolveQuestionOptions(
+      const stagedOptionsBase = await this.resolveQuestionOptions(
         nextSegment.prompt,
         this.state.agent_state,
         this.state.soap,
         profileForTurn
       );
+      const stagedOptions =
+        typeof nextSegment.timeout_seconds === 'number' && nextSegment.timeout_seconds > 0
+          ? {
+              ...stagedOptionsBase,
+              allow_custom_input: false,
+              context_hint:
+                stagedOptionsBase.context_hint ||
+                `Step ${nextIndex + 1} of ${gate.segments.length}: Quick yes/no.`,
+            }
+          : stagedOptionsBase;
       const stagedState: Partial<ClinicalState> = {
         conversation: [...this.state.conversation, patientMessage, stagedDoctor],
         profile: profileForTurn,
@@ -312,9 +340,10 @@ export class AgentCoordinator {
       return stagedState;
     }
 
-    const stackedInput = nextAnswers
-      .map((answer, idx) => `${idx + 1}. ${answer.prompt} ${answer.response}`)
-      .join('\n');
+    const stackedInput = [
+      'Stacked symptom survey summary:',
+      ...nextAnswers.map((answer, idx) => `${idx + 1}. ${answer.prompt} ${answer.response}`),
+    ].join('\n');
 
     const stateForTurn: ClinicalState = {
       ...this.state,
@@ -389,6 +418,50 @@ export class AgentCoordinator {
       return sanitized;
     }
     return getPhaseFallbackQuestion(phase, conversation.length);
+  }
+
+  private shouldCreateStackedSymptomSurvey(
+    question: string,
+    responseOptions: ResponseOptions
+  ): boolean {
+    if (responseOptions.mode !== 'single') return false;
+    if (responseOptions.options.length < OPTION_STACK_MIN_CHOICES) return false;
+
+    const prompt = question.toLowerCase();
+    if (!STACKED_SYMPTOM_SURVEY_PATTERN.test(prompt)) return false;
+
+    const optionTexts = responseOptions.options.map((option) => option.text.toLowerCase());
+    const symptomSignals = optionTexts.filter((text) => SYMPTOM_SURVEY_SIGNAL_PATTERN.test(text)).length;
+    return symptomSignals >= 4;
+  }
+
+  private buildStackedSymptomSurvey(
+    question: string,
+    responseOptions: ResponseOptions
+  ): QuestionGateState | null {
+    if (!this.shouldCreateStackedSymptomSurvey(question, responseOptions)) {
+      return null;
+    }
+
+    return {
+      active: true,
+      source_question: question,
+      segments: [
+        { id: 'dominant_symptom', prompt: question },
+        {
+          id: 'onset_48h',
+          prompt: 'Did this standout symptom begin within the last 48 hours?',
+          timeout_seconds: STACKED_BINARY_TIMEOUT_SECONDS,
+        },
+        {
+          id: 'worsening',
+          prompt: 'Has this standout symptom clearly worsened since it started?',
+          timeout_seconds: STACKED_BINARY_TIMEOUT_SECONDS,
+        },
+      ],
+      current_index: 0,
+      answers: [],
+    };
   }
 
   private getRecoveryQuestion(phase: ClinicalState['agent_state']['phase']): string {

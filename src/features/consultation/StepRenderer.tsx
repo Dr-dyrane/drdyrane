@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ChevronLeft, ListChecks, MessageCircleQuestion, X } from 'lucide-react';
+import { ArrowUp, ChevronLeft, ListChecks, MessageCircleQuestion, Timer, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
@@ -25,6 +25,7 @@ export const StepRenderer: React.FC = () => {
   const [showBiodataPanel, setShowBiodataPanel] = useState(false);
   const [biodataValue, setBiodataValue] = useState('');
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
+  const [gateCountdown, setGateCountdown] = useState<number | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
 
   useEffect(() => {
@@ -63,33 +64,84 @@ export const StepRenderer: React.FC = () => {
     setSelectedOptionIds([]);
   }, [state.response_options, state.status]);
 
-  const runInteraction = async (
-    input: string | string[],
-    isOptionSelection: boolean,
-    lastInput?: string,
-    preDelayMs: number = 0
-  ) => {
-    setLoading(true);
-    try {
-      if (preDelayMs > 0) {
-        await new Promise((resolve) => window.setTimeout(resolve, preDelayMs));
+  const runInteraction = useCallback(
+    async (
+      input: string | string[],
+      isOptionSelection: boolean,
+      lastInput?: string,
+      preDelayMs: number = 0
+    ) => {
+      setLoading(true);
+      try {
+        if (preDelayMs > 0) {
+          await new Promise((resolve) => window.setTimeout(resolve, preDelayMs));
+        }
+        const result = await processAgentInteraction(input, state, isOptionSelection);
+        dispatch({
+          type: 'SET_AGENT_RESPONSE',
+          payload: result,
+          ...(lastInput ? { lastInput } : {}),
+        });
+      } catch (error) {
+        console.error('Interaction error:', error);
+        signalFeedback('error', {
+          hapticsEnabled: state.settings.haptics_enabled,
+          audioEnabled: state.settings.audio_enabled,
+        });
+      } finally {
+        setLoading(false);
       }
-      const result = await processAgentInteraction(input, state, isOptionSelection);
-      dispatch({
-        type: 'SET_AGENT_RESPONSE',
-        payload: result,
-        ...(lastInput ? { lastInput } : {}),
-      });
-    } catch (error) {
-      console.error('Interaction error:', error);
-      signalFeedback('error', {
-        hapticsEnabled: state.settings.haptics_enabled,
-        audioEnabled: state.settings.audio_enabled,
-      });
-    } finally {
-      setLoading(false);
+    },
+    [dispatch, state]
+  );
+
+  const activeGateSegment = state.question_gate?.active
+    ? state.question_gate.segments[state.question_gate.current_index]
+    : null;
+  const gateTimeoutSeconds = activeGateSegment?.timeout_seconds;
+  const isTimedGateStep = typeof gateTimeoutSeconds === 'number' && gateTimeoutSeconds > 0;
+
+  useEffect(() => {
+    if (!isTimedGateStep || loading || !state.response_options) {
+      setGateCountdown(null);
+      return;
     }
-  };
+    setGateCountdown(gateTimeoutSeconds);
+    const intervalId = window.setInterval(() => {
+      setGateCountdown((prev) => {
+        if (prev === null) return null;
+        return Math.max(0, prev - 1);
+      });
+    }, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [gateTimeoutSeconds, isTimedGateStep, loading, state.response_options]);
+
+  useEffect(() => {
+    if (
+      !isTimedGateStep ||
+      gateCountdown === null ||
+      gateCountdown > 0 ||
+      loading ||
+      !state.response_options
+    ) {
+      return;
+    }
+
+    const unsureOption = state.response_options.options.find((option) =>
+      /(not sure|unsure|unknown|maybe)/i.test(option.text)
+    );
+    const fallbackOption = unsureOption || state.response_options.options.find((option) => /^no$/i.test(option.text));
+    const optionToSend = fallbackOption || state.response_options.options[0];
+
+    if (!optionToSend) {
+      setGateCountdown(null);
+      return;
+    }
+
+    setGateCountdown(null);
+    setSelectedOptionIds([optionToSend.id]);
+    void runInteraction([optionToSend.id], true, undefined, 0);
+  }, [gateCountdown, isTimedGateStep, loading, runInteraction, state.response_options]);
 
   const handleInitialInput = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -432,6 +484,12 @@ export const StepRenderer: React.FC = () => {
                   {gateProgress && (
                     <p className="text-xs tracking-wide text-content-dim text-center mb-2">
                       Clarifier {gateProgress}
+                    </p>
+                  )}
+                  {isTimedGateStep && gateCountdown !== null && (
+                    <p className="text-[11px] tracking-wide text-content-dim text-center mb-2 inline-flex w-full items-center justify-center gap-1">
+                      <Timer size={11} />
+                      Auto-continue in {gateCountdown}s
                     </p>
                   )}
                   <p className="text-xs tracking-wide text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">

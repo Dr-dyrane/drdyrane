@@ -33,3 +33,7 @@
 - One primary action cluster per step (answer options + optional freeform clarifier).
 - Internal reasoning not rendered on patient surface.
 - Option UI adapts to question semantics for faster input and lower cognitive load.
+- Large symptom-choice prompts can trigger a local stacked survey gate:
+  - Step 1: pick the dominant symptom.
+  - Step 2+: rapid binary clarifiers (timed yes/no with auto-continue fallback).
+  - Engine handoff happens once with a consolidated context summary.

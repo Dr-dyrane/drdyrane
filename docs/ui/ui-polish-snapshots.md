@@ -14,6 +14,10 @@
 - Motion behavior normalized (same hover/tap spring rhythm across variants).
 - Context hint moved into a dedicated interactive chip with stronger contrast.
 - Segment/grid/chips shells use consistent depth and focus treatment.
+- For high-cardinality symptom prompts, flow now supports multiphase stacking:
+  - dominant symptom selection first
+  - quick timed yes/no clarifiers next
+  - one consolidated submission to the clinical engine
 
 ## 4. Lens Screen
 - Keep dominant camera action + secondary skip/cancel only.

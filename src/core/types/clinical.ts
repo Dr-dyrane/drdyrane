@@ -110,6 +110,7 @@ export interface ResponseOptions {
 export interface GatedQuestionSegment {
   id: string;
   prompt: string;
+  timeout_seconds?: number;
 }
 
 export interface GatedQuestionAnswer {
