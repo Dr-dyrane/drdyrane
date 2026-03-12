@@ -1,9 +1,11 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
+import { resolveTheme } from '../../core/theme/resolveTheme';
 
 export const Orb: React.FC<{ loading?: boolean }> = ({ loading }) => {
   const { state } = useClinical();
+  const resolvedTheme = resolveTheme(state.theme);
 
   const isEmergency = state.status === 'emergency';
   const isActive = state.status !== 'idle' && state.status !== 'complete';
@@ -29,7 +31,7 @@ export const Orb: React.FC<{ loading?: boolean }> = ({ loading }) => {
           className="relative z-10"
         >
           <motion.img
-            src={state.theme === 'dark' ? "/logo.png" : "/logo_light.png"}
+            src={resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png'}
             alt="Dr. Dyrane AI"
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.8 }}

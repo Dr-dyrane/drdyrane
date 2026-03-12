@@ -62,6 +62,8 @@ const getSelectedSingleOption = (
 };
 
 const SPRING_CONFIG = { type: 'spring' as const, stiffness: 320, damping: 28 };
+const HOVER_MOTION = { scale: 1.015, y: -1.5 };
+const TAP_MOTION = { scale: 0.97, y: 0 };
 
 const getHintToneClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
   if (variant === 'chips' || variant === 'grid') return 'option-hint-energetic';
@@ -98,9 +100,10 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
       {responseOptions.context_hint && (
         <motion.div
           key={responseOptions.context_hint}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 6, scale: 0.985 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0 }}
+          transition={SPRING_CONFIG}
           className={`option-hint-chip ${getHintToneClass(variant)}`}
         >
           <p className="text-[10px] uppercase tracking-[0.2em] text-content-primary text-center">
@@ -157,6 +160,8 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                   disabled={loading}
                   aria-pressed={isSelected}
                   transition={SPRING_CONFIG}
+                  whileHover={HOVER_MOTION}
+                  whileTap={TAP_MOTION}
                   style={!isSelected ? { opacity: Math.max(0.45, depth * 0.1) } : undefined}
                   className={`h-11 rounded-xl transition-all text-sm font-semibold option-live option-live-smooth ${
                     isSelected
@@ -204,8 +209,8 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 aria-pressed={isSelected}
                 variants={{ hidden: { opacity: 0, y: 6 }, show: { opacity: 1, y: 0 } }}
                 transition={SPRING_CONFIG}
-                whileHover={{ scale: 1.01, y: -1 }}
-                whileTap={{ scale: 0.97 }}
+                whileHover={HOVER_MOTION}
+                whileTap={TAP_MOTION}
                 className={`${getOptionClass(variant)} ${
                   isSegmentedLike
                     ? isSelected
@@ -271,8 +276,8 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           layout
           onClick={onSubmitSingle}
           disabled={loading}
-          whileHover={{ scale: 1.01, y: -1 }}
-          whileTap={{ scale: 0.97 }}
+          whileHover={HOVER_MOTION}
+          whileTap={TAP_MOTION}
           className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.35em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue ({selectedScaleOption?.text || 'Selected'})
@@ -284,8 +289,8 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           layout
           onClick={onSubmitMultiple}
           disabled={loading}
-          whileHover={{ scale: 1.01, y: -1 }}
-          whileTap={{ scale: 0.97 }}
+          whileHover={HOVER_MOTION}
+          whileTap={TAP_MOTION}
           className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.4em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue ({selectedOptionIds.length})

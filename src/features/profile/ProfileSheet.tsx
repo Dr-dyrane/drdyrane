@@ -212,16 +212,25 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
               <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Settings</span>
             </div>
             <div className="surface-raised rounded-[24px] p-4 space-y-3">
-              <button
-                onClick={() => {
-                  feedback();
-                  dispatch({ type: 'TOGGLE_THEME' });
-                }}
-                className="w-full flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm focus-glow interactive-tap interactive-soft"
-              >
+              <div className="flex items-center justify-between px-3 py-2 rounded-xl surface-strong text-sm">
                 <span>Theme</span>
-                <span>{state.theme === 'dark' ? 'Dark' : 'Light'}</span>
-              </button>
+                <div className="flex gap-1">
+                  {(['system', 'dark', 'light'] as const).map((theme) => (
+                    <button
+                      key={theme}
+                      onClick={() => {
+                        feedback();
+                        dispatch({ type: 'SET_THEME', payload: theme });
+                      }}
+                      className={`h-7 px-2 rounded-lg text-[10px] uppercase tracking-[0.18em] interactive-tap ${
+                        state.theme === theme ? 'bg-surface-active text-content-active' : 'surface-raised'
+                      }`}
+                    >
+                      {theme}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm">
                 <span>Haptics</span>
                 <ToggleSwitch

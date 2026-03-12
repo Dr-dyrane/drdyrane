@@ -1,5 +1,5 @@
 export type ConsultationStatus = 'idle' | 'intake' | 'active' | 'lens' | 'emergency' | 'complete';
-export type AppTheme = 'dark' | 'light';
+export type AppTheme = 'system' | 'dark' | 'light';
 export type AppView = 'consult' | 'history' | 'about';
 export type SheetType = 'profile' | 'notifications' | null;
 

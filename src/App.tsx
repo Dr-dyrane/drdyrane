@@ -21,13 +21,28 @@ import { TheHx } from './features/consultation/TheHx';
 
 import { Header } from './components/layout/Header';
 import { DepthLayer } from './components/layout/DepthLayer';
+import { resolveTheme, watchSystemTheme } from './core/theme/resolveTheme';
 
 const MainApp: React.FC = () => {
   const { state, dispatch } = useClinical();
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', state.theme);
+    const applyTheme = () => {
+      const resolvedTheme = resolveTheme(state.theme);
+      document.documentElement.setAttribute('data-theme', resolvedTheme);
+      document.documentElement.setAttribute('data-theme-choice', state.theme);
+      document.documentElement.style.colorScheme = resolvedTheme;
+      const themeColorMeta = document.querySelector('meta[name="theme-color"]');
+      if (themeColorMeta) {
+        themeColorMeta.setAttribute('content', resolvedTheme === 'dark' ? '#02040a' : '#f5f7fa');
+      }
+    };
+
+    applyTheme();
     document.documentElement.setAttribute('data-text-scale', state.settings.text_scale);
+
+    if (state.theme !== 'system') return;
+    return watchSystemTheme(applyTheme);
   }, [state.theme, state.settings.text_scale]);
 
   return (

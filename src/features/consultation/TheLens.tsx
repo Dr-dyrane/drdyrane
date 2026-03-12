@@ -4,6 +4,7 @@ import { useClinical } from '../../core/context/ClinicalContext';
 import { Camera } from 'lucide-react';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback } from '../../core/services/feedback';
+import { resolveTheme } from '../../core/theme/resolveTheme';
 
 export const TheLens: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -104,7 +105,7 @@ export const TheLens: React.FC = () => {
   };
 
   if (state.status !== 'lens' && !active) return null;
-  const isDark = state.theme === 'dark';
+  const isDark = resolveTheme(state.theme) === 'dark';
 
   return (
     <div className="fixed inset-0 z-[260] flex items-center justify-center bg-surface-primary">

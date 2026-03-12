@@ -399,14 +399,17 @@ export const StepRenderer: React.FC = () => {
             exit={{ opacity: 0 }}
             className="flex flex-col h-full relative px-2 pb-24"
           >
-            <div className="max-w-2xl mx-auto w-full space-y-6">
+            <div className="max-w-2xl mx-auto w-full space-y-6 consult-flow-shell">
               {(currentMessage || state.status === 'active' || loading) && (
-                <div className="pt-6">
+                <div className="pt-6 space-y-2">
                   {gateProgress && (
                     <p className="text-[10px] uppercase tracking-[0.22em] text-content-dim text-center mb-2">
                       Clarifier {gateProgress}
                     </p>
                   )}
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center">
+                    Question
+                  </p>
                   <ClinicalQuestionCard
                     statement={statement}
                     question={resolvedQuestion}
@@ -415,7 +418,10 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="space-y-4 consult-answer-zone">
+                <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center">
+                  Choose Response
+                </p>
                 <ResponseOptionsPanel
                   responseOptions={state.response_options}
                   selectedOptionIds={selectedOptionIds}
@@ -426,7 +432,7 @@ export const StepRenderer: React.FC = () => {
                 />
 
                 {showInput && (
-                  <div className="pt-1 flex items-center gap-3 rounded-[28px] surface-raised p-3 shadow-glass">
+                  <div className="pt-1 flex items-center gap-3 rounded-[28px] surface-raised p-3 shadow-glass consult-free-input">
                     <textarea
                       rows={1}
                       value={val}

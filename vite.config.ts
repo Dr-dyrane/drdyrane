@@ -30,15 +30,23 @@ export default defineConfig(({ mode }) => {
       },
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['logo.png', 'logo_light.png'],
+        includeAssets: ['logo.png', 'logo_light.png', 'robots.txt', 'sitemap.xml'],
         manifest: {
+          id: '/',
           name: 'Dr. Dyrane',
           short_name: 'DrDyrane',
           description: 'The Digital Consultant - High-fidelity clinical induction registrar.',
+          lang: 'en-US',
+          dir: 'ltr',
+          start_url: '/',
+          scope: '/',
           theme_color: '#000000',
           background_color: '#000000',
           display: 'standalone',
+          display_override: ['window-controls-overlay', 'standalone'],
           orientation: 'portrait',
+          categories: ['medical', 'health', 'productivity'],
+          prefer_related_applications: false,
           icons: [
             {
               src: '/logo.png',

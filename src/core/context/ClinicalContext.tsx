@@ -26,6 +26,7 @@ export type Action =
   | { type: 'COMPLETE_CONSULTATION'; payload: PillarData }
   | { type: 'GO_BACK' }
   | { type: 'TOGGLE_THEME' }
+  | { type: 'SET_THEME'; payload: ClinicalState['theme'] }
   | { type: 'SET_VIEW'; payload: AppView }
   | { type: 'TOGGLE_HX' }
   | { type: 'TOGGLE_SHEET'; payload: Exclude<SheetType, null> }
@@ -70,7 +71,7 @@ const initialState: ClinicalState = {
   soap: { S: {}, O: {}, A: {}, P: {} },
   ddx: [],
   status: 'idle',
-  theme: 'dark',
+  theme: 'system',
   redFlag: false,
   pillars: null,
   currentQuestion: null,
@@ -172,7 +173,18 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
 
   switch (action.type) {
     case 'TOGGLE_THEME':
-      return { ...state, theme: state.theme === 'dark' ? 'light' : 'dark' };
+      return {
+        ...state,
+        theme:
+          state.theme === 'system'
+            ? 'dark'
+            : state.theme === 'dark'
+              ? 'light'
+              : 'system',
+      };
+
+    case 'SET_THEME':
+      return { ...state, theme: action.payload };
     
     case 'SET_VIEW':
       return { ...state, view: action.payload };
@@ -415,6 +427,9 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (parsed.question_gate === undefined) parsed.question_gate = null;
         if (!parsed.profile) parsed.profile = defaultProfile();
         if (!parsed.settings) parsed.settings = defaultSettings();
+        if (!parsed.theme || !['system', 'dark', 'light'].includes(parsed.theme)) {
+          parsed.theme = 'system';
+        }
         if (!parsed.notifications) parsed.notifications = [];
         if (parsed.active_sheet === undefined) parsed.active_sheet = null;
         if (!parsed.clerking) {
