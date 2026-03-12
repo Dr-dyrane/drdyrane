@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowDownToLine, ArrowUp, ChevronLeft, SkipForward, X } from 'lucide-react';
+import { ArrowUp, ChevronLeft, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
@@ -8,6 +8,7 @@ import { playCelebrationBurst } from '../../core/services/celebration';
 import { Orb } from './Orb';
 import { ClinicalQuestionCard } from './components/ClinicalQuestionCard';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
+import { BiodataCard } from './components/BiodataCard';
 
 const LOADING_PHASES = [
   'Analyzing history',
@@ -338,130 +339,17 @@ export const StepRenderer: React.FC = () => {
                   : "Hi, I'm Dr Dyrane. Tell me what's happening."}
               </motion.h1>
 
-              <AnimatePresence>
-                {showBiodataCard && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className="w-full surface-raised rounded-[26px] p-4 mb-4 space-y-3 shadow-glass"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">
-                        Optional Biodata
-                      </p>
-                      <button
-                        onClick={() => setBiodataDismissed(true)}
-                        className="h-8 w-8 rounded-full surface-strong flex items-center justify-center"
-                        aria-label="Skip biodata"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                    <p className="text-sm text-content-secondary">
-                      {biodataStep === 'name' && 'What should I call you in this consultation?'}
-                      {biodataStep === 'age' && 'How old are you?'}
-                      {biodataStep === 'sex' && 'Select your sex to improve diagnostic relevance.'}
-                    </p>
-                    {biodataStep === 'name' && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={biodataValue}
-                            onChange={(e) => setBiodataValue(e.target.value)}
-                            className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm"
-                            placeholder="Your name"
-                          />
-                          <button
-                            onClick={() => setBiodataDismissed(true)}
-                            className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim"
-                            aria-label="Skip biodata for now"
-                          >
-                            <SkipForward size={14} />
-                          </button>
-                          <button
-                            onClick={submitBiodataStep}
-                            disabled={!canSubmitBiodataStep}
-                            className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45"
-                            aria-label="Save name"
-                          >
-                            <ArrowDownToLine size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {biodataStep === 'age' && (
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            value={biodataValue}
-                            onChange={(e) => setBiodataValue(e.target.value)}
-                            type="number"
-                            min={0}
-                            max={125}
-                            className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm"
-                            placeholder="Age"
-                          />
-                          <button
-                            onClick={() => setBiodataDismissed(true)}
-                            className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim"
-                            aria-label="Skip biodata for now"
-                          >
-                            <SkipForward size={14} />
-                          </button>
-                          <button
-                            onClick={submitBiodataStep}
-                            disabled={!canSubmitBiodataStep}
-                            className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45"
-                            aria-label="Save age"
-                          >
-                            <ArrowDownToLine size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                    {biodataStep === 'sex' && (
-                      <div className="space-y-2">
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { id: 'female', label: 'Female' },
-                            { id: 'male', label: 'Male' },
-                            { id: 'intersex', label: 'Intersex' },
-                            { id: 'prefer_not_to_say', label: 'Prefer Not' },
-                          ].map((option) => {
-                            const isSelected = state.profile.sex === option.id;
-                            return (
-                              <button
-                                key={option.id}
-                                onClick={() =>
-                                  selectSex(option.id as NonNullable<typeof state.profile.sex>)
-                                }
-                                className={`h-10 rounded-xl text-[10px] uppercase tracking-[0.2em] transition-all ${
-                                  isSelected
-                                    ? 'bg-surface-active text-content-active shadow-glass'
-                                    : 'surface-strong text-content-primary'
-                                }`}
-                                aria-pressed={isSelected}
-                              >
-                                {option.label}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        <div className="flex justify-end">
-                          <button
-                            onClick={() => setBiodataDismissed(true)}
-                            className="h-10 w-10 rounded-xl surface-strong flex items-center justify-center text-content-dim"
-                            aria-label="Skip biodata for now"
-                          >
-                            <SkipForward size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              <BiodataCard
+                visible={showBiodataCard}
+                step={biodataStep}
+                value={biodataValue}
+                canSubmit={canSubmitBiodataStep}
+                selectedSex={state.profile.sex}
+                onValueChange={setBiodataValue}
+                onSubmit={submitBiodataStep}
+                onSelectSex={selectSex}
+                onSkip={() => setBiodataDismissed(true)}
+              />
 
               <form onSubmit={handleInitialInput} className="space-y-4 w-full">
                 <div className="relative">
