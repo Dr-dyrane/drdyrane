@@ -187,6 +187,8 @@ export const BottomNav: React.FC = () => {
   };
 
   const PrimaryIcon = primaryAction.icon;
+  const showPrimaryLabel =
+    !menuOpen && state.status !== 'idle' && state.status !== 'intake';
 
   return (
     <>
@@ -243,11 +245,13 @@ export const BottomNav: React.FC = () => {
               whileHover={{ scale: 1.02, y: -1 }}
               whileTap={{ scale: 0.96 }}
               onClick={triggerPrimaryAction}
-              className="h-12 px-4 rounded-2xl fab-live inline-flex items-center justify-center gap-2 text-sm font-semibold"
+              className={`h-12 rounded-2xl fab-live inline-flex items-center justify-center gap-2 text-sm font-semibold ${
+                showPrimaryLabel ? 'px-4' : 'w-12'
+              }`}
               aria-label={menuOpen ? 'Close actions' : primaryAction.label}
             >
               {menuOpen ? <X size={17} /> : <PrimaryIcon size={17} />}
-              {!menuOpen && <span className="max-w-[96px] truncate text-xs">{primaryAction.label}</span>}
+              {showPrimaryLabel && <span className="max-w-[96px] truncate text-xs">{primaryAction.label}</span>}
             </motion.button>
           </div>
 

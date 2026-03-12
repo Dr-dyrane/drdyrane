@@ -32,7 +32,8 @@ export const Orb: React.FC<{ loading?: boolean }> = ({ loading }) => {
         >
           <motion.img
             src={resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png'}
-            alt="Dr. Dyrane AI"
+            alt=""
+            aria-hidden="true"
             initial={{ opacity: 0 }}
             animate={{ opacity: 0.8 }}
             className="w-32 h-32 object-contain transition-all duration-1000"

@@ -22,6 +22,7 @@ export const StepRenderer: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [biodataDismissed, setBiodataDismissed] = useState(false);
+  const [showBiodataPanel, setShowBiodataPanel] = useState(false);
   const [biodataValue, setBiodataValue] = useState('');
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const lastDoctorMessageId = useRef<string | null>(null);
@@ -212,6 +213,14 @@ export const StepRenderer: React.FC = () => {
     !biodataDismissed &&
     profileNeedsBiodata &&
     !!biodataStep &&
+    showBiodataPanel &&
+    state.conversation.length === 0 &&
+    (state.status === 'idle' || state.status === 'intake');
+  const canPromptBiodata =
+    !biodataDismissed &&
+    profileNeedsBiodata &&
+    !!biodataStep &&
+    !showBiodataPanel &&
     state.conversation.length === 0 &&
     (state.status === 'idle' || state.status === 'intake');
 
@@ -231,6 +240,12 @@ export const StepRenderer: React.FC = () => {
     }
     setBiodataValue('');
   }, [biodataStep, showBiodataCard, state.profile.age, state.profile.display_name]);
+
+  useEffect(() => {
+    if (!profileNeedsBiodata) {
+      setShowBiodataPanel(false);
+    }
+  }, [profileNeedsBiodata]);
 
   const submitBiodataStep = () => {
     if (!biodataStep) return;
@@ -329,36 +344,24 @@ export const StepRenderer: React.FC = () => {
             className="flex-1 flex flex-col items-center justify-start pt-6 px-2"
           >
             <div className="max-w-2xl w-full flex flex-col items-center">
-              <motion.div
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="w-full surface-raised rounded-[26px] p-4 mb-4 shadow-glass"
-              >
-                <p className="text-[11px] text-content-dim tracking-wide uppercase">Consulting Room</p>
-                <p className="text-sm text-content-secondary leading-relaxed mt-2">
-                  Speak naturally. I will triage, investigate, and move you to a focused management and pharmacy-ready plan.
-                </p>
-                <div className="grid grid-cols-3 gap-2 mt-3">
-                  {['History', 'Investigation', 'Management'].map((item) => (
-                    <span
-                      key={item}
-                      className="h-8 rounded-xl surface-strong text-[11px] font-semibold text-content-secondary inline-flex items-center justify-center"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </motion.div>
-
               <motion.h1
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="display-type text-[2rem] font-semibold tracking-tight text-content-primary leading-tight text-center pb-3"
+                className="text-[1.35rem] font-semibold tracking-tight text-content-primary leading-tight text-center pb-3"
               >
                 {state.conversation.length > 0
                   ? 'Anything else to add?'
                   : "Tell me what's bothering you."}
               </motion.h1>
+
+              {canPromptBiodata && (
+                <button
+                  onClick={() => setShowBiodataPanel(true)}
+                  className="h-9 px-3 rounded-full surface-chip text-[11px] text-content-secondary font-medium mb-3 interactive-tap"
+                >
+                  Add optional details
+                </button>
+              )}
 
               <BiodataCard
                 visible={showBiodataCard}
@@ -369,7 +372,10 @@ export const StepRenderer: React.FC = () => {
                 onValueChange={setBiodataValue}
                 onSubmit={submitBiodataStep}
                 onSelectSex={selectSex}
-                onSkip={() => setBiodataDismissed(true)}
+                onSkip={() => {
+                  setBiodataDismissed(true);
+                  setShowBiodataPanel(false);
+                }}
               />
 
               <form onSubmit={handleInitialInput} className="space-y-4 w-full">

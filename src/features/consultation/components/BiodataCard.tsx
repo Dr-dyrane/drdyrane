@@ -82,9 +82,6 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
                 <SkipForward size={14} />
               </button>
             </div>
-            <p className="text-[11px] text-content-dim">
-              Auto-saves when you press Enter or move to the next field.
-            </p>
           </div>
         )}
 
@@ -117,9 +114,6 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
                 <SkipForward size={14} />
               </button>
             </div>
-            <p className="text-[11px] text-content-dim">
-              Auto-saves when you press Enter or move to the next field.
-            </p>
           </div>
         )}
 
