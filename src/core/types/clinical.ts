@@ -1,6 +1,6 @@
 export type ConsultationStatus = 'idle' | 'intake' | 'active' | 'lens' | 'emergency' | 'complete';
 export type AppTheme = 'system' | 'dark' | 'light';
-export type AppView = 'consult' | 'history' | 'about';
+export type AppView = 'consult' | 'history' | 'drug' | 'about';
 export type SheetType = 'profile' | 'notifications' | null;
 
 export interface SOAPState {
@@ -25,6 +25,13 @@ export interface PillarData {
       frequency: string;
       duration: string;
       note?: string;
+      weight_based?: {
+        mode: 'per_kg' | 'act_band' | 'zinc_band' | 'ors_band';
+        unit: string;
+        max_dose?: number;
+        factor?: number;
+        fallback_dose?: string;
+      };
     }>;
     counseling: string[];
     follow_up: string[];
@@ -60,6 +67,7 @@ export interface UserProfile {
   display_name: string;
   avatar_url: string;
   age?: number;
+  weight_kg?: number;
   sex?: 'female' | 'male' | 'intersex' | 'other' | 'prefer_not_to_say';
   pronouns?: string;
   allergies?: string;

@@ -76,6 +76,7 @@ export const callConversationEngine = async (
           profile: {
             display_name: state.profile.display_name,
             age: state.profile.age ?? null,
+            weight_kg: state.profile.weight_kg ?? null,
             sex: state.profile.sex ?? null,
             pronouns: state.profile.pronouns ?? null,
             allergies: state.profile.allergies ?? null,

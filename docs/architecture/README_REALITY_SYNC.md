@@ -13,6 +13,9 @@ Track where documented vision and implementation differ, and what has been align
 - Frontend prompt usage + short TTL caching are stored for prompt-cache control.
 - Agent state now stores explicit positive and negative findings memory across encounters.
 - A mandatory must-not-miss safety checkpoint now gates diagnosis finalization before `status=complete`.
+- Prescription encounter now supports weight-aware dose recalculation before print/export.
+- Added formal blueprint comparison in `docs/architecture/CHIEF_COMPLAINT_ENGINE_GAP_ANALYSIS.md`.
+- Added a dedicated `Drug` tab with searchable diagnosis protocols and print-ready treatment sheets sourced from `public/data/drug-protocols.json`.
 
 ## Remaining Gaps
 - README references historical folder names and model strategy not fully matching runtime.

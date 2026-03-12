@@ -6,6 +6,7 @@ import {
   Info,
   Monitor,
   Moon,
+  Pill,
   Sparkles,
   Stethoscope,
   Sun,
@@ -62,7 +63,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
       audioEnabled: settings.audio_enabled,
     });
 
-  const setViewAndClose = (view: 'consult' | 'history' | 'about') => {
+  const setViewAndClose = (view: 'consult' | 'history' | 'drug' | 'about') => {
     feedback('select');
     dispatch({ type: 'SET_VIEW', payload: view });
     dispatch({ type: 'CLOSE_SHEETS' });
@@ -287,6 +288,26 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                   <option value="prefer_not_to_say">Prefer not to say</option>
                 </select>
               </div>
+              <div className="surface-strong rounded-[18px] px-3 py-2 col-span-2">
+                <label className="text-xs text-content-dim">Weight (kg)</label>
+                <input
+                  value={profile.weight_kg ?? ''}
+                  onChange={(e) =>
+                    dispatch({
+                      type: 'UPDATE_PROFILE',
+                      payload: {
+                        weight_kg: e.target.value ? Number(e.target.value) : undefined,
+                      },
+                    })
+                  }
+                  type="number"
+                  min={1}
+                  max={300}
+                  step="0.1"
+                  className="w-full h-10 text-sm text-content-primary"
+                  placeholder="Required for pediatric dosing"
+                />
+              </div>
             </div>
           </motion.section>
 
@@ -406,7 +427,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
 
           <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-2 pb-3">
             <div className="px-3 py-2 text-xs font-semibold text-content-dim uppercase tracking-wide">Quick Navigation</div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               <motion.button
                 onClick={() => setViewAndClose('consult')}
                 whileHover={{ y: -1 }}
@@ -473,6 +494,29 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
                   <Info size={15} />
                   About
+                </span>
+              </motion.button>
+
+              <motion.button
+                onClick={() => setViewAndClose('drug')}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.97 }}
+                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
+                  state.view === 'drug' ? 'text-content-active' : 'text-content-primary'
+                }`}
+              >
+                {state.view === 'drug' ? (
+                  <motion.span
+                    layoutId="profile-nav-pill"
+                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                ) : (
+                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
+                )}
+                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
+                  <Pill size={15} />
+                  Drug
                 </span>
               </motion.button>
             </div>

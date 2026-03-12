@@ -50,6 +50,12 @@ const defaultProfile = (): UserProfile => ({
   updated_at: Date.now(),
 });
 
+const sanitizeWeightKg = (value: unknown): number | undefined => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return undefined;
+  if (value <= 0 || value > 300) return undefined;
+  return Math.round(value * 10) / 10;
+};
+
 const defaultSettings = (): AppSettings => ({
   haptics_enabled: true,
   audio_enabled: true,
@@ -286,14 +292,20 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
       return { ...state, isHxOpen: !state.isHxOpen };
 
     case 'UPDATE_PROFILE':
-      return {
-        ...state,
-        profile: {
+      {
+        const mergedProfile: UserProfile = {
           ...state.profile,
           ...action.payload,
           updated_at: Date.now(),
-        },
-      };
+        };
+        if ('weight_kg' in mergedProfile) {
+          mergedProfile.weight_kg = sanitizeWeightKg(mergedProfile.weight_kg);
+        }
+        return {
+          ...state,
+          profile: mergedProfile,
+        };
+      }
 
     case 'UPDATE_SETTINGS':
       return {
@@ -463,6 +475,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (parsed.selected_options === undefined) parsed.selected_options = [];
         if (parsed.question_gate === undefined) parsed.question_gate = null;
         if (!parsed.profile) parsed.profile = defaultProfile();
+        parsed.profile.weight_kg = sanitizeWeightKg(parsed.profile.weight_kg);
         if (!parsed.settings) parsed.settings = defaultSettings();
         if (!parsed.theme || !['system', 'dark', 'light'].includes(parsed.theme)) {
           parsed.theme = 'system';
@@ -546,7 +559,10 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             status: record.status || normalizedSnapshot.status || 'complete',
             soap: record.soap || normalizedSnapshot.soap,
             pillars: record.pillars || normalizedSnapshot.pillars || undefined,
-            profile_snapshot: record.profile_snapshot || parsed.profile || defaultProfile(),
+            profile_snapshot: {
+              ...(record.profile_snapshot || parsed.profile || defaultProfile()),
+              weight_kg: sanitizeWeightKg(record.profile_snapshot?.weight_kg ?? parsed.profile?.weight_kg),
+            },
             clerking: record.clerking || normalizedSnapshot.clerking || defaultClerking(),
             snapshot: normalizedSnapshot,
           };

@@ -16,6 +16,16 @@ export const extractProfileUpdates = (input: string): ProfileUpdates | null => {
     }
   }
 
+  const weightMatch = normalized.match(
+    /\b(?:weight(?: is)?|i weigh|weighs?)\s*(\d{1,3}(?:\.\d{1,2})?)\s*(kg|kgs|kilogram|kilograms)\b/
+  );
+  if (weightMatch?.[1]) {
+    const weightValue = Number(weightMatch[1]);
+    if (!Number.isNaN(weightValue) && weightValue > 0 && weightValue <= 300) {
+      updates.weight_kg = Math.round(weightValue * 10) / 10;
+    }
+  }
+
   if (/\b(female|woman)\b/.test(normalized)) {
     updates.sex = 'female';
   } else if (/\b(male|man)\b/.test(normalized)) {

@@ -19,6 +19,10 @@ interface DrugProtocolRow {
   duration: string;
 }
 
+type WeightDoseMeta = NonNullable<
+  NonNullable<PillarData['encounter']>['prescriptions'][number]['weight_based']
+>;
+
 interface MalariaProtocol {
   label: string;
   rows: DrugProtocolRow[];
@@ -163,16 +167,22 @@ const estimateWeightKg = (profile: ClinicalState['profile']): number | null => {
   return 60;
 };
 
+const getProfileWeightKg = (profile: ClinicalState['profile']): number | null => {
+  if (typeof profile.weight_kg !== 'number') return null;
+  if (Number.isNaN(profile.weight_kg)) return null;
+  if (profile.weight_kg <= 0 || profile.weight_kg > 300) return null;
+  return Math.round(profile.weight_kg * 10) / 10;
+};
+
 const sanitizeDuration = (duration: string): string => duration.trim().replace(/\s+/g, ' ');
 
 const deriveDose = (
   factor: DoseFactor,
   maxDose: number,
   unit: string,
-  profile: ClinicalState['profile'],
+  weight: number | null,
   isChild: boolean
 ): string => {
-  const weight = estimateWeightKg(profile);
   const suffix = unit ? ` ${unit}` : '';
 
   if (factor === 'ACTFactor') {
@@ -197,6 +207,40 @@ const deriveDose = (
   }
 
   return `${Math.round(maxDose)}${suffix}`;
+};
+
+const buildWeightDoseMeta = (factor: DoseFactor, maxDose: number, unit: string): WeightDoseMeta => {
+  if (factor === 'ACTFactor') {
+    return {
+      mode: 'act_band',
+      unit,
+      max_dose: maxDose,
+      fallback_dose: `Weight band dosing (up to ${maxDose} ${unit})`,
+    };
+  }
+  if (factor === 'ZincFactor') {
+    return {
+      mode: 'zinc_band',
+      unit,
+      max_dose: maxDose,
+      fallback_dose: `Weight-based zinc (${maxDose} ${unit} max)`,
+    };
+  }
+  if (factor === 'ORSFactor') {
+    return {
+      mode: 'ors_band',
+      unit,
+      max_dose: maxDose,
+      fallback_dose: `Weight-based ORS volume (${maxDose} ${unit} max)`,
+    };
+  }
+  return {
+    mode: 'per_kg',
+    unit,
+    factor,
+    max_dose: maxDose,
+    fallback_dose: `Weight-based (${maxDose} ${unit} max)`,
+  };
 };
 
 const pickMalariaTrack = (
@@ -245,12 +289,19 @@ const buildMalariaPlan = (
 ): PillarData => {
   const { protocol, severityLabel } = pickMalariaTrack(urgency, soap, profile);
   const isChild = typeof profile.age === 'number' && profile.age < 13;
+  const explicitWeight = getProfileWeightKg(profile);
+  const dosingWeight = explicitWeight ?? estimateWeightKg(profile);
   const prescriptions = protocol.rows.map((row) => ({
     medication: row.name,
     form: row.form,
-    dose: deriveDose(row.factor, row.max, row.unit, profile, isChild),
+    dose: deriveDose(row.factor, row.max, row.unit, dosingWeight, isChild),
     frequency: row.frequency || 'as directed',
     duration: sanitizeDuration(row.duration),
+    note:
+      isChild && !explicitWeight && dosingWeight !== null
+        ? `Dose currently uses age-estimated weight (${dosingWeight} kg). Enter actual weight before print/export.`
+        : undefined,
+    weight_based: buildWeightDoseMeta(row.factor, row.max, row.unit),
   }));
   const investigations = [
     'Confirm fever pattern: intermittent/nocturnal pattern with evening chills and morning relief.',
@@ -314,6 +365,7 @@ const buildGenericPlan = (diagnosis: string): PillarData => ({
 const buildProfileLine = (profile: ClinicalState['profile']): string => {
   const bits: string[] = [];
   if (profile.age) bits.push(`${profile.age}y`);
+  if (profile.weight_kg) bits.push(`${profile.weight_kg}kg`);
   if (profile.sex) bits.push(profile.sex);
   return bits.length > 0 ? `Patient context: ${bits.join(', ')}` : '';
 };

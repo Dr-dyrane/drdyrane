@@ -7,6 +7,7 @@ import {
   LineChart,
   MoreHorizontal,
   Plus,
+  Pill,
   Printer,
   RotateCcw,
   Stethoscope,
@@ -40,6 +41,7 @@ export const BottomNav: React.FC = () => {
   const navItems = [
     { id: 'consult' as AppView, icon: Stethoscope, label: 'Consult' },
     { id: 'history' as AppView, icon: History, label: 'History' },
+    { id: 'drug' as AppView, icon: Pill, label: 'Drug' },
   ];
 
   const hasArchives = state.archives.length > 0;
@@ -103,6 +105,18 @@ export const BottomNav: React.FC = () => {
   );
 
   const primaryAction = useMemo(() => {
+    if (state.view === 'drug') {
+      return {
+        label: 'Back to Consult',
+        icon: Stethoscope,
+        onClick: () => {
+          dispatch({ type: 'SET_VIEW', payload: 'consult' });
+          feedback('select');
+        },
+        disabled: false,
+      };
+    }
+
     if (state.view === 'history') {
       if (hasArchives) {
         return {

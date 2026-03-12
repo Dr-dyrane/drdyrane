@@ -1,21 +1,77 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { Activity, Printer, Shield, TrendingUp, UserCheck } from 'lucide-react';
 import { Orb } from '../consultation/Orb';
+import { PillarData } from '../../core/types/clinical';
+
+type EncounterPrescription = NonNullable<NonNullable<PillarData['encounter']>['prescriptions'][number]>;
+
+const getActBandDose = (weight: number): number => {
+  if (weight >= 35) return 480;
+  if (weight >= 25) return 360;
+  if (weight >= 15) return 240;
+  return 120;
+};
+
+const getZincBandDose = (weight: number): number => (weight <= 7 ? 10 : 20);
+
+const getOrsBandDose = (weight: number): number => {
+  if (weight < 10) return 75;
+  if (weight <= 28) return 150;
+  return 300;
+};
+
+const isValidWeight = (value: number): boolean => !Number.isNaN(value) && value > 0 && value <= 300;
+
+const resolveDoseFromWeight = (item: EncounterPrescription, weightKg: number | null): string => {
+  const meta = item.weight_based;
+  if (!meta) return item.dose;
+  if (weightKg === null) return item.dose;
+
+  const suffix = meta.unit ? ` ${meta.unit}` : '';
+  switch (meta.mode) {
+    case 'act_band':
+      return `${getActBandDose(weightKg)}${suffix}`;
+    case 'zinc_band':
+      return `${getZincBandDose(weightKg)}${suffix}`;
+    case 'ors_band':
+      return `${getOrsBandDose(weightKg)}${suffix}`;
+    case 'per_kg': {
+      if (typeof meta.factor !== 'number') return item.dose;
+      const maxDose = typeof meta.max_dose === 'number' ? meta.max_dose : Number.MAX_SAFE_INTEGER;
+      const computed = Math.round(Math.min(weightKg * meta.factor, maxDose));
+      return `${computed}${suffix}`;
+    }
+    default:
+      return item.dose;
+  }
+};
 
 export const PillarCard: React.FC = () => {
   const { state, dispatch } = useClinical();
+  const isComplete = state.status === 'complete' && Boolean(state.pillars);
+  const encounter = state.pillars?.encounter;
+  const [weightInput, setWeightInput] = useState<string>(
+    state.profile.weight_kg ? String(state.profile.weight_kg) : ''
+  );
 
-  if (state.status !== 'complete' || !state.pillars) return null;
+  useEffect(() => {
+    setWeightInput(state.profile.weight_kg ? String(state.profile.weight_kg) : '');
+  }, [state.profile.weight_kg]);
 
-  const encounter = state.pillars.encounter;
-  const pillars = [
-    { title: 'Diagnosis', icon: Activity, content: state.pillars.diagnosis },
-    ...(encounter ? [] : [{ title: 'Management', icon: Shield, content: state.pillars.management }]),
-    { title: 'Prognosis', icon: TrendingUp, content: state.pillars.prognosis },
-    { title: 'Prevention', icon: UserCheck, content: state.pillars.prevention },
-  ];
+  const parsedWeight = Number(weightInput);
+  const enteredWeight = isValidWeight(parsedWeight) ? Math.round(parsedWeight * 10) / 10 : null;
+  const hasWeightBasedRx = Boolean(encounter?.prescriptions.some((item) => Boolean(item.weight_based)));
+
+  const prescriptionsForRender: EncounterPrescription[] = useMemo(
+    () =>
+      (encounter?.prescriptions || []).map((item) => ({
+        ...item,
+        dose: resolveDoseFromWeight(item, enteredWeight),
+      })),
+    [encounter?.prescriptions, enteredWeight]
+  );
 
   const escapeHtml = (value: string): string =>
     value
@@ -25,13 +81,27 @@ export const PillarCard: React.FC = () => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;');
 
+  const persistWeightToProfile = () => {
+    const profileWeight = state.profile.weight_kg;
+    if (enteredWeight === null) {
+      if (profileWeight !== undefined) {
+        dispatch({ type: 'UPDATE_PROFILE', payload: { weight_kg: undefined } });
+      }
+      return;
+    }
+
+    if (profileWeight !== enteredWeight) {
+      dispatch({ type: 'UPDATE_PROFILE', payload: { weight_kg: enteredWeight } });
+    }
+  };
+
   const printEncounter = () => {
     if (!state.pillars) return;
     const plan = state.pillars;
     const investigations = (plan.encounter?.investigations || [])
       .map((item) => `<li>${escapeHtml(item)}</li>`)
       .join('');
-    const prescriptions = (plan.encounter?.prescriptions || [])
+    const prescriptions = prescriptionsForRender
       .map(
         (item) =>
           `<tr>
@@ -40,6 +110,7 @@ export const PillarCard: React.FC = () => {
             <td>${escapeHtml(item.dose)}</td>
             <td>${escapeHtml(item.frequency)}</td>
             <td>${escapeHtml(item.duration)}</td>
+            <td>${escapeHtml(item.note || '')}</td>
           </tr>`
       )
       .join('');
@@ -60,14 +131,18 @@ export const PillarCard: React.FC = () => {
           h2 { font-size: 15px; margin: 16px 0 8px; }
           p { line-height: 1.45; white-space: pre-line; margin: 0; }
           ul { margin: 0; padding-left: 18px; line-height: 1.4; }
-          table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
-          th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #e5e7eb; }
+          table { width: 100%; border-collapse: separate; border-spacing: 0 6px; margin-top: 8px; font-size: 12px; }
+          th, td { text-align: left; padding: 8px 8px; border: 0; }
+          tbody td { background: #f6f7f8; }
+          tbody td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
+          tbody td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
           .chip { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #f4f4f5; font-size: 11px; margin-bottom: 8px; }
         </style>
       </head>
       <body>
         <h1>Dr Dyrane Clinical Encounter</h1>
         <div class="chip">Prescription-ready summary</div>
+        ${hasWeightBasedRx ? `<div class="chip">Dosing weight: ${enteredWeight ? `${escapeHtml(String(enteredWeight))} kg` : 'Not entered'}</div>` : ''}
         <h2>Diagnosis</h2>
         <p>${escapeHtml(plan.diagnosis)}</p>
         <h2>Management</h2>
@@ -81,7 +156,7 @@ export const PillarCard: React.FC = () => {
           prescriptions
             ? `<h2>Prescription</h2>
               <table>
-                <thead><tr><th>Medication</th><th>Form</th><th>Dose</th><th>Frequency</th><th>Duration</th></tr></thead>
+                <thead><tr><th>Medication</th><th>Form</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Note</th></tr></thead>
                 <tbody>${prescriptions}</tbody>
               </table>`
             : ''
@@ -120,6 +195,15 @@ export const PillarCard: React.FC = () => {
   const reset = () => {
     dispatch({ type: 'RESET' });
   };
+
+  if (!isComplete || !state.pillars) return null;
+
+  const pillars = [
+    { title: 'Diagnosis', icon: Activity, content: state.pillars.diagnosis },
+    ...(encounter ? [] : [{ title: 'Management', icon: Shield, content: state.pillars.management }]),
+    { title: 'Prognosis', icon: TrendingUp, content: state.pillars.prognosis },
+    { title: 'Prevention', icon: UserCheck, content: state.pillars.prevention },
+  ];
 
   return (
     <div className="flex-1 px-2 py-7 space-y-7 animate-emergence">
@@ -193,14 +277,39 @@ export const PillarCard: React.FC = () => {
             {encounter.prescriptions.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs text-content-dim tracking-wide uppercase">Prescription</p>
+                {hasWeightBasedRx && (
+                  <div className="surface-raised rounded-2xl px-3.5 py-3 space-y-2">
+                    <p className="text-xs text-content-dim uppercase tracking-wide">Weight-Aware Dosing</p>
+                    <input
+                      value={weightInput}
+                      onChange={(event) => setWeightInput(event.target.value)}
+                      onBlur={persistWeightToProfile}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') {
+                          event.preventDefault();
+                          persistWeightToProfile();
+                        }
+                      }}
+                      type="number"
+                      min={1}
+                      max={300}
+                      step="0.1"
+                      placeholder="Enter patient weight in kg"
+                      className="w-full h-11 px-3 rounded-xl surface-strong text-sm text-content-primary"
+                    />
+                    <p className="text-[11px] text-content-dim">
+                      Dose rows and print export update from entered weight.
+                    </p>
+                  </div>
+                )}
                 <div className="space-y-2">
-                  {encounter.prescriptions.map((item, index) => (
+                  {prescriptionsForRender.map((item, index) => (
                     <div key={`rx-${item.medication}-${index}`} className="surface-raised rounded-2xl px-3.5 py-3">
                       <p className="text-sm font-semibold text-content-primary">
                         {item.medication} <span className="text-content-dim font-normal">({item.form})</span>
                       </p>
                       <p className="text-xs text-content-secondary mt-1">
-                        {item.dose} • {item.frequency} • {item.duration}
+                        {item.dose} | {item.frequency} | {item.duration}
                       </p>
                       {item.note && <p className="text-xs text-content-dim mt-1">{item.note}</p>}
                     </div>

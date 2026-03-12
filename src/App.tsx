@@ -12,6 +12,7 @@ import { StepRenderer } from './features/consultation/StepRenderer';
 import { TheLens } from './features/consultation/TheLens';
 import { PillarCard } from './features/resolution/PillarCard';
 import { HistoryView } from './features/history/HistoryView';
+import { DrugProtocolsView } from './features/drug/DrugProtocolsView';
 import { AboutView } from './features/about/AboutView';
 import { EmergencyOverlay } from './features/emergency/EmergencyOverlay';
 import { ProfileSheet } from './features/profile/ProfileSheet';
@@ -124,6 +125,18 @@ const MainApp: React.FC = () => {
                 className="flex flex-1"
               >
                 <HistoryView />
+              </motion.div>
+            )}
+
+            {state.view === 'drug' && (
+              <motion.div
+                key="drug"
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -16 }}
+                className="flex flex-1"
+              >
+                <DrugProtocolsView />
               </motion.div>
             )}
 

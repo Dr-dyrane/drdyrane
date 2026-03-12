@@ -176,6 +176,7 @@ export const buildEncounterDossier = (state: ClinicalState): string => {
     findingMemory.negative.length ? `Negative findings: ${findingMemory.negative.join(', ')}` : null,
     longitudinalSummary ? `Longitudinal memory: ${longitudinalSummary}` : null,
     state.profile.age ? `Age: ${state.profile.age}` : null,
+    state.profile.weight_kg ? `Weight: ${state.profile.weight_kg} kg` : null,
     state.profile.sex ? `Sex: ${state.profile.sex}` : null,
     qaPairs.length ? `Recent Q/A: ${qaPairs.join(' | ')}` : null,
     `SOAP-S: ${JSON.stringify(state.soap.S || {})}`,
