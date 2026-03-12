@@ -358,9 +358,6 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         <div className="text-center space-y-2">
           <span className="text-content-dim text-xs font-medium">{config.pageLabel}</span>
           <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">{config.headline}</h1>
-          <p className="text-xs text-content-dim leading-relaxed px-2">
-            Upload labs, radiology, wounds, rashes, or other clinical images for one-pass review.
-          </p>
         </div>
 
         <section className="surface-raised rounded-[24px] p-4 space-y-3">
