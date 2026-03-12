@@ -491,6 +491,41 @@ type RankedDisease = {
   score: number;
 };
 
+type EvidenceState = 'present' | 'absent' | 'unknown';
+
+type FeatureCue = {
+  id: string;
+  positive: RegExp[];
+  negative?: RegExp[];
+  question: string;
+};
+
+type DiagnosisHint = {
+  pattern: RegExp;
+  supports: string[];
+  contradicts?: string[];
+  emergency?: boolean;
+  followUpQuestion?: string;
+  pendingActions?: string[];
+};
+
+type RankedLlmDiagnosis = {
+  diagnosis: string;
+  score: number;
+  emergency: boolean;
+  followUpQuestion?: string;
+  pendingActions: string[];
+};
+
+type OrchestratedCandidate = {
+  diagnosis: string;
+  score: number;
+  emergency: boolean;
+  followUpQuestion?: string;
+  pendingActions: string[];
+  source: 'profile' | 'llm';
+};
+
 const ICD10_RULES: Icd10Rule[] = [
   { pattern: /\bmalaria\b/i, code: 'B54' },
   { pattern: /\bdengue\b/i, code: 'A97.9' },
@@ -651,8 +686,142 @@ const FEVER_DISEASE_PROFILES: DiseaseProfile[] = [
   },
 ];
 
+const FEATURE_CUES: FeatureCue[] = [
+  {
+    id: 'fever',
+    positive: [/\bfever|febrile|temperature|pyrexia\b/i],
+    question: 'Have you measured your temperature, and how high has it been?',
+  },
+  {
+    id: 'chills',
+    positive: [/\bchills?|rigors?\b/i],
+    question: 'Are the fever episodes associated with chills or rigors?',
+  },
+  {
+    id: 'headache',
+    positive: [/\bheadache|head pain|retro[-\s]?orbital|behind (my )?eyes?\b/i],
+    question: 'Is the headache severe, persistent, or associated with eye pain?',
+  },
+  {
+    id: 'cough',
+    positive: [/\bcough|sputum|phlegm\b/i],
+    negative: [/\bno cough\b/i],
+    question: 'Any cough, sputum, or breathing symptoms with this illness?',
+  },
+  {
+    id: 'dyspnea',
+    positive: [/\bshortness of breath|breathless|difficulty breathing|tachypnea\b/i],
+    negative: [/\bno shortness of breath|no breathlessness\b/i],
+    question: 'Do you feel short of breath at rest or with minimal activity?',
+  },
+  {
+    id: 'chest_pain',
+    positive: [/\bchest pain|chest pressure|tight chest\b/i],
+    negative: [/\bno chest pain\b/i],
+    question: 'Is chest pain pressure-like, and does it radiate to arm, jaw, or back?',
+  },
+  {
+    id: 'abdominal_pain',
+    positive: [/\babdominal pain|stomach pain|belly pain|flank pain|loin pain\b/i],
+    question: 'Where exactly is the abdominal pain and does it migrate?',
+  },
+  {
+    id: 'vomiting',
+    positive: [/\bnausea|vomit(ing)?|throwing up\b/i],
+    question: 'How frequent is the nausea or vomiting, and can you keep fluids down?',
+  },
+  {
+    id: 'diarrhea',
+    positive: [/\bdiarrh|loose stool|watery stool\b/i],
+    question: 'Do you have diarrhea, and is there blood or mucus in stool?',
+  },
+  {
+    id: 'dysuria',
+    positive: [/\bdysuria|burning urination|painful urination\b/i],
+    negative: [/\bno burning urination|no dysuria\b/i],
+    question: 'Any burning urination, urinary urgency, or flank pain?',
+  },
+  {
+    id: 'rash_or_bleeding',
+    positive: [/\brash|bleeding|gum bleed|nose bleed|petechiae\b/i],
+    question: 'Have you noticed rash, gum bleeding, or easy bruising?',
+  },
+  {
+    id: 'confusion_or_neuro',
+    positive: [/\bconfusion|disoriented|seizure|fits|weakness|speech difficulty|facial droop\b/i],
+    question: 'Any confusion, seizures, focal weakness, or speech difficulty?',
+  },
+];
+
+const DIAGNOSIS_HINTS: DiagnosisHint[] = [
+  {
+    pattern: /\bmalaria\b/i,
+    supports: ['fever', 'chills', 'headache', 'vomiting'],
+    followUpQuestion: 'Can you access a malaria rapid test or blood smear today?',
+    pendingActions: ['Confirm malaria with RDT/smear', 'Check for severe-malaria danger signs'],
+  },
+  {
+    pattern: /\bdengue\b/i,
+    supports: ['fever', 'headache', 'rash_or_bleeding', 'vomiting'],
+    followUpQuestion: 'Any rash, bleeding, or severe abdominal pain suggesting dengue warning signs?',
+    pendingActions: ['Assess dengue warning signs', 'Order CBC with platelet trend'],
+  },
+  {
+    pattern: /\btyphoid\b/i,
+    supports: ['fever', 'abdominal_pain', 'diarrhea', 'vomiting'],
+    followUpQuestion: 'Any contaminated food or water exposure with persistent abdominal symptoms?',
+    pendingActions: ['Consider blood/stool culture', 'Assess enteric fever risk exposures'],
+  },
+  {
+    pattern: /\bpneumonia\b/i,
+    supports: ['fever', 'cough', 'dyspnea', 'chest_pain'],
+    followUpQuestion: 'Do you have cough with breathlessness or pleuritic chest pain?',
+    pendingActions: ['Perform respiratory exam and pulse oximetry', 'Evaluate for chest imaging'],
+  },
+  {
+    pattern: /\burinary tract infection\b|\buti\b|pyelonephritis/i,
+    supports: ['fever', 'dysuria', 'abdominal_pain'],
+    followUpQuestion: 'Any dysuria, urgency, or flank pain pointing to urinary infection?',
+    pendingActions: ['Urinalysis and urine culture pathway', 'Screen for upper UTI features'],
+  },
+  {
+    pattern: /\bgastroenteritis\b/i,
+    supports: ['vomiting', 'diarrhea', 'abdominal_pain'],
+    followUpQuestion: 'How many loose stools or vomiting episodes are you having in 24 hours?',
+    pendingActions: ['Assess dehydration severity', 'Stool workup if red flags present'],
+  },
+  {
+    pattern: /\bmeningitis\b/i,
+    supports: ['fever', 'headache', 'confusion_or_neuro'],
+    emergency: true,
+    followUpQuestion: 'Any neck stiffness, confusion, or seizures right now?',
+    pendingActions: ['Urgent neurologic assessment', 'Immediate emergency referral if red flags'],
+  },
+  {
+    pattern: /\bsepsis\b/i,
+    supports: ['fever', 'confusion_or_neuro', 'dyspnea'],
+    emergency: true,
+    followUpQuestion: 'Any confusion, fainting, or very fast breathing at the moment?',
+    pendingActions: ['Immediate sepsis screen and vitals', 'Escalate urgently if unstable'],
+  },
+  {
+    pattern: /\bacute coronary syndrome\b|\bacs\b|\bmyocardial infarction\b|heart attack/i,
+    supports: ['chest_pain', 'dyspnea', 'vomiting'],
+    emergency: true,
+    followUpQuestion: 'Is the chest pain crushing or radiating to arm, jaw, or back?',
+    pendingActions: ['Urgent cardiac triage pathway', 'Assess hemodynamic instability symptoms'],
+  },
+  {
+    pattern: /\bpulmonary embolism\b|\bpe\b/i,
+    supports: ['dyspnea', 'chest_pain'],
+    emergency: true,
+    followUpQuestion: 'Did shortness of breath start suddenly, and is there pleuritic chest pain?',
+    pendingActions: ['Urgent thromboembolism risk assessment', 'Escalate for acute cardiorespiratory signs'],
+  },
+];
+
 const stripIcd10Label = (diagnosis: string): string =>
-  diagnosis.replace(/\s*\(ICD-10:\s*[A-Z0-9.]+\)\s*/gi, '').trim();
+  diagnosis.replace(/\s*\(ICD-10:\s*[A-Z0-9.-]+\)\s*/gi, '').trim();
 
 const normalizeDxKey = (diagnosis: string): string =>
   stripIcd10Label(diagnosis)
@@ -663,7 +832,7 @@ const normalizeDxKey = (diagnosis: string): string =>
 const applyIcd10Label = (diagnosis: string): string => {
   const value = sanitizeText(diagnosis);
   if (!value) return '';
-  if (/\(ICD-10:\s*[A-Z0-9.]+\)/i.test(value)) return value;
+  if (/\(ICD-10:\s*[A-Z0-9.-]+\)/i.test(value)) return value;
   const rule = ICD10_RULES.find((candidate) => candidate.pattern.test(value));
   if (!rule) return value;
   return `${value} (ICD-10: ${rule.code})`;
@@ -681,6 +850,27 @@ const dedupeDxList = (diagnoses: string[]): string[] => {
   return result;
 };
 
+const extractPatientMirror = (body: ConsultRequest): string => {
+  const current = sanitizeText(body.patientInput);
+  if (!current) return '';
+  return current
+    .split(/[.?!,;]/)[0]
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 120);
+};
+
+const ensureEmpathicStatement = (
+  statement: string | undefined,
+  body: ConsultRequest
+): string => {
+  const base = sanitizeText(statement);
+  const mirror = extractPatientMirror(body);
+  if (!mirror) return base || 'Thank you for sharing that.';
+  if (base) return base;
+  return `Thank you for sharing. I hear that ${mirror.toLowerCase()}.`;
+};
+
 const buildConsultTextCorpus = (body: ConsultRequest, payload: ConsultPayload): string => {
   const patientNarrative = (body.state?.conversation || [])
     .filter((entry) => entry.role === 'patient')
@@ -695,11 +885,77 @@ const buildConsultTextCorpus = (body: ConsultRequest, payload: ConsultPayload): 
   return `${body.patientInput || ''} ${patientNarrative} ${soapSnapshot}`.toLowerCase();
 };
 
-const hasFeverSignal = (corpus: string): boolean =>
-  /\bfever|pyrexia|temperature|febrile\b/i.test(corpus);
+const buildFeatureEvidence = (corpus: string): Record<string, EvidenceState> => {
+  const evidence: Record<string, EvidenceState> = {};
+  for (const cue of FEATURE_CUES) {
+    const hasNegative = (cue.negative || []).some((pattern) => pattern.test(corpus));
+    if (hasNegative) {
+      evidence[cue.id] = 'absent';
+      continue;
+    }
+    const hasPositive = cue.positive.some((pattern) => pattern.test(corpus));
+    evidence[cue.id] = hasPositive ? 'present' : 'unknown';
+  }
+  return evidence;
+};
+
+const featureQuestionById = (featureId: string): string | undefined =>
+  FEATURE_CUES.find((cue) => cue.id === featureId)?.question;
+
+const dedupeActions = (actions: string[]): string[] =>
+  [...new Set(actions.map((item) => sanitizeText(item)).filter(Boolean))];
+
+const findDiagnosisHint = (diagnosis: string): DiagnosisHint | undefined =>
+  DIAGNOSIS_HINTS.find((hint) => hint.pattern.test(diagnosis));
+
+const scoreLlmDiagnosis = (
+  diagnosis: string,
+  rankIndex: number,
+  evidence: Record<string, EvidenceState>
+): RankedLlmDiagnosis => {
+  const hint = findDiagnosisHint(diagnosis);
+  const prior = Math.max(0.9, 3.2 - rankIndex * 0.38);
+  let score = prior;
+
+  if (hint) {
+    for (const featureId of hint.supports) {
+      const state = evidence[featureId] || 'unknown';
+      if (state === 'present') score += 0.85;
+      else if (state === 'absent') score -= 0.55;
+      else score += 0.06;
+    }
+    for (const featureId of hint.contradicts || []) {
+      if ((evidence[featureId] || 'unknown') === 'present') {
+        score -= 0.9;
+      }
+    }
+  }
+
+  const unknownSupportedFeature = hint?.supports.find((featureId) => evidence[featureId] === 'unknown');
+
+  return {
+    diagnosis,
+    score: Math.max(0, Math.round(score * 10) / 10),
+    emergency: Boolean(hint?.emergency),
+    followUpQuestion:
+      hint?.followUpQuestion || (unknownSupportedFeature ? featureQuestionById(unknownSupportedFeature) : undefined),
+    pendingActions: dedupeActions(hint?.pendingActions || []),
+  };
+};
+
+const rankLlmDiagnoses = (
+  ddx: string[],
+  evidence: Record<string, EvidenceState>
+): RankedLlmDiagnosis[] =>
+  ddx
+    .map((diagnosis, index) => scoreLlmDiagnosis(diagnosis, index, evidence))
+    .sort((left, right) => {
+      if (left.emergency && !right.emergency) return -1;
+      if (!left.emergency && right.emergency) return 1;
+      return right.score - left.score;
+    });
 
 const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
-  if (!hasFeverSignal(corpus)) return 0;
   if (profile.requiredAny && !profile.requiredAny.some((pattern) => pattern.test(corpus))) {
     return 0;
   }
@@ -719,9 +975,7 @@ const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
   return Math.max(0, Math.round(score * 10) / 10);
 };
 
-const rankTopDownFeverDifferentials = (corpus: string): RankedDisease[] => {
-  if (!hasFeverSignal(corpus)) return [];
-
+const rankTopDownProfiles = (corpus: string): RankedDisease[] => {
   return FEVER_DISEASE_PROFILES.map((profile) => ({
     profile,
     score: scoreDisease(profile, corpus),
@@ -737,30 +991,97 @@ const rankTopDownFeverDifferentials = (corpus: string): RankedDisease[] => {
 const diseaseToDx = (entry: RankedDisease): string =>
   `${entry.profile.label} (ICD-10: ${entry.profile.icd10})`;
 
-const scoreToProbabilityFloor = (entry: RankedDisease): number => {
-  if (entry.profile.emergency) return Math.max(84, Math.min(96, Math.round(entry.score * 12)));
-  if (entry.score >= 7) return 82;
-  if (entry.score >= 5.5) return 74;
-  if (entry.score >= 4.5) return 68;
-  return 58;
+const mergeOrchestratedCandidates = (
+  profiles: RankedDisease[],
+  llmRanked: RankedLlmDiagnosis[]
+): OrchestratedCandidate[] => {
+  const merged = new Map<string, OrchestratedCandidate>();
+
+  for (const entry of profiles) {
+    const diagnosis = diseaseToDx(entry);
+    const key = normalizeDxKey(diagnosis);
+    merged.set(key, {
+      diagnosis,
+      score: entry.score,
+      emergency: Boolean(entry.profile.emergency),
+      followUpQuestion: entry.profile.followUpQuestion,
+      pendingActions: dedupeActions(entry.profile.pendingActions),
+      source: 'profile',
+    });
+  }
+
+  for (const entry of llmRanked) {
+    const key = normalizeDxKey(entry.diagnosis);
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, {
+        diagnosis: entry.diagnosis,
+        score: entry.score,
+        emergency: entry.emergency,
+        followUpQuestion: entry.followUpQuestion,
+        pendingActions: entry.pendingActions,
+        source: 'llm',
+      });
+      continue;
+    }
+
+    const mergedQuestion = existing.followUpQuestion || entry.followUpQuestion;
+    merged.set(key, {
+      ...existing,
+      diagnosis: existing.source === 'profile' ? existing.diagnosis : entry.diagnosis,
+      score: Math.max(existing.score, entry.score),
+      emergency: existing.emergency || entry.emergency,
+      followUpQuestion: mergedQuestion,
+      pendingActions: dedupeActions([...existing.pendingActions, ...entry.pendingActions]),
+      source: existing.source,
+    });
+  }
+
+  return [...merged.values()].sort((left, right) => {
+    if (left.emergency && !right.emergency) return -1;
+    if (!left.emergency && right.emergency) return 1;
+    return right.score - left.score;
+  });
 };
 
 const shouldOverrideQuestion = (
   question: string | undefined,
-  lead: RankedDisease,
-  corpus: string
+  lead: OrchestratedCandidate,
+  corpus: string,
+  secondScore: number
 ): boolean => {
+  if (!lead.followUpQuestion) return false;
   const normalized = sanitizeText(question).toLowerCase();
   if (!normalized) return true;
   if (/(anything else|tell me more|more details|any other symptom)/i.test(normalized)) return true;
 
-  if (lead.profile.id === 'malaria') {
+  const leadTokens = lead.followUpQuestion
+    .toLowerCase()
+    .split(/[^a-z0-9]+/g)
+    .filter((token) => token.length >= 6)
+    .slice(0, 3);
+  const questionAligned = leadTokens.some((token) => normalized.includes(token));
+  if (!questionAligned && lead.score - secondScore >= 1) {
+    return true;
+  }
+
+  if (/\bmalaria\b/i.test(lead.diagnosis)) {
     const mentionsTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(normalized);
     const alreadyDiscussedTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(corpus);
     if (!mentionsTest && !alreadyDiscussedTest) return true;
   }
 
   return false;
+};
+
+const scoreToProbabilityFloor = (lead: OrchestratedCandidate, secondScore: number): number => {
+  const gap = Math.max(0, lead.score - secondScore);
+  const raw = lead.emergency
+    ? 68 + lead.score * 9 + gap * 6
+    : 52 + lead.score * 7 + gap * 5;
+  const bounded = Math.round(Math.min(96, Math.max(56, raw)));
+  if (lead.emergency) return Math.max(84, bounded);
+  return bounded;
 };
 
 const atLeastDifferential = (phase: string | undefined): AgentPhase => {
@@ -774,45 +1095,74 @@ const atLeastDifferential = (phase: string | undefined): AgentPhase => {
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
   const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
   const corpus = buildConsultTextCorpus(body, payload);
-  const ranked = rankTopDownFeverDifferentials(corpus);
+  const evidence = buildFeatureEvidence(corpus);
+  const rankedProfiles = rankTopDownProfiles(corpus);
+  const rankedFromLlm = rankLlmDiagnoses(withCodedDdx, evidence);
+  const orchestrated = mergeOrchestratedCandidates(rankedProfiles, rankedFromLlm);
 
-  if (ranked.length === 0) {
+  if (orchestrated.length === 0) {
     return {
       ...payload,
       ddx: withCodedDdx,
     };
   }
 
-  const topDownDdx = ranked.map((entry) => diseaseToDx(entry));
-  const mergedDdx = dedupeDxList([...topDownDdx, ...withCodedDdx]).slice(0, 8);
-  const lead = ranked[0];
-  const probabilityFloor = scoreToProbabilityFloor(lead);
-  const preferredQuestion = shouldOverrideQuestion(payload.question, lead, corpus)
-    ? lead.profile.followUpQuestion
+  const lead = orchestrated[0];
+  const secondScore = orchestrated[1]?.score || 0;
+  const mergedDdx = dedupeDxList([
+    ...orchestrated.map((entry) => entry.diagnosis),
+    ...withCodedDdx,
+  ]).slice(0, 8);
+  const probabilityFloor = scoreToProbabilityFloor(lead, secondScore);
+  const preferredQuestion = shouldOverrideQuestion(payload.question, lead, corpus, secondScore)
+    ? lead.followUpQuestion
     : payload.question;
   const nextActions = dedupeDxList([
     ...(payload.agent_state?.pending_actions || []),
-    ...lead.profile.pendingActions,
+    ...lead.pendingActions,
     'Apply WHO/Medscape aligned differential confirmation steps',
   ]);
-  const nextPhase = lead.profile.emergency
+  const patientTurns =
+    (body.state?.conversation || []).filter((entry) => entry.role === 'patient').length +
+    (sanitizeText(body.patientInput) ? 1 : 0);
+  const decisiveLead =
+    lead.score >= 6.8 &&
+    lead.score - secondScore >= 1.4 &&
+    patientTurns >= 3;
+  const nextPhase = lead.emergency
     ? payload.agent_state?.phase || 'assessment'
-    : atLeastDifferential(payload.agent_state?.phase);
+    : decisiveLead
+      ? 'resolution'
+      : atLeastDifferential(payload.agent_state?.phase);
+  let nextUrgency = payload.urgency || 'low';
+  if (lead.emergency && lead.score >= 6.4) {
+    nextUrgency = 'critical';
+  } else if (lead.emergency && lead.score >= 4.6 && URGENCY_RANK[nextUrgency] < URGENCY_RANK.high) {
+    nextUrgency = 'high';
+  } else if (lead.score >= 5 && URGENCY_RANK[nextUrgency] < URGENCY_RANK.medium) {
+    nextUrgency = 'medium';
+  }
 
   return {
     ...payload,
+    statement: ensureEmpathicStatement(payload.statement, body),
     ddx: mergedDdx,
     probability: Math.max(clampPercent(payload.probability), probabilityFloor),
+    urgency: nextUrgency,
     agent_state: {
       phase: nextPhase,
       confidence: Math.max(clampPercent(payload.agent_state?.confidence), probabilityFloor),
       focus_area:
-        payload.agent_state?.focus_area || `${lead.profile.label} focused top-down differentiation`,
+        payload.agent_state?.focus_area ||
+        `${stripIcd10Label(lead.diagnosis)} focused top-down differential narrowing`,
       pending_actions: nextActions.slice(0, 8),
       last_decision:
-        `Top-down differential ranking prioritized ${lead.profile.label} using ${lead.profile.source} evidence profile`,
+        `Top-down orchestration prioritized ${stripIcd10Label(lead.diagnosis)} with evidence-weighted ranking`,
     },
-    question: preferredQuestion,
+    question:
+      preferredQuestion ||
+      payload.question ||
+      'What symptom is bothering you the most right now?',
   };
 };
 

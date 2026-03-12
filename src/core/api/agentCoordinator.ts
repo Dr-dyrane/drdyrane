@@ -408,20 +408,38 @@ export class AgentCoordinator {
     const patientTurns = conversation.filter((entry) => entry.role === 'patient').length;
     if (patientTurns < 2) return false;
 
-    const leadDx = (ddx[0] || '').toLowerCase();
-    const isMalariaLead = leadDx.includes('malaria');
-    if (!isMalariaLead) return false;
-
+    const leadRaw = (ddx[0] || '').toLowerCase();
+    const secondRaw = (ddx[1] || '').toLowerCase();
+    const leadDx = leadRaw.replace(/\s*\(icd-10:\s*[a-z0-9.-]+\)\s*/gi, '').trim();
+    const secondDx = secondRaw.replace(/\s*\(icd-10:\s*[a-z0-9.-]+\)\s*/gi, '').trim();
+    const hasIcd10Lead = /\(icd-10:\s*[a-z0-9.-]+\)/i.test(ddx[0] || '');
     const subjective = JSON.stringify(soap.S || {}).toLowerCase();
-    const hasFever = /fever|pyrexia|temperature/.test(subjective);
+    const subjectiveDensity = Object.keys(soap.S || {}).length;
     const supportSignals = [
+      /fever|pyrexia|temperature/.test(subjective),
       /chills?|rigors?/.test(subjective),
       /headache|retro[-\s]?orbital|behind (my )?eyes?/.test(subjective),
       /body aches?|myalgia|weak(ness)?/.test(subjective),
       /nausea|vomit/.test(subjective),
+      /cough|breathless|shortness of breath/.test(subjective),
+      /abdominal pain|diarrh|dysuria/.test(subjective),
     ].filter(Boolean).length;
+    const leadClearOfSecond = !secondDx || leadDx !== secondDx;
+    const isMalariaLead = leadDx.includes('malaria');
+    const malariaFastTrack =
+      isMalariaLead &&
+      supportSignals >= 3 &&
+      probability >= 76 &&
+      hasIcd10Lead;
+    const highCertaintyGeneral =
+      probability >= 84 &&
+      hasIcd10Lead &&
+      leadClearOfSecond &&
+      patientTurns >= 3 &&
+      subjectiveDensity >= 4 &&
+      supportSignals >= 3;
 
-    return hasFever && supportSignals >= 2 && probability >= 72;
+    return malariaFastTrack || highCertaintyGeneral;
   }
 
   getState(): ClinicalState {
