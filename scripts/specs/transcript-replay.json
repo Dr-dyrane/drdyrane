@@ -1,0 +1,76 @@
+{
+  "scenarios": [
+    {
+      "id": "fever.malaria_replay",
+      "description": "Fever flow with malaria-weighted cues and safety exclusion before summary.",
+      "transcript": [
+        {
+          "input": "I have fever with chills.",
+          "assert": { "intent": "duration" }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": { "intent": "yes_no" }
+        },
+        {
+          "input": "Evening chills with night fever and mosquito exposure.",
+          "assert": { "intent_one_of": ["pattern", "danger_signs", "most_limiting", "yes_no"] }
+        },
+        {
+          "input": "None of these",
+          "assert": { "status_one_of": ["active", "complete", "emergency"] }
+        }
+      ],
+      "final": {
+        "ddx_contains_any": ["malaria", "febrile"],
+        "status_one_of": ["active", "complete", "emergency"],
+        "require_checkpoint": true
+      }
+    },
+    {
+      "id": "chest_pain.emergency_replay",
+      "description": "Chest pain emergency replay should elevate urgency or emergency status.",
+      "transcript": [
+        {
+          "input": "I have crushing chest pain.",
+          "assert": { "intent": "duration" }
+        },
+        {
+          "input": "Started today",
+          "assert": { "intent": "yes_no" }
+        },
+        {
+          "input": "Pain radiates to left arm with sweating and near collapse.",
+          "assert": { "intent_one_of": ["danger_signs", "yes_no", "most_limiting"] }
+        }
+      ],
+      "final": {
+        "ddx_contains_any": ["acute coronary", "myocardial", "aortic", "pulmonary embol"],
+        "urgency_one_of": ["high", "critical"],
+        "status_one_of": ["active", "emergency", "complete"]
+      }
+    },
+    {
+      "id": "abdominal_pain.replay",
+      "description": "Abdominal pain replay should populate SOAP and maintain one-question flow.",
+      "transcript": [
+        {
+          "input": "I have abdominal pain.",
+          "assert": { "intent": "duration" }
+        },
+        {
+          "input": "3-4 days ago",
+          "assert": { "intent": "yes_no" }
+        },
+        {
+          "input": "Right lower abdomen with nausea and worse movement.",
+          "assert": { "intent_one_of": ["yes_no", "most_limiting", "pattern", "danger_signs"] }
+        }
+      ],
+      "final": {
+        "ddx_contains_any": ["appendic", "abdominal", "gastro"],
+        "status_one_of": ["active", "complete", "emergency"]
+      }
+    }
+  ]
+}

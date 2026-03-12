@@ -35,3 +35,5 @@ server/.data/
 
 .vercel
 .env*.local
+playwright-report/
+test-results/

@@ -49,6 +49,7 @@ export const HistoryView: React.FC = () => {
       id: crypto.randomUUID(),
       timestamp: now,
       updated_at: now,
+      source: 'manual',
       visit_label: `Manual ${new Date(now).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
       diagnosis: 'Draft Visit',
       complaint: '',
@@ -58,6 +59,7 @@ export const HistoryView: React.FC = () => {
       pillars: state.pillars || undefined,
       profile_snapshot: state.profile,
       clerking: { ...state.clerking },
+      diagnostic_reviews: [...state.diagnostic_reviews],
       snapshot: {
         soap: state.soap,
         ddx: [...state.ddx],
@@ -70,6 +72,7 @@ export const HistoryView: React.FC = () => {
         urgency: state.urgency,
         thinking: state.thinking,
         clerking: { ...state.clerking },
+        diagnostic_reviews: [...state.diagnostic_reviews],
       },
     };
     dispatch({ type: 'UPSERT_ARCHIVE', payload: record });
@@ -82,6 +85,7 @@ export const HistoryView: React.FC = () => {
     state.clerking,
     state.conversation,
     state.ddx,
+    state.diagnostic_reviews,
     state.pillars,
     state.probability,
     state.profile,

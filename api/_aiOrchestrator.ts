@@ -125,6 +125,7 @@ CONVERSATION PROTOCOLS:
 3. Do not ask for data already provided in SOAP or profile memory.
 4. If visual inspection is required, set lens_trigger with a short instruction.
 5. Never repeat the same question asked in recent turns; ask the next discriminating question.
+5b. Keep this chat-first. Use guided options as assistive suggestions, not as a rigid survey flow.
 6. Use ICD-10 oriented diagnostic framing for medical conditions. Use DSM-5 framing only when the symptom cluster is psychiatric.
 7. Keep question length <= 140 characters when possible.
 8. Return only strict JSON.
@@ -1391,39 +1392,16 @@ const shouldOverrideQuestion = (
   corpus: string,
   secondScore: number
 ): boolean => {
+  void lead;
+  void corpus;
+  void secondScore;
   if (!lead.followUpQuestion) return false;
   const normalized = sanitizeText(question).toLowerCase();
   if (!normalized) return true;
   if (/(anything else|tell me more|more details|any other symptom)/i.test(normalized)) return true;
-
-  const leadTokens = lead.followUpQuestion
-    .toLowerCase()
-    .split(/[^a-z0-9]+/g)
-    .filter((token) => token.length >= 6)
-    .slice(0, 3);
-  const questionAligned = leadTokens.some((token) => normalized.includes(token));
-  if (!questionAligned && lead.score - secondScore >= 1) {
-    return true;
-  }
-
-  if (/\bmalaria\b/i.test(lead.diagnosis)) {
-    const mentionsPatternQuestion =
-      /\b(intermittent|cyclic|cycle|night|nocturnal|evening chills|morning relief|mosquito exposure)\b/i.test(
-        normalized
-      );
-    const patternAlreadyCaptured =
-      /\b(intermittent|cyclic|comes and goes|night|nocturnal|evening chills|morning relief)\b/i.test(corpus);
-    const exposureCaptured = /\bmosquito(es)? bite(s)?|sleeping without net|mosquito exposure\b/i.test(corpus);
-    if (!mentionsPatternQuestion && (!patternAlreadyCaptured || !exposureCaptured)) {
-      return true;
-    }
-
-    const mentionsTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(normalized);
-    const alreadyDiscussedTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(corpus);
-    if (!mentionsTest && !alreadyDiscussedTest) return true;
-  }
-
-  return false;
+  return /(what symptom is bothering you the most right now|what changed most since symptoms began)/i.test(
+    normalized
+  );
 };
 
 const scoreToProbabilityFloor = (lead: OrchestratedCandidate, secondScore: number): number => {
@@ -1526,7 +1504,7 @@ const isSubstantivePatientReply = (text: string): boolean => {
 const hasAnsweredIntent = (
   conversation: ConversationEntry[],
   intent: QuestionIntent,
-  lookback = 24
+  lookback = 48
 ): boolean => {
   const pattern = INTENT_PATTERNS[intent];
   const window = (conversation || []).slice(-lookback);
@@ -1549,7 +1527,7 @@ const hasAnsweredIntent = (
 const countRecentIntentAsks = (
   conversation: ConversationEntry[],
   intent: QuestionIntent,
-  lookback = 10
+  lookback = 14
 ): number => {
   const pattern = INTENT_PATTERNS[intent];
   return (conversation || [])
@@ -1568,20 +1546,22 @@ const enforceQuestionProgression = (
   const intent = detectQuestionIntent(normalized);
   if (!intent) return normalized;
 
-  const repeatedAsk = countRecentIntentAsks(conversation, intent, 8) >= 2;
-  const answeredAlready = hasAnsweredIntent(conversation, intent, 24);
+  const repeatedAsk = countRecentIntentAsks(conversation, intent, 10) >= 1;
+  const answeredAlready = hasAnsweredIntent(conversation, intent, 48);
 
   if (!repeatedAsk && !answeredAlready) {
     return normalized;
   }
 
   for (const step of INTENT_SEQUENCE) {
-    if (!hasAnsweredIntent(conversation, step.intent, 24)) {
-      return step.question;
+    if (!hasAnsweredIntent(conversation, step.intent, 64)) {
+      if (sanitizeText(step.question).toLowerCase() !== normalized.toLowerCase()) {
+        return step.question;
+      }
     }
   }
 
-  return 'What other detail should I clarify before I summarize your working diagnosis?';
+  return 'What one missing detail should I clarify before I summarize your working diagnosis?';
 };
 
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
@@ -1682,12 +1662,16 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
   );
 
   const genericQuestionPattern = /(what symptom is bothering you the most right now|what changed most since symptoms began)/i;
+  const conversationalFallbackQuestion =
+    patientTurns <= 1
+      ? complaintRoute.starterQuestion
+      : 'What one detail should I clarify before I summarize your working diagnosis?';
   const resolvedQuestion =
     preferredQuestion && !genericQuestionPattern.test(preferredQuestion)
       ? preferredQuestion
       : payload.question && !genericQuestionPattern.test(payload.question)
         ? payload.question
-        : complaintRoute.starterQuestion;
+        : conversationalFallbackQuestion;
   const safeguardedQuestion = enforceQuestionProgression(
     resolvedQuestion || 'What symptom is bothering you the most right now?',
     body.state?.conversation || []

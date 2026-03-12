@@ -13,11 +13,8 @@ interface ResponseOptionsPanelProps {
   questionText?: string;
 }
 
-const getGridByVariant = (
-  variant: ResponseOptions['ui_variant'],
-  count: number
-): string => {
-  if (variant === 'binary' || variant === 'segmented') return count >= 3 ? 'grid-cols-3' : 'grid-cols-2';
+const getGridByVariant = (variant: ResponseOptions['ui_variant']): string => {
+  if (variant === 'binary' || variant === 'segmented') return 'grid-cols-2';
   if (variant === 'grid') return 'grid-cols-2';
   if (variant === 'stack' || variant === 'ladder' || variant === 'chips') return 'grid-cols-2';
   return 'grid-cols-1';
@@ -277,10 +274,9 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           className={`${
             isSegmentedLike
                 ? `surface-raised segment-live-shell option-shell-live rounded-[20px] p-2 grid gap-1.5 ${getGridByVariant(
-                  variant,
-                  responseOptions.options.length
+                  variant
                 )}`
-              : `grid gap-3 ${getGridByVariant(variant, responseOptions.options.length)}`
+              : `grid gap-3 ${getGridByVariant(variant)}`
           }`}
         >
           {visibleOptions.map((option, index) => {

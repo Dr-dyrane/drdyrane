@@ -10,7 +10,17 @@
     "preview": "vite preview",
     "audit:contrast": "node scripts/contrast-audit.mjs",
     "e2e:malaria": "node scripts/e2e-malaria.mjs",
-    "e2e:fever-bias": "node scripts/e2e-fever-bias.mjs"
+    "e2e:fever-bias": "node scripts/e2e-fever-bias.mjs",
+    "e2e:contracts": "node scripts/e2e-rpc-contracts.mjs",
+    "e2e:matrix": "node scripts/e2e-matrix.mjs --mode mock",
+    "e2e:deterministic": "npm run e2e:matrix",
+    "e2e:integration": "node scripts/e2e-transcript-replay.mjs",
+    "e2e:integration:strict": "node scripts/e2e-transcript-replay.mjs --require-llm",
+    "test:ui": "playwright test",
+    "test:ui:engines": "playwright test tests/playwright/engine-smoke.spec.ts",
+    "test:ui:consult": "playwright test tests/playwright/consult-flow.spec.ts",
+    "test:ui:install": "playwright install chromium",
+    "test:quality": "npm run e2e:deterministic && npm run test:ui:engines"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -24,6 +34,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
+    "@playwright/test": "^1.58.2",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^25.3.5",
     "@types/react": "^18.3.12",

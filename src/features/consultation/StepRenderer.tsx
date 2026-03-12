@@ -13,7 +13,6 @@ import {
   isOnboardingNotification,
 } from '../../core/notifications/onboardingNotification';
 import { Orb } from './Orb';
-import { ClinicalQuestionCard } from './components/ClinicalQuestionCard';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
 
 const LOADING_PHASES = [
@@ -31,6 +30,7 @@ export const StepRenderer: React.FC = () => {
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
   const latestStateRef = useRef(state);
+  const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     latestStateRef.current = state;
@@ -71,6 +71,18 @@ export const StepRenderer: React.FC = () => {
   useEffect(() => {
     setSelectedOptionIds([]);
   }, [state.response_options, state.status]);
+
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({
+      behavior: state.settings.reduced_motion ? 'auto' : 'smooth',
+      block: 'end',
+    });
+  }, [
+    state.conversation.length,
+    state.response_options?.options.length,
+    loading,
+    state.settings.reduced_motion,
+  ]);
 
   const promptOnboardingFromNotifications = useCallback(() => {
     const hasOnboardingNotification = state.notifications.some((notification) =>
@@ -240,9 +252,8 @@ export const StepRenderer: React.FC = () => {
     state.history.length > 0 || state.status !== 'idle' || state.conversation.length > 0;
   const currentMessage =
     state.conversation.length > 0 ? state.conversation[state.conversation.length - 1] : null;
-  const activeDoctorMessageId = currentMessage?.role === 'doctor' ? currentMessage.id : null;
   const conversationTimeline = state.conversation.filter((entry) => entry.role !== 'system');
-  const transcriptMessages = conversationTimeline.filter((entry) => entry.id !== activeDoctorMessageId);
+  const transcriptMessages = conversationTimeline;
   const resolvedTheme = resolveTheme(state.theme);
   const doctorAvatarSrc = resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png';
   const patientAvatarSrc = resolveProfileAvatarWithFallback(
@@ -251,7 +262,6 @@ export const StepRenderer: React.FC = () => {
   );
   const currentQuestion = currentMessage?.metadata?.question ?? currentMessage?.content ?? '';
   const resolvedQuestion = currentQuestion.trim() || 'What symptom is bothering you the most right now?';
-  const statement = currentMessage?.metadata?.statement;
   const gateProgress = state.question_gate?.active
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
@@ -417,6 +427,7 @@ export const StepRenderer: React.FC = () => {
                       </motion.div>
                     );
                   })}
+                  <div ref={transcriptEndRef} />
                 </div>
               )}
 
@@ -449,33 +460,26 @@ export const StepRenderer: React.FC = () => {
                 </motion.div>
               )}
 
-              {!loading && currentMessage?.role === 'doctor' && (
-                <div className="pt-2 space-y-3">
-                  {(gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
-                    <div className="flex items-center justify-center gap-2 flex-wrap">
-                      {gateProgress && (
-                        <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
-                          Step {gateProgress}
-                        </span>
-                      )}
-                      {isTimedGateStep && gateCountdown !== null && (
-                        <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center gap-1">
-                          <Timer size={11} />
-                          {gateCountdown}s
-                        </span>
-                      )}
-                      {gateTimerExpired && (
-                        <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
-                          Select or type to continue
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <ClinicalQuestionCard
-                    statement={isClarifierMode ? undefined : statement}
-                    question={resolvedQuestion}
-                    reducedMotion={state.settings.reduced_motion}
-                  />
+              {!loading && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
+                <div className="pt-1">
+                  <div className="flex items-center justify-center gap-2 flex-wrap">
+                    {gateProgress && (
+                      <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+                        Step {gateProgress}
+                      </span>
+                    )}
+                    {isTimedGateStep && gateCountdown !== null && (
+                      <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center gap-1">
+                        <Timer size={11} />
+                        {gateCountdown}s
+                      </span>
+                    )}
+                    {gateTimerExpired && (
+                      <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+                        Select or type to continue
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 

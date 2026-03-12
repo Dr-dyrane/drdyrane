@@ -2,6 +2,8 @@ export type ConsultationStatus = 'idle' | 'intake' | 'active' | 'lens' | 'emerge
 export type AppTheme = 'system' | 'dark' | 'light';
 export type AppView = 'consult' | 'history' | 'drug' | 'scan' | 'about';
 export type SheetType = 'profile' | 'notifications' | 'onboarding' | null;
+export type DiagnosticReviewKind = 'scan' | 'lab' | 'radiology';
+export type DiagnosticScanLens = 'general' | 'lab' | 'radiology';
 
 export interface SOAPState {
   S: Record<string, unknown>;
@@ -50,6 +52,7 @@ export interface SessionRecord {
   id: string;
   timestamp: number;
   updated_at: number;
+  source?: 'consult' | 'rx' | 'scan' | 'manual';
   visit_label: string;
   diagnosis: string;
   complaint?: string;
@@ -60,6 +63,27 @@ export interface SessionRecord {
   clerking?: ClerkingSchema;
   snapshot: ConsultationSnapshot;
   pillars?: PillarData;
+  diagnostic_reviews?: DiagnosticReviewRecord[];
+}
+
+export interface DiagnosticReviewAnalysis {
+  summary: string;
+  findings: string[];
+  red_flags: string[];
+  confidence: number;
+  recommendation: string;
+}
+
+export interface DiagnosticReviewRecord {
+  id: string;
+  kind: DiagnosticReviewKind;
+  lens: DiagnosticScanLens;
+  image_data_url: string;
+  image_name?: string;
+  context_note?: string;
+  analysis?: DiagnosticReviewAnalysis | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface UserProfile {
@@ -184,6 +208,7 @@ export interface ConsultationSnapshot {
   urgency: 'low' | 'medium' | 'high' | 'critical';
   thinking?: string;
   clerking: ClerkingSchema;
+  diagnostic_reviews?: DiagnosticReviewRecord[];
 }
 
 export interface ClinicalState {
@@ -215,6 +240,7 @@ export interface ClinicalState {
   notifications: AppNotification[];
   active_sheet: SheetType;
   clerking: ClerkingSchema;
+  diagnostic_reviews: DiagnosticReviewRecord[];
   isHxOpen: boolean; // Controls the Hx drawer
   history: ClinicalState[];
   archives: SessionRecord[];

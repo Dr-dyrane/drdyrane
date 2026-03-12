@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
+import { SessionRecord } from '../../core/types/clinical';
 import { signalFeedback } from '../../core/services/feedback';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { copyTextToClipboard } from '../../core/services/clipboard';
@@ -115,6 +116,9 @@ const formatTimestamp = (value: number): string =>
     hour: '2-digit',
     minute: '2-digit',
   });
+
+const recordIdFromProtocol = (value: string): string =>
+  `rx-${normalize(value).replace(/\s+/g, '-').slice(0, 36)}-${Date.now()}`;
 
 export const DrugProtocolsView: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -243,6 +247,47 @@ export const DrugProtocolsView: React.FC = () => {
       duration: (drug.duration || '-').trim() || '-',
     }));
   }, [activeProtocol, effectiveWeight]);
+
+  const upsertRxHistoryRecord = (entry: DrugProtocolEntry, sourceAction: 'copy' | 'pdf') => {
+    const now = Date.now();
+    const note = [
+      `Source: Rx page (${sourceAction.toUpperCase()})`,
+      `Weight basis: ${weightSource}${effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}`,
+      `Lines: ${activeProtocolRows.length}`,
+    ].join(' | ');
+
+    const record: SessionRecord = {
+      id: recordIdFromProtocol(entry.value),
+      timestamp: now,
+      updated_at: now,
+      source: 'rx',
+      visit_label: `Rx ${new Date(now).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`,
+      diagnosis: `${entry.label} protocol`,
+      complaint: entry.label,
+      notes: note,
+      status: 'active',
+      soap: state.soap,
+      profile_snapshot: state.profile,
+      clerking: { ...state.clerking },
+      diagnostic_reviews: [...state.diagnostic_reviews],
+      snapshot: {
+        soap: state.soap,
+        ddx: [...state.ddx],
+        status: 'active',
+        redFlag: false,
+        pillars: state.pillars,
+        conversation: [...state.conversation],
+        agent_state: { ...state.agent_state },
+        probability: state.probability,
+        urgency: state.urgency,
+        thinking: state.thinking,
+        clerking: { ...state.clerking },
+        diagnostic_reviews: [...state.diagnostic_reviews],
+      },
+      pillars: state.pillars || undefined,
+    };
+    dispatch({ type: 'UPSERT_ARCHIVE', payload: record });
+  };
   const parsedCalcWeight = Number(calcWeightInput);
   const parsedCalcAge = Number(calcAgeInput);
   const parsedDosePerKg = Number(calcDosePerKgInput);
@@ -319,6 +364,7 @@ export const DrugProtocolsView: React.FC = () => {
       },
       rows: activeProtocolRows,
     });
+    upsertRxHistoryRecord(activeProtocol, 'pdf');
   };
 
   const copyActiveProtocol = async () => {
@@ -341,6 +387,7 @@ export const DrugProtocolsView: React.FC = () => {
     const copied = await copyTextToClipboard(payload);
     if (copied) {
       feedback('submit');
+      upsertRxHistoryRecord(activeProtocol, 'copy');
       return;
     }
     dispatch({

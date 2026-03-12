@@ -12,16 +12,16 @@ import {
 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
-import { analyzeClinicalImage, VisionAnalysisResult } from '../../core/api/visionEngine';
+import { analyzeClinicalImage } from '../../core/api/visionEngine';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
+import { DiagnosticReviewKind, DiagnosticReviewRecord, SessionRecord } from '../../core/types/clinical';
 
-export type DiagnosticReviewKind = 'scan';
 type DiagnosticEventKind = DiagnosticReviewKind | 'lab' | 'radiology';
 type ScanLens = 'general' | 'lab' | 'radiology';
 
 interface DiagnosticReviewViewProps {
-  kind: DiagnosticReviewKind;
+  kind: Extract<DiagnosticReviewKind, 'scan'>;
 }
 
 interface ReviewConfig {
@@ -36,7 +36,7 @@ interface LensPromptConfig {
   lensPrompt: string;
 }
 
-const REVIEW_CONFIG: Record<DiagnosticReviewKind, ReviewConfig> = {
+const REVIEW_CONFIG: Record<Extract<DiagnosticReviewKind, 'scan'>, ReviewConfig> = {
   scan: {
     pageLabel: 'Investigation',
     headline: 'Scan',
@@ -77,6 +77,29 @@ const formatNumber = (value: number): string => {
   return Number.isInteger(rounded) ? String(Math.round(rounded)) : String(rounded);
 };
 
+const nextScanReviewId = (): string => `scan-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+const createReviewDraft = (params: {
+  kind: DiagnosticReviewKind;
+  lens: ScanLens;
+  imageDataUrl: string;
+  imageName?: string;
+  previous?: DiagnosticReviewRecord | null;
+}): DiagnosticReviewRecord => {
+  const now = Date.now();
+  return {
+    id: params.previous?.id || nextScanReviewId(),
+    kind: params.kind,
+    lens: params.lens,
+    image_data_url: params.imageDataUrl,
+    image_name: params.imageName || params.previous?.image_name,
+    context_note: params.previous?.context_note || '',
+    analysis: params.previous?.analysis || null,
+    created_at: params.previous?.created_at || now,
+    updated_at: now,
+  };
+};
+
 export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind }) => {
   const { state, dispatch } = useClinical();
   const [scanLens, setScanLens] = useState<ScanLens>('general');
@@ -86,10 +109,18 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const [imageDataUrl, setImageDataUrl] = useState<string>('');
-  const [imageName, setImageName] = useState<string>('');
-  const [contextNote, setContextNote] = useState<string>('');
-  const [analysis, setAnalysis] = useState<VisionAnalysisResult | null>(null);
+  const activeReview = useMemo(
+    () =>
+      [...state.diagnostic_reviews]
+        .filter((review) => review.kind === kind)
+        .sort((a, b) => b.updated_at - a.updated_at)[0] || null,
+    [kind, state.diagnostic_reviews]
+  );
+  const imageDataUrl = activeReview?.image_data_url || '';
+  const imageName = activeReview?.image_name || '';
+  const contextNote = activeReview?.context_note || '';
+  const analysis = activeReview?.analysis || null;
+
   const [error, setError] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
   const [pushing, setPushing] = useState(false);
@@ -103,6 +134,83 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         audioEnabled: state.settings.audio_enabled,
       }),
     [state.settings.audio_enabled, state.settings.haptics_enabled]
+  );
+
+  const upsertReview = useCallback(
+    (review: DiagnosticReviewRecord): DiagnosticReviewRecord => {
+      dispatch({ type: 'UPSERT_DIAGNOSTIC_REVIEW', payload: review });
+      return review;
+    },
+    [dispatch]
+  );
+
+  const removeActiveReview = useCallback(() => {
+    if (!activeReview) return;
+    dispatch({ type: 'DELETE_DIAGNOSTIC_REVIEW', payload: activeReview.id });
+  }, [activeReview, dispatch]);
+
+  const upsertReviewArchive = useCallback(
+    (review: DiagnosticReviewRecord) => {
+      const now = Date.now();
+      const mergedReviews = [review, ...state.diagnostic_reviews.filter((item) => item.id !== review.id)];
+      const hasRedFlags = Boolean(review.analysis && review.analysis.red_flags.length > 0);
+      const diagnosis = review.analysis?.summary || `${config.pageLabel} review pending interpretation`;
+      const visitLabel = `${config.pageLabel} ${new Date(now).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      })}`;
+      const noteParts = [
+        review.context_note || '',
+        review.analysis?.recommendation || '',
+      ].filter(Boolean);
+      const complaint = `${config.pageLabel} ${review.lens} review`;
+      const archive: SessionRecord = {
+        id: `diagnostic-${review.id}`,
+        timestamp: review.created_at,
+        updated_at: now,
+        source: 'scan',
+        visit_label: visitLabel,
+        diagnosis,
+        complaint,
+        notes: noteParts.join(' '),
+        status: hasRedFlags ? 'emergency' : 'active',
+        soap: state.soap,
+        profile_snapshot: state.profile,
+        clerking: { ...state.clerking },
+        diagnostic_reviews: mergedReviews,
+        snapshot: {
+          soap: state.soap,
+          ddx: [...state.ddx],
+          status: hasRedFlags ? 'emergency' : 'active',
+          redFlag: hasRedFlags,
+          pillars: state.pillars,
+          conversation: [...state.conversation],
+          agent_state: { ...state.agent_state },
+          probability: state.probability,
+          urgency: hasRedFlags ? 'high' : state.urgency,
+          thinking: state.thinking,
+          clerking: { ...state.clerking },
+          diagnostic_reviews: mergedReviews,
+        },
+        pillars: state.pillars || undefined,
+      };
+      dispatch({ type: 'UPSERT_ARCHIVE', payload: archive });
+    },
+    [
+      config.pageLabel,
+      dispatch,
+      state.agent_state,
+      state.clerking,
+      state.conversation,
+      state.ddx,
+      state.diagnostic_reviews,
+      state.pillars,
+      state.probability,
+      state.profile,
+      state.soap,
+      state.thinking,
+      state.urgency,
+    ]
   );
 
   const stopCameraStream = () => {
@@ -156,6 +264,12 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     };
   }, [scannerOpen]);
 
+  useEffect(() => {
+    if (!activeReview) return;
+    if (activeReview.lens === scanLens) return;
+    setScanLens(activeReview.lens);
+  }, [activeReview, scanLens]);
+
   const openFilePicker = useCallback(() => {
     setError('');
     fileInputRef.current?.click();
@@ -173,9 +287,15 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
     try {
       const nextDataUrl = await readFileAsDataUrl(file);
-      setImageDataUrl(nextDataUrl);
-      setImageName(file.name);
-      setAnalysis(null);
+      const nextReview = createReviewDraft({
+        kind,
+        lens: scanLens,
+        imageDataUrl: nextDataUrl,
+        imageName: file.name,
+        previous: activeReview,
+      });
+      upsertReview(nextReview);
+      upsertReviewArchive(nextReview);
       setError('');
       feedback('select');
     } catch (readError) {
@@ -204,9 +324,16 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     }
 
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    setImageDataUrl(canvas.toDataURL('image/jpeg', 0.86));
-    setImageName(`${config.pageLabel.toLowerCase()}-${scanLens}-scan-${Date.now()}.jpg`);
-    setAnalysis(null);
+    const imageDataUrlFromCamera = canvas.toDataURL('image/jpeg', 0.86);
+    const nextReview = createReviewDraft({
+      kind,
+      lens: scanLens,
+      imageDataUrl: imageDataUrlFromCamera,
+      imageName: `${config.pageLabel.toLowerCase()}-${scanLens}-scan-${Date.now()}.jpg`,
+      previous: activeReview,
+    });
+    upsertReview(nextReview);
+    upsertReviewArchive(nextReview);
     setError('');
     setScannerOpen(false);
     feedback('submit');
@@ -226,7 +353,19 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         clinicalContext: contextNote.trim() || promptConfig.contextHint,
         lensPrompt: promptConfig.lensPrompt,
       });
-      setAnalysis(review);
+      const analyzedReview = upsertReview({
+        ...(activeReview ||
+          createReviewDraft({
+            kind,
+            lens: scanLens,
+            imageDataUrl,
+            imageName: imageName || `${config.pageLabel.toLowerCase()}-${scanLens}-review.jpg`,
+          })),
+        context_note: contextNote.trim() || undefined,
+        analysis: review,
+        updated_at: Date.now(),
+      });
+      upsertReviewArchive(analyzedReview);
       feedback('question');
     } catch (analysisError) {
       const message = analysisError instanceof Error ? analysisError.message : 'AI review failed.';
@@ -235,7 +374,20 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     } finally {
       setAnalyzing(false);
     }
-  }, [contextNote, feedback, imageDataUrl, promptConfig.contextHint, promptConfig.lensPrompt]);
+  }, [
+    activeReview,
+    config.pageLabel,
+    contextNote,
+    feedback,
+    imageDataUrl,
+    imageName,
+    kind,
+    promptConfig.contextHint,
+    promptConfig.lensPrompt,
+    scanLens,
+    upsertReview,
+    upsertReviewArchive,
+  ]);
 
   const handoffSummary = useMemo(() => {
     const lines: string[] = [`${config.pageLabel} review handoff:`];
@@ -273,6 +425,13 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
     try {
       const result = await processAgentInteraction(handoffSummary, state);
+      if (activeReview) {
+        upsertReviewArchive({
+          ...activeReview,
+          context_note: contextNote.trim() || activeReview.context_note,
+          updated_at: Date.now(),
+        });
+      }
       dispatch({
         type: 'SET_AGENT_RESPONSE',
         payload: { ...result, status: result.status ?? 'active' },
@@ -287,7 +446,16 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     } finally {
       setPushing(false);
     }
-  }, [analysis, contextNote, dispatch, feedback, handoffSummary, state]);
+  }, [
+    activeReview,
+    analysis,
+    contextNote,
+    dispatch,
+    feedback,
+    handoffSummary,
+    state,
+    upsertReviewArchive,
+  ]);
 
   useEffect(() => {
     const applyFocusFromEvent = (event: Event) => {
@@ -386,9 +554,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                 <p className="text-[11px] text-content-dim truncate">{imageName || 'Selected image'}</p>
                 <button
                   onClick={() => {
-                    setImageDataUrl('');
-                    setImageName('');
-                    setAnalysis(null);
+                    removeActiveReview();
                     feedback('select');
                   }}
                   className="h-8 w-8 rounded-full surface-chip inline-flex items-center justify-center interactive-tap"
@@ -409,7 +575,14 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                 <label className="text-[11px] text-content-dim uppercase tracking-wide">Clinical Note</label>
                 <textarea
                   value={contextNote}
-                  onChange={(event) => setContextNote(event.target.value)}
+                  onChange={(event) => {
+                    if (!activeReview) return;
+                    upsertReview({
+                      ...activeReview,
+                      context_note: event.target.value,
+                      updated_at: Date.now(),
+                    });
+                  }}
                   rows={3}
                   placeholder="Context, symptoms, timing, and what you want the review to focus on"
                   className="w-full resize-none text-sm text-content-primary leading-relaxed"

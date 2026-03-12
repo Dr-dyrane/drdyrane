@@ -53,6 +53,9 @@ const OPTION_STACK_MIN_CHOICES = 8;
 const STACKED_BINARY_TIMEOUT_SECONDS = 10;
 const PRESENTING_COMPLAINT_BINARY_TIMEOUT_SECONDS = 10;
 const PRESENTING_COMPLAINT_MAX_ADDITIONAL = 3;
+const ASSISTIVE_OPTION_SOFT_CAP = 4;
+const HYBRID_CHAT_FIRST_MODE = import.meta.env.VITE_CONSULT_STRUCTURED_GATE !== 'true';
+const ENABLE_STACKED_SYMPTOM_GATE = import.meta.env.VITE_CONSULT_STACKED_GATE === 'true';
 const STACKED_SYMPTOM_SURVEY_PATTERN =
   /(which|what).*(associated symptom|symptom).*(stand out|most|prominent)|most prominent symptom with fever|associated symptom stands out/i;
 const SYMPTOM_SURVEY_SIGNAL_PATTERN =
@@ -76,6 +79,8 @@ const PATTERN_QUESTION_PATTERN =
   /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b|\bcyclic(al)?\b|\bcycle(s)?\b|\bnocturnal\b|\bevening chills?\b|\bmorning relief\b/i;
 const DANGER_SIGNS_QUESTION_PATTERN =
   /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b|\bchest pain\b/i;
+const SAFETY_CHECK_QUESTION_PATTERN =
+  /\bbefore i finalize\b|\bdanger signs?\b|\bconfusion\b|\bfainting\b|\bbreathing trouble\b|\bpersistent vomiting\b|\bbleeding\b/i;
 const SYMPTOM_CLUSTER_PROMPT = 'Which symptom cluster stands out most right now?';
 const FEVER_PATTERN_DETAIL_PROMPT = 'Within fever pattern, which cue stands out most?';
 const HEAD_PAIN_DETAIL_PROMPT = 'Within head/pain pattern, which symptom stands out most?';
@@ -111,7 +116,10 @@ export class AgentCoordinator {
     }
 
     const stateForTurn = this.applyProfileCapture(normalizedInput);
-    if (this.shouldStartPresentingComplaintGate(normalizedInput, stateForTurn)) {
+    if (
+      !HYBRID_CHAT_FIRST_MODE &&
+      this.shouldStartPresentingComplaintGate(normalizedInput, stateForTurn)
+    ) {
       return this.startPresentingComplaintGate(normalizedInput, stateForTurn);
     }
     const patientMessage = createPatientMessage(normalizedInput);
@@ -832,7 +840,10 @@ export class AgentCoordinator {
         stateForTurn.profile
       );
 
-      questionGate = this.buildStackedSymptomSurvey(aiQuestion, resolvedOptions);
+      questionGate =
+        !HYBRID_CHAT_FIRST_MODE && ENABLE_STACKED_SYMPTOM_GATE
+          ? this.buildStackedSymptomSurvey(aiQuestion, resolvedOptions)
+          : null;
       if (questionGate) {
         const firstSegment = questionGate.segments[0];
         const firstPrompt = firstSegment?.prompt || aiQuestion;
@@ -846,15 +857,9 @@ export class AgentCoordinator {
           nextSoap,
           stateForTurn.profile
         );
-        responseOptions = {
-          ...responseOptions,
-          allow_custom_input: false,
-          context_hint:
-            responseOptions.context_hint ||
-            `Step 1 of ${questionGate.segments.length}: Choose a symptom cluster first.`,
-        };
+        responseOptions = this.buildAssistiveOptions(responseOptions, firstPrompt);
       } else {
-        responseOptions = resolvedOptions;
+        responseOptions = this.buildAssistiveOptions(resolvedOptions, aiQuestion);
       }
     }
 
@@ -1110,6 +1115,54 @@ export class AgentCoordinator {
     }
   }
 
+  private buildAssistiveOptions(
+    responseOptions: ResponseOptions,
+    question: string
+  ): ResponseOptions {
+    const normalizedQuestion = question.toLowerCase();
+    const isSafetyQuestion = SAFETY_CHECK_QUESTION_PATTERN.test(normalizedQuestion);
+    const preserveAllChoices =
+      isSafetyQuestion ||
+      responseOptions.mode === 'multiple' ||
+      responseOptions.ui_variant === 'scale' ||
+      responseOptions.ui_variant === 'ladder' ||
+      responseOptions.options.length <= ASSISTIVE_OPTION_SOFT_CAP;
+
+    if (preserveAllChoices) {
+      return {
+        ...responseOptions,
+        allow_custom_input: true,
+      };
+    }
+
+    const anchorChoices = responseOptions.options.filter((option) =>
+      /\bnone\b|\bnot sure\b|\bunsure\b|\bother\b/i.test(option.text)
+    );
+    const selectedAnchors: ResponseOptions['options'] = [];
+    for (const choice of anchorChoices) {
+      if (selectedAnchors.some((entry) => entry.id === choice.id)) continue;
+      selectedAnchors.push(choice);
+      if (selectedAnchors.length >= 1) break;
+    }
+
+    const remaining = responseOptions.options.filter(
+      (option) => !selectedAnchors.some((anchor) => anchor.id === option.id)
+    );
+    const primaryChoices = remaining.slice(
+      0,
+      Math.max(1, ASSISTIVE_OPTION_SOFT_CAP - selectedAnchors.length)
+    );
+    const capped = [...primaryChoices, ...selectedAnchors];
+
+    return {
+      ...responseOptions,
+      options: capped,
+      allow_custom_input: true,
+      context_hint:
+        responseOptions.context_hint || 'Quick suggestions. You can also type your response.',
+    };
+  }
+
   private ensureProgressiveQuestion(
     question: string,
     conversation: ClinicalState['conversation'],
@@ -1118,20 +1171,67 @@ export class AgentCoordinator {
     const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
     const hardBlockIntentRepeat = this.shouldHardBlockIntentRepeat(sanitized, conversation);
     const recentQuestions = getRecentDoctorQuestions(conversation, 8);
+    const lastQuestion = recentQuestions[recentQuestions.length - 1];
     const shouldFallback =
       hardBlockIntentRepeat ||
       isLikelyRepeatedQuestion(sanitized, recentQuestions) ||
       isLikelyAnsweredTopicQuestion(sanitized, conversation) ||
       isRecentlyAnsweredQuestionIntent(sanitized, conversation) ||
-      isLoopingGenericPrompt(sanitized, conversation);
+      isLoopingGenericPrompt(sanitized, conversation) ||
+      this.isNearDuplicateQuestion(sanitized, lastQuestion);
     if (!shouldFallback) {
       return sanitized;
     }
     const contextualFallback = this.getContextAwareFallbackQuestion(phase, conversation);
-    if (contextualFallback) {
-      return contextualFallback;
+    const candidate =
+      contextualFallback || getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
+    if (this.isNearDuplicateQuestion(candidate, lastQuestion)) {
+      return 'What one detail should I clarify before I summarize your working diagnosis?';
     }
-    return getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
+    return candidate;
+  }
+
+  private normalizeQuestionFingerprint(question: string): string {
+    return question
+      .toLowerCase()
+      .replace(/\(.*?\)/g, ' ')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private isNearDuplicateQuestion(question: string, referenceQuestion?: string): boolean {
+    if (!referenceQuestion) return false;
+    const next = this.normalizeQuestionFingerprint(question);
+    const prev = this.normalizeQuestionFingerprint(referenceQuestion);
+    if (!next || !prev) return false;
+    if (next === prev) return true;
+    if (next.includes(prev) || prev.includes(next)) return true;
+    if (
+      PATTERN_QUESTION_PATTERN.test(next) &&
+      PATTERN_QUESTION_PATTERN.test(prev)
+    ) {
+      return true;
+    }
+    if (
+      DANGER_SIGNS_QUESTION_PATTERN.test(next) &&
+      DANGER_SIGNS_QUESTION_PATTERN.test(prev)
+    ) {
+      return true;
+    }
+    if (
+      MOST_LIMITING_QUESTION_PATTERN.test(next) &&
+      MOST_LIMITING_QUESTION_PATTERN.test(prev)
+    ) {
+      return true;
+    }
+    if (
+      SYMPTOM_CHANGE_QUESTION_PATTERN.test(next) &&
+      SYMPTOM_CHANGE_QUESTION_PATTERN.test(prev)
+    ) {
+      return true;
+    }
+    return false;
   }
 
   private getContextAwareFallbackQuestion(
@@ -1227,7 +1327,7 @@ export class AgentCoordinator {
   private hasRecentlyAnsweredIntent(
     conversation: ClinicalState['conversation'],
     intentPattern: RegExp,
-    lookback = 20
+    lookback = 40
   ): boolean {
     const window = conversation.slice(-lookback);
     for (let i = window.length - 1; i >= 0; i -= 1) {
