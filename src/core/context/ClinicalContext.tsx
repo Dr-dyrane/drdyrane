@@ -480,6 +480,12 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (!parsed.theme || !['system', 'dark', 'light'].includes(parsed.theme)) {
           parsed.theme = 'system';
         }
+        if ((parsed.view as string) === 'lab' || (parsed.view as string) === 'radiology') {
+          parsed.view = 'scan';
+        }
+        if (!['consult', 'history', 'drug', 'scan', 'about'].includes(parsed.view as string)) {
+          parsed.view = 'consult';
+        }
         if (!parsed.notifications || parsed.notifications.length === 0) {
           parsed.notifications = [...initialState.notifications];
         }

@@ -2,7 +2,7 @@
 
 Date: 2026-03-12  
 Owner: Codex  
-Scope: Patient-facing mobile web experience (consult, history, pharmacy, lab/radiology review, sheets, overlays)
+Scope: Patient-facing mobile web experience (consult, history, pharmacy, investigation scan review, sheets, overlays)
 
 ## Source set (Apple)
 - https://developer.apple.com/design/human-interface-guidelines/
@@ -31,8 +31,8 @@ Scope: Patient-facing mobile web experience (consult, history, pharmacy, lab/rad
 | Typography | Avoid text smaller than 11pt equivalent for UI labels | Removed `text-[9px]` and `text-[10px]` usages from patient-facing UI | `src/**` | Implemented |
 | Color and effects | Contrast must preserve legibility in all themes | Semantic token-only theme surfaces with contrast audit gate | `src/styles/physics.css`, `docs/accessibility/contrast-audit.md` | Implemented |
 | Menus | Commands should be grouped and consistently placed | `More` menu now only exposes non-navigation utilities (record/process/pdf/reset or page-specific review actions) | `src/components/layout/BottomNav.tsx` | Implemented |
-| Navigation | Tab bars should provide direct top-level destination switching | Bottom pill uses adaptive 3-slot smart tabs to reduce visual load while keeping consult/history/pharmacy/lab/radiology reachable by context | `src/components/layout/BottomNav.tsx` | Implemented |
-| Menus | Secondary actions should remain contextual to current surface | `More` and FAB actions now switch by active page (consult/history/pharmacy/lab/radiology) | `src/components/layout/BottomNav.tsx` | Implemented |
+| Navigation | Tab bars should provide direct top-level destination switching | Bottom pill uses adaptive 3-slot smart tabs to reduce visual load while keeping consult/history/pharmacy/scan reachable by context | `src/components/layout/BottomNav.tsx` | Implemented |
+| Menus | Secondary actions should remain contextual to current surface | `More` and FAB actions now switch by active page (consult/history/pharmacy/scan) | `src/components/layout/BottomNav.tsx` | Implemented |
 | Scroll views | Keep scroll behavior predictable and contained | Main app has stable scroll container; modal sheets own internal scroll | `src/App.tsx`, `src/components/shared/SideSheet.tsx`, `src/features/**/Modal*.tsx` | Implemented |
 | Modality | Modal content should retain context and dismiss clearly | All sheets/modals include backdrop, deterministic z-index, explicit close action | `src/components/shared/SideSheet.tsx`, `src/features/history/VisitRecordModal.tsx`, `src/features/consultation/ClinicalProcessModal.tsx` | Implemented |
 | Presentation patterns | Sheet behavior should feel native and context-preserving | Replaced side-drawer style with iOS-like bottom sheet presentation and detent behavior | `src/components/shared/SideSheet.tsx`, `src/features/profile/ProfileSheet.tsx`, `src/features/notifications/NotificationsSheet.tsx` | Implemented |
@@ -42,7 +42,7 @@ Scope: Patient-facing mobile web experience (consult, history, pharmacy, lab/rad
 | Icons | Meaningful iconography must reinforce action | Icon-first buttons for nav, profile controls, history actions, biodata controls | `src/components/layout/BottomNav.tsx`, `src/features/profile/ProfileSheet.tsx`, `src/features/consultation/components/BiodataCard.tsx` | Implemented |
 | Components | Medication lists should emphasize primary values and reduce scan friction | Prescription lines redesigned to compact medication cards with dose chip + frequency/duration chips | `src/features/drug/DrugProtocolsView.tsx` | Implemented |
 | Presentation | Keep utility tools in context-preserving sheets | Pharmacy dose-volume calculator runs as a dedicated bottom sheet from icon action | `src/features/drug/DrugProtocolsView.tsx` | Implemented |
-| Navigation | Related workflows can open as dedicated pages without tab overload | Lab Review and Radiology Review are full pages launched from Pharmacy actions and profile quick navigation | `src/App.tsx`, `src/features/diagnostics/DiagnosticReviewView.tsx`, `src/features/profile/ProfileSheet.tsx` | Implemented |
+| Navigation | Related workflows can open as dedicated pages without tab overload | Investigation Scan is a single full page for lab/radiology/clinical image review launched via tab and contextual actions | `src/App.tsx`, `src/features/diagnostics/DiagnosticReviewView.tsx`, `src/features/profile/ProfileSheet.tsx` | Implemented |
 | PWA shell consistency | App metadata should be valid and discoverable | Explicit web manifest link added in document head | `index.html`, `public/manifest.webmanifest` | Implemented |
 
 ## Non-applicable native sections (mapped)

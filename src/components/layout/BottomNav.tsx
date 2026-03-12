@@ -4,7 +4,6 @@ import { AppView } from '../../core/types/clinical';
 import {
   Camera,
   ClipboardList,
-  FlaskConical,
   History,
   LineChart,
   MoreHorizontal,
@@ -24,7 +23,6 @@ import { playCelebrationBurst } from '../../core/services/celebration';
 import { ClinicalProcessModal } from '../../features/consultation/ClinicalProcessModal';
 
 type ActionIcon = React.ComponentType<{ size?: string | number }>;
-type DiagnosticKind = 'lab' | 'radiology';
 
 interface NavAction {
   key: string;
@@ -51,8 +49,7 @@ const TAB_REGISTRY: Record<AppView, SmartTab> = {
   consult: { id: 'consult', label: 'Consult', icon: Stethoscope },
   history: { id: 'history', label: 'History', icon: History },
   drug: { id: 'drug', label: 'Rx', icon: Pill },
-  lab: { id: 'lab', label: 'Lab', icon: FlaskConical },
-  radiology: { id: 'radiology', label: 'Radio', icon: ScanLine },
+  scan: { id: 'scan', label: 'Scan', icon: ScanLine },
   about: { id: 'about', label: 'System', icon: LineChart },
 };
 
@@ -63,11 +60,9 @@ const getSmartTabs = (view: AppView): SmartTab[] => {
     case 'history':
       return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
     case 'drug':
-      return [TAB_REGISTRY.history, TAB_REGISTRY.drug, TAB_REGISTRY.lab];
-    case 'lab':
-      return [TAB_REGISTRY.drug, TAB_REGISTRY.lab, TAB_REGISTRY.radiology];
-    case 'radiology':
-      return [TAB_REGISTRY.lab, TAB_REGISTRY.radiology, TAB_REGISTRY.consult];
+      return [TAB_REGISTRY.history, TAB_REGISTRY.drug, TAB_REGISTRY.scan];
+    case 'scan':
+      return [TAB_REGISTRY.drug, TAB_REGISTRY.scan, TAB_REGISTRY.consult];
     default:
       return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
   }
@@ -185,8 +180,8 @@ export const BottomNav: React.FC = () => {
   }, [dispatch, feedback]);
 
   const triggerDiagnostic = useCallback(
-    (action: 'open-upload' | 'open-scanner' | 'run-review' | 'send-consult', kind: DiagnosticKind) => {
-      emitEvent(`drdyrane:diagnostic:${action}`, { kind });
+    (action: 'open-upload' | 'open-scanner' | 'run-review' | 'send-consult') => {
+      emitEvent(`drdyrane:diagnostic:${action}`, { kind: 'scan' });
       feedback(action === 'send-consult' ? 'submit' : 'select');
     },
     [emitEvent, feedback]
@@ -213,20 +208,12 @@ export const BottomNav: React.FC = () => {
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
-      case 'lab':
+      case 'scan':
         return [
-          { key: 'upload', label: 'Upload', icon: Upload, onClick: () => triggerDiagnostic('open-upload', 'lab') },
-          { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'lab') },
-          { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review', 'lab') },
-          { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult', 'lab') },
-          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
-        ];
-      case 'radiology':
-        return [
-          { key: 'upload', label: 'Upload', icon: Upload, onClick: () => triggerDiagnostic('open-upload', 'radiology') },
-          { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'radiology') },
-          { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review', 'radiology') },
-          { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult', 'radiology') },
+          { key: 'upload', label: 'Upload', icon: Upload, onClick: () => triggerDiagnostic('open-upload') },
+          { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') },
+          { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review') },
+          { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult') },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       default:
@@ -265,10 +252,8 @@ export const BottomNav: React.FC = () => {
         return { label: 'Start Consult', icon: Stethoscope, onClick: () => openView('consult', 'submit') };
       case 'drug':
         return { label: 'Open Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator') };
-      case 'lab':
-        return { label: 'Scan Lab', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'lab') };
-      case 'radiology':
-        return { label: 'Scan Imaging', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'radiology') };
+      case 'scan':
+        return { label: 'Open Scanner', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') };
       default:
         return { label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') };
     }

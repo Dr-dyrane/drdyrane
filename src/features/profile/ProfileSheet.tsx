@@ -2,7 +2,6 @@ import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell,
-  FlaskConical,
   History,
   Info,
   Monitor,
@@ -135,8 +134,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
     { id: 'consult', label: 'Consult', icon: Stethoscope },
     { id: 'history', label: 'History', icon: History },
     { id: 'drug', label: 'Pharmacy', icon: Pill },
-    { id: 'lab', label: 'Lab', icon: FlaskConical },
-    { id: 'radiology', label: 'Radiology', icon: ScanLine },
+    { id: 'scan', label: 'Scan', icon: ScanLine },
     { id: 'about', label: 'System', icon: Info },
   ];
 

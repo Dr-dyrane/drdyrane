@@ -1,6 +1,6 @@
 export type ConsultationStatus = 'idle' | 'intake' | 'active' | 'lens' | 'emergency' | 'complete';
 export type AppTheme = 'system' | 'dark' | 'light';
-export type AppView = 'consult' | 'history' | 'drug' | 'lab' | 'radiology' | 'about';
+export type AppView = 'consult' | 'history' | 'drug' | 'scan' | 'about';
 export type SheetType = 'profile' | 'notifications' | null;
 
 export interface SOAPState {

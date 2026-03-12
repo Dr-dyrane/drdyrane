@@ -13,8 +13,7 @@ import { TheLens } from './features/consultation/TheLens';
 import { PillarCard } from './features/resolution/PillarCard';
 import { HistoryView } from './features/history/HistoryView';
 import { DrugProtocolsView } from './features/drug/DrugProtocolsView';
-import { LabReviewView } from './features/diagnostics/LabReviewView';
-import { RadiologyReviewView } from './features/diagnostics/RadiologyReviewView';
+import { ScanReviewView } from './features/diagnostics/ScanReviewView';
 import { AboutView } from './features/about/AboutView';
 import { EmergencyOverlay } from './features/emergency/EmergencyOverlay';
 import { ProfileSheet } from './features/profile/ProfileSheet';
@@ -142,27 +141,15 @@ const MainApp: React.FC = () => {
               </motion.div>
             )}
 
-            {state.view === 'lab' && (
+            {state.view === 'scan' && (
               <motion.div
-                key="lab"
+                key="scan"
                 initial={{ opacity: 0, x: 16 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -16 }}
                 className="flex flex-1 min-w-0"
               >
-                <LabReviewView />
-              </motion.div>
-            )}
-
-            {state.view === 'radiology' && (
-              <motion.div
-                key="radiology"
-                initial={{ opacity: 0, x: 16 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -16 }}
-                className="flex flex-1 min-w-0"
-              >
-                <RadiologyReviewView />
+                <ScanReviewView />
               </motion.div>
             )}
 

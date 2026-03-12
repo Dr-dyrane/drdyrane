@@ -17,7 +17,9 @@ import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { Orb } from '../consultation/Orb';
 
-export type DiagnosticReviewKind = 'lab' | 'radiology';
+export type DiagnosticReviewKind = 'scan';
+type DiagnosticEventKind = DiagnosticReviewKind | 'lab' | 'radiology';
+type ScanLens = 'general' | 'lab' | 'radiology';
 
 interface DiagnosticReviewViewProps {
   kind: DiagnosticReviewKind;
@@ -28,25 +30,34 @@ interface ReviewConfig {
   headline: string;
   uploadLabel: string;
   scannerTitle: string;
+}
+
+interface LensPromptConfig {
   contextHint: string;
   lensPrompt: string;
 }
 
 const REVIEW_CONFIG: Record<DiagnosticReviewKind, ReviewConfig> = {
+  scan: {
+    pageLabel: 'Investigation',
+    headline: 'Scan',
+    uploadLabel: 'Upload',
+    scannerTitle: 'Live Camera Scan',
+  },
+};
+
+const SCAN_LENS_CONFIG: Record<ScanLens, LensPromptConfig> = {
+  general: {
+    contextHint: 'Analyze this clinical image and identify relevant findings with urgency signals.',
+    lensPrompt:
+      'Review this clinical image for key findings, danger signs, and safe next-step recommendations.',
+  },
   lab: {
-    pageLabel: 'Laboratory',
-    headline: 'Lab Review',
-    uploadLabel: 'Upload Lab Image',
-    scannerTitle: 'Scan Lab Result',
     contextHint: 'Analyze this laboratory report image and identify clinically relevant abnormalities.',
     lensPrompt:
       'Review this laboratory report image. Extract critical findings, dangerous abnormalities, and immediate next actions.',
   },
   radiology: {
-    pageLabel: 'Radiology',
-    headline: 'Radiology Review',
-    uploadLabel: 'Upload Imaging Study',
-    scannerTitle: 'Scan Imaging Film',
     contextHint: 'Analyze this radiology image and identify key findings with urgency indicators.',
     lensPrompt:
       'Review this radiology image for major findings, red flags, and safe next-step recommendations.',
@@ -69,6 +80,8 @@ const formatNumber = (value: number): string => {
 
 export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind }) => {
   const { state, dispatch } = useClinical();
+  const [scanLens, setScanLens] = useState<ScanLens>('general');
+  const promptConfig = useMemo(() => SCAN_LENS_CONFIG[scanLens], [scanLens]);
   const config = REVIEW_CONFIG[kind];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -193,7 +206,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     setImageDataUrl(canvas.toDataURL('image/jpeg', 0.86));
-    setImageName(`${config.pageLabel.toLowerCase()}-scan-${Date.now()}.jpg`);
+    setImageName(`${config.pageLabel.toLowerCase()}-${scanLens}-scan-${Date.now()}.jpg`);
     setAnalysis(null);
     setError('');
     setScannerOpen(false);
@@ -211,8 +224,8 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     try {
       const review = await analyzeClinicalImage({
         imageDataUrl,
-        clinicalContext: contextNote.trim() || config.contextHint,
-        lensPrompt: config.lensPrompt,
+        clinicalContext: contextNote.trim() || promptConfig.contextHint,
+        lensPrompt: promptConfig.lensPrompt,
       });
       setAnalysis(review);
       feedback('question');
@@ -223,7 +236,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     } finally {
       setAnalyzing(false);
     }
-  }, [config.contextHint, config.lensPrompt, contextNote, feedback, imageDataUrl]);
+  }, [contextNote, feedback, imageDataUrl, promptConfig.contextHint, promptConfig.lensPrompt]);
 
   const handoffSummary = useMemo(() => {
     const lines: string[] = [`${config.pageLabel} review handoff:`];
@@ -278,19 +291,33 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   }, [analysis, contextNote, dispatch, feedback, handoffSummary, state]);
 
   useEffect(() => {
+    const applyFocusFromEvent = (event: Event) => {
+      const detail = (event as CustomEvent<{ kind?: DiagnosticEventKind; focus?: ScanLens }>).detail;
+      if (!detail) return;
+      if (detail.kind === 'lab' || detail.kind === 'radiology') {
+        setScanLens(detail.kind);
+        return;
+      }
+      if (detail.focus) {
+        setScanLens(detail.focus);
+      }
+    };
+
     const matchesKind = (event: Event): boolean => {
-      const detail = (event as CustomEvent<{ kind?: DiagnosticReviewKind }>).detail;
+      const detail = (event as CustomEvent<{ kind?: DiagnosticEventKind; focus?: ScanLens }>).detail;
       if (!detail?.kind) return true;
-      return detail.kind === kind;
+      return detail.kind === 'scan' || detail.kind === 'lab' || detail.kind === 'radiology';
     };
 
     const handleUpload = (event: Event) => {
       if (!matchesKind(event)) return;
+      applyFocusFromEvent(event);
       openFilePicker();
     };
 
     const handleScanner = (event: Event) => {
       if (!matchesKind(event)) return;
+      applyFocusFromEvent(event);
       setError('');
       setScannerOpen(true);
       feedback('select');
@@ -298,11 +325,13 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
     const handleReview = (event: Event) => {
       if (!matchesKind(event)) return;
+      applyFocusFromEvent(event);
       void runAnalysis();
     };
 
     const handleSend = (event: Event) => {
       if (!matchesKind(event)) return;
+      applyFocusFromEvent(event);
       void pushToConsultation();
     };
 
@@ -317,7 +346,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       window.removeEventListener('drdyrane:diagnostic:run-review', handleReview);
       window.removeEventListener('drdyrane:diagnostic:send-consult', handleSend);
     };
-  }, [feedback, kind, openFilePicker, pushToConsultation, runAnalysis]);
+  }, [feedback, openFilePicker, pushToConsultation, runAnalysis]);
 
   return (
     <>
@@ -329,6 +358,9 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         <div className="text-center space-y-2">
           <span className="text-content-dim text-xs font-medium">{config.pageLabel}</span>
           <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">{config.headline}</h1>
+          <p className="text-xs text-content-dim leading-relaxed px-2">
+            Upload labs, radiology, wounds, rashes, or other clinical images for one-pass review.
+          </p>
         </div>
 
         <section className="surface-raised rounded-[24px] p-4 space-y-3">
