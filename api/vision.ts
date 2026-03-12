@@ -1,4 +1,4 @@
-import { VisionRequest, runVision } from './_anthropic.js';
+import { VisionRequest, runVision } from './_aiOrchestrator.js';
 
 interface ApiRequest {
   method?: string;
@@ -37,4 +37,3 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     res.status(500).json({ error: message });
   }
 }
-

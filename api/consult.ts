@@ -1,4 +1,4 @@
-import { ConsultRequest, runConsult } from './_anthropic.js';
+import { ConsultRequest, runConsult } from './_aiOrchestrator.js';
 
 interface ApiRequest {
   method?: string;

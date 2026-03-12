@@ -3,7 +3,9 @@
 Date: 2026-03-12  
 Owner: Codex
 
-Related strategy doc: `docs/product/CLINICAL_UX_MOAT_PLAYBOOK.md`
+Related strategy docs:
+- `docs/product/CLINICAL_UX_MOAT_PLAYBOOK.md`
+- `docs/product/CLINICAL_REASONING_PHILOSOPHY_DIGEST.md`
 
 ## 1) HIG-aligned UX
 - `Done`: Single-question consult canvas and progressive disclosure.

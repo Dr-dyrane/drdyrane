@@ -75,6 +75,6 @@ Reference Direction: Apple Health information hierarchy + Duolingo color energy 
 - `src/features/resolution/PillarCard.tsx`: semantic accent chips for icon blocks.
 - `src/features/consultation/TheLens.tsx`: semantic accent classes for camera and analyzing pulse states.
 - `src/features/emergency/EmergencyOverlay.tsx`: semantic danger classes replacing hardcoded red surfaces.
-- `api/_anthropic.ts`: hybrid routing + collaboration merge between OpenAI and Anthropic.
+- `api/_aiOrchestrator.ts`: hybrid routing + collaboration merge between OpenAI and Anthropic.
 - `api/vision.ts`: server route for image-assisted clinical interpretation.
 - `src/core/api/visionEngine.ts`: frontend vision client for Lens capture handoff.

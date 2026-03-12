@@ -78,8 +78,8 @@ const MainApp: React.FC = () => {
   ]);
 
   return (
-    <div className="min-h-screen min-h-[100dvh] bg-surface-primary text-content-primary flex justify-center px-0 sm:px-4 sm:py-4 transition-colors duration-500 overflow-hidden">
-      <div className="w-full max-w-[440px] min-h-screen min-h-[100dvh] sm:min-h-[94dvh] relative isolate flex flex-col overflow-hidden app-phone-shell sm:rounded-[34px] shadow-float">
+    <div className="min-h-screen bg-surface-primary text-content-primary flex justify-center px-0 sm:px-4 sm:py-4 transition-colors duration-500 overflow-hidden">
+      <div className="w-full max-w-[440px] min-h-screen sm:min-h-[94dvh] relative isolate flex flex-col overflow-hidden app-phone-shell sm:rounded-[34px] shadow-float">
         <DepthLayer />
         <Header />
 

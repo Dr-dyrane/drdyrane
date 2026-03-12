@@ -7,7 +7,7 @@ import {
   runConsult,
   runOptions,
   runVision,
-} from '../api/_anthropic';
+} from '../api/_aiOrchestrator';
 
 const readJsonBody = async <T>(req: IncomingMessage): Promise<T> => {
   const chunks: Buffer[] = [];
@@ -128,4 +128,3 @@ const routeMiddleware: Connect.NextHandleFunction = (req, res, next) => {
 export const attachAnthropicProxy = (middlewares: Connect.Server): void => {
   middlewares.use(routeMiddleware);
 };
-

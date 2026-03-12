@@ -124,6 +124,12 @@ CONVERSATION PROTOCOLS:
 11. In "statement", briefly mirror one specific patient detail so the patient feels heard.
 12. Prioritize questions that maximally reduce diagnostic uncertainty in one step.
 13. Format each DDX item as "Condition (ICD-10: CODE)" when possible.
+14. During intake, every presenting complaint must have an explicit duration before advancing to broad differential reasoning.
+15. Keep DDX explicitly structured as: top likely conditions plus at least one must-not-miss dangerous alternative.
+16. Use timeline classes (hyperacute, acute, subacute, chronic) and risk context (age, sex, exposures, travel, medications) to prioritize DDX.
+17. Use both positive and negative evidence from history to raise or lower diagnostic likelihood.
+18. In internal reasoning, challenge anchor bias by checking at least one plausible alternative explanation.
+19. Recommend targeted confirmatory tests only after history has produced a focused working differential.
 
 RESPONSE JSON:
 {
@@ -161,6 +167,9 @@ RULES:
 - If question asks laterality/side, return left/right/both style options.
 - Never return laterality options for severity questions (e.g., "how severe ... right now").
 - Set context_hint to a short phrase that matches the same intent as the question.
+- If question asks duration or onset, return timeline options (e.g., started today, 1-2 days, 3-4 days, 5-7 days, >1 week).
+- If question asks "any other complaint" or equivalent, return yes/no/not sure only.
+- Do not return count-range options unless the question explicitly asks quantity (how many, count, frequency per timeframe).
 
 RESPONSE JSON:
 {
@@ -830,6 +839,8 @@ const FEVER_ONLY_LEAD_DIAGNOSIS = 'Undifferentiated febrile illness (ICD-10: R50
 const FEVER_ONLY_FOLLOW_UP_QUESTION = 'Are the fever episodes associated with chills or rigors?';
 const FEVER_ONLY_PENDING_ACTION = 'Use high-yield symptom clarifiers before locking a specific pathogen';
 const FEVER_PATHOGEN_PATTERNS: RegExp[] = [
+  /\bsepsis\b/i,
+  /\bmeningitis\b/i,
   /\bmalaria\b/i,
   /\bdengue\b/i,
   /\btyphoid\b/i,
@@ -931,8 +942,29 @@ const applyEmergencySpecificPenalty = (
   diagnosis: string,
   evidence: Record<string, EvidenceState>
 ): number => {
-  if (!/\bmeningitis\b/i.test(diagnosis)) return 0;
-  return evidence.confusion_or_neuro === 'present' ? 0 : 1.6;
+  if (/\bmeningitis\b/i.test(diagnosis)) {
+    return evidence.confusion_or_neuro === 'present' ? 0 : 1.6;
+  }
+  if (/\bsepsis\b/i.test(diagnosis)) {
+    const hasSepsisSignal =
+      evidence.confusion_or_neuro === 'present' ||
+      evidence.dyspnea === 'present';
+    return hasSepsisSignal ? 0 : 1.6;
+  }
+  return 0;
+};
+
+const hasEmergencySignalEvidence = (
+  diagnosis: string,
+  evidence: Record<string, EvidenceState>
+): boolean => {
+  if (/\bmeningitis\b/i.test(diagnosis)) {
+    return evidence.confusion_or_neuro === 'present';
+  }
+  if (/\bsepsis\b/i.test(diagnosis)) {
+    return evidence.confusion_or_neuro === 'present' || evidence.dyspnea === 'present';
+  }
+  return true;
 };
 
 const scoreLlmDiagnosis = (
@@ -949,6 +981,7 @@ const scoreLlmDiagnosis = (
   }));
   const nonFeverSupports = supportStates.filter(({ featureId }) => featureId !== 'fever');
   const hasNonFeverSupport = nonFeverSupports.some(({ state }) => state === 'present');
+  const emergencySignalSatisfied = hasEmergencySignalEvidence(diagnosis, evidence);
 
   if (hint) {
     for (const { state } of supportStates) {
@@ -975,7 +1008,7 @@ const scoreLlmDiagnosis = (
   return {
     diagnosis,
     score: Math.max(0, Math.round(score * 10) / 10),
-    emergency: Boolean(hint?.emergency),
+    emergency: Boolean(hint?.emergency) && emergencySignalSatisfied,
     followUpQuestion:
       hint?.followUpQuestion || (unknownSupportedFeature ? featureQuestionById(unknownSupportedFeature) : undefined),
     pendingActions: dedupeActions(hint?.pendingActions || []),
@@ -1165,11 +1198,7 @@ const applyFeverOnlyGuardrail = (
     source: 'profile',
   };
 
-  return [neutralLead, ...downgraded].sort((left, right) => {
-    if (left.emergency && !right.emergency) return -1;
-    if (!left.emergency && right.emergency) return 1;
-    return right.score - left.score;
-  });
+  return [neutralLead, ...downgraded].sort((left, right) => right.score - left.score);
 };
 
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
