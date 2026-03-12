@@ -107,7 +107,13 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
         hapticsEnabled: settings.haptics_enabled,
         audioEnabled: settings.audio_enabled,
       });
-      window.alert(error instanceof Error ? error.message : 'Unable to upload image.');
+      dispatch({
+        type: 'ADD_NOTIFICATION',
+        payload: {
+          title: 'Avatar Upload Failed',
+          body: error instanceof Error ? error.message : 'Unable to upload image.',
+        },
+      });
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -198,7 +204,6 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 <p className="text-xl font-semibold text-content-primary leading-none">
                   {profile.display_name || 'Patient'}
                 </p>
-                <p className="text-sm text-content-secondary mt-1">Local profile only</p>
               </div>
             </div>
 

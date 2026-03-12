@@ -1,6 +1,7 @@
 const AVATAR_PREFIX = 'dr_dyrane.v1.avatar';
 const LOCAL_AVATAR_SCHEME = 'local-avatar://';
 export const MAX_AVATAR_FILE_BYTES = 6 * 1024 * 1024;
+const GENERATED_AVATAR_BASE_URL = 'https://api.dicebear.com/9.x/fun-emoji/svg';
 
 const getAvatarKey = (profileId: string): string => `${AVATAR_PREFIX}.${profileId}`;
 
@@ -70,4 +71,28 @@ export const resolveProfileAvatarUrl = (avatarUri: string): string => {
   if (!profileId) return '';
 
   return localStorage.getItem(getAvatarKey(profileId)) || '';
+};
+
+const sanitizeAvatarSeed = (seed: string): string => {
+  const normalized = (seed || '').trim().replace(/\s+/g, ' ');
+  return normalized || 'Patient';
+};
+
+export const buildGeneratedAvatarUrl = (seed: string): string => {
+  const safeSeed = sanitizeAvatarSeed(seed);
+  const params = new URLSearchParams({
+    seed: safeSeed,
+    radius: '50',
+    backgroundType: 'gradientLinear',
+  });
+  return `${GENERATED_AVATAR_BASE_URL}?${params.toString()}`;
+};
+
+export const resolveProfileAvatarWithFallback = (
+  avatarUri: string,
+  seed: string = 'Patient'
+): string => {
+  const resolved = resolveProfileAvatarUrl(avatarUri);
+  if (resolved) return resolved;
+  return buildGeneratedAvatarUrl(seed);
 };

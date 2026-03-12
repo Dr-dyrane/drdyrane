@@ -17,28 +17,29 @@ export const ClinicalQuestionCard: React.FC<ClinicalQuestionCardProps> = ({
   const questionLength = question.trim().length;
   const questionSizeClass =
     questionLength > 185
-      ? 'text-[1.04rem] sm:text-[1.2rem] leading-snug'
+      ? 'text-[1rem] sm:text-[1.08rem] leading-snug'
       : questionLength > 150
-        ? 'text-[1.2rem] sm:text-[1.32rem] leading-snug'
+        ? 'text-[1.05rem] sm:text-[1.14rem] leading-snug'
       : questionLength > 110
-        ? 'text-[1.35rem] sm:text-[1.5rem] leading-tight'
-        : 'text-[1.65rem] sm:text-[1.9rem] leading-tight';
+        ? 'text-[1.1rem] sm:text-[1.2rem] leading-tight'
+        : 'text-[1.2rem] sm:text-[1.3rem] leading-tight';
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: 'easeOut' }}
-      className="surface-raised rounded-[24px] px-5 py-5 shadow-glass min-h-[168px] sm:min-h-[186px] flex flex-col justify-center"
+      className="surface-raised rounded-[24px] px-4 py-4 shadow-glass min-h-[128px] sm:min-h-[140px] flex flex-col justify-center"
     >
+      <p className="text-[11px] text-content-dim mb-1">Dr. Dyrane</p>
       {statement && (
-        <p className="text-xs tracking-wide text-accent-soft font-medium text-center mb-3">
+        <p className="text-xs tracking-wide text-accent-soft font-medium text-left mb-2">
           {statement}
         </p>
       )}
       <h2
         aria-live="polite"
-        className={`display-type ${questionSizeClass} font-semibold tracking-tight text-content-primary text-center break-words hyphens-auto min-h-[86px] max-h-[124px] overflow-y-auto no-scrollbar flex items-center justify-center pr-1`}
+        className={`display-type ${questionSizeClass} font-semibold tracking-tight text-content-primary text-left break-words hyphens-auto min-h-[64px] max-h-[124px] overflow-y-auto no-scrollbar flex items-center pr-1`}
       >
         {typedQuestion}
         {!reducedMotion && typedQuestion.length < question.length && (

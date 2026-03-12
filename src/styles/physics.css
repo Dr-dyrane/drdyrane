@@ -619,6 +619,81 @@ select {
   position: relative;
 }
 
+.consult-room-shell {
+  position: relative;
+}
+
+.consult-room-actions {
+  margin-bottom: 0.2rem;
+}
+
+.consult-room-stage {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.45rem;
+}
+
+.consult-room-stage::before {
+  content: '';
+  position: absolute;
+  top: 0.35rem;
+  width: 190px;
+  height: 70px;
+  border-radius: 9999px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-accent-primary) 28%, transparent), transparent 72%);
+  filter: blur(18px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.consult-room-presence {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.consult-room-chip {
+  height: 1.7rem;
+  padding: 0 0.7rem;
+  border-radius: 9999px;
+  font-size: 11px;
+  color: var(--color-content-secondary);
+  background: color-mix(in srgb, var(--color-surface-strong) 90%, transparent);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.consult-room-chip-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 9999px;
+  background: color-mix(in srgb, var(--color-neon-mint) 78%, white 22%);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--color-neon-mint) 60%, transparent);
+}
+
+.consult-chat-log {
+  max-height: 36vh;
+  overflow-y: auto;
+  padding-right: 0.1rem;
+}
+
+.consult-chat-bubble {
+  max-width: 84%;
+  border-radius: 18px;
+  padding: 0.6rem 0.75rem 0.68rem;
+}
+
+.consult-chat-bubble-doctor {
+  background: color-mix(in srgb, var(--color-surface-raised) 92%, transparent);
+}
+
+.consult-chat-bubble-patient {
+  background: color-mix(in srgb, var(--color-chip-strong) 95%, var(--color-accent-primary) 5%);
+}
+
 .consult-answer-zone {
   padding-top: 0.2rem;
 }

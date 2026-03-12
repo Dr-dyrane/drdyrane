@@ -3,6 +3,8 @@ import { Bell, CheckCheck, ChevronRight, X } from 'lucide-react';
 import { SideSheet } from '../../components/shared/SideSheet';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
+import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
+import { isOnboardingNotification } from '../../core/notifications/onboardingNotification';
 
 interface NotificationsSheetProps {
   isOpen: boolean;
@@ -12,6 +14,7 @@ interface NotificationsSheetProps {
 export const NotificationsSheet: React.FC<NotificationsSheetProps> = ({ isOpen, onClose }) => {
   const { state, dispatch } = useClinical();
   const notifications = state.notifications;
+  const onboardingComplete = isProfileOnboardingComplete(state.profile);
   const unreadCount = notifications.filter((notification) => !notification.read).length;
   const todayLabel = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
@@ -36,7 +39,13 @@ export const NotificationsSheet: React.FC<NotificationsSheetProps> = ({ isOpen, 
   };
 
   const markRead = (id: string) => {
+    const target = notifications.find((notification) => notification.id === id);
     dispatch({ type: 'MARK_NOTIFICATION_READ', payload: id });
+    if (target && isOnboardingNotification(target) && !onboardingComplete) {
+      dispatch({ type: 'TOGGLE_SHEET', payload: 'onboarding' });
+      feedback('submit');
+      return;
+    }
     feedback('select');
   };
 
@@ -83,6 +92,23 @@ export const NotificationsSheet: React.FC<NotificationsSheetProps> = ({ isOpen, 
         </div>
 
         <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-3">
+          {!onboardingComplete && (
+            <button
+              onClick={() => dispatch({ type: 'TOGGLE_SHEET', payload: 'onboarding' })}
+              className="w-full text-left rounded-2xl p-4 surface-strong shadow-float interactive-tap"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-content-primary">Finish Intake Onboarding</p>
+                  <p className="text-sm text-content-secondary mt-1">
+                    Complete name, age, and sex before consultation.
+                  </p>
+                </div>
+                <ChevronRight size={14} className="text-content-dim shrink-0" />
+              </div>
+            </button>
+          )}
+
           {notifications.length === 0 ? (
             <div className="surface-raised rounded-2xl p-5 text-center text-content-dim text-sm">
               No notifications yet.

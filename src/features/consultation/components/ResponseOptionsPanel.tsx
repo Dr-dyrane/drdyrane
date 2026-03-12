@@ -13,9 +13,13 @@ interface ResponseOptionsPanelProps {
   questionText?: string;
 }
 
-const getGridByVariant = (variant: ResponseOptions['ui_variant'], count: number): string => {
+const getGridByVariant = (
+  variant: ResponseOptions['ui_variant'],
+  count: number,
+  compact: boolean
+): string => {
   if (variant === 'binary' || variant === 'segmented') return count >= 3 ? 'grid-cols-3' : 'grid-cols-2';
-  if (variant === 'grid') return count > 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1';
+  if (variant === 'grid') return compact ? 'grid-cols-2' : count > 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1';
   if (variant === 'chips') return 'grid-cols-2';
   return 'grid-cols-1';
 };
@@ -33,13 +37,20 @@ const getVariant = (responseOptions: ResponseOptions): NonNullable<ResponseOptio
   return 'stack';
 };
 
-const getOptionClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
+const getOptionClass = (
+  variant: NonNullable<ResponseOptions['ui_variant']>,
+  compact: boolean
+): string => {
   const base =
     'option-button option-live option-live-smooth option-live-bounce relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
 
   if (variant === 'binary' || variant === 'segmented') return `${base} min-h-12 rounded-[14px] px-3 py-3`;
   if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3 surface-raised shadow-glass`;
-  if (variant === 'grid') return `${base} min-h-20 rounded-[22px] px-4 py-6 surface-raised shadow-glass`;
+  if (variant === 'grid') {
+    return compact
+      ? `${base} min-h-14 rounded-[18px] px-3 py-4 surface-raised shadow-glass`
+      : `${base} min-h-20 rounded-[22px] px-4 py-6 surface-raised shadow-glass`;
+  }
   if (variant === 'ladder') return `${base} min-h-14 rounded-2xl px-4 py-4 text-left surface-raised shadow-glass`;
   return `${base} min-h-16 rounded-2xl px-4 py-5 surface-raised shadow-glass`;
 };
@@ -123,7 +134,13 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   }, [responseOptions?.options.length, responseOptions?.mode, responseOptions?.ui_variant]);
   if (!responseOptions || responseOptions.options.length === 0) return null;
 
-  const variant = getVariant(responseOptions);
+  const baseVariant = getVariant(responseOptions);
+  const variant =
+    compact &&
+    !['scale', 'ladder', 'segmented', 'binary'].includes(baseVariant) &&
+    responseOptions.options.length <= 8
+      ? 'grid'
+      : baseVariant;
   const isMultiple = responseOptions.mode === 'multiple';
   const isSingle = responseOptions.mode === 'single' || responseOptions.mode === 'confirm';
   const isScale = variant === 'scale';
@@ -132,6 +149,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   const showMultipleSubmit = isMultiple;
   const showSingleSubmit = isSingle && (isScale || variant === 'ladder');
   const showContextHint =
+    !compact &&
     !!responseOptions.context_hint &&
     !isRedundantHint(responseOptions.context_hint, questionText, compact);
 
@@ -175,6 +193,9 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
+      {compact && (
+        <p className="text-[11px] text-content-dim px-1">Quick replies</p>
+      )}
 
       {isScale ? (
         <motion.div
@@ -263,9 +284,10 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             isSegmentedLike
               ? `surface-raised segment-live-shell option-shell-live rounded-[20px] p-2 grid gap-1.5 ${getGridByVariant(
                   variant,
-                  responseOptions.options.length
+                  responseOptions.options.length,
+                  compact
                 )}`
-              : `grid gap-3 ${getGridByVariant(variant, responseOptions.options.length)}`
+              : `grid gap-3 ${getGridByVariant(variant, responseOptions.options.length, compact)}`
           }`}
         >
           {visibleOptions.map((option, index) => {
@@ -288,7 +310,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 transition={SPRING_CONFIG}
                 whileHover={HOVER_MOTION}
                 whileTap={TAP_MOTION}
-                className={`${getOptionClass(variant)} ${
+                className={`${getOptionClass(variant, compact)} ${
                   isSegmentedLike
                     ? isSelected
                       ? 'option-live-selected text-content-active selected-elevation'

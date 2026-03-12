@@ -1,11 +1,14 @@
 import React from 'react';
 import { Bell } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
-import { resolveProfileAvatarUrl } from '../../core/storage/avatarStore';
+import { resolveProfileAvatarWithFallback } from '../../core/storage/avatarStore';
 
 export const Header: React.FC = () => {
   const { state, dispatch } = useClinical();
-  const avatarSrc = resolveProfileAvatarUrl(state.profile.avatar_url);
+  const avatarSrc = resolveProfileAvatarWithFallback(
+    state.profile.avatar_url,
+    state.profile.display_name || 'Patient'
+  );
   const notificationsEnabled = state.settings.notifications_enabled;
   const todayLabel = new Date().toLocaleDateString(undefined, {
     weekday: 'short',
@@ -32,13 +35,7 @@ export const Header: React.FC = () => {
           className="h-11 w-11 rounded-full surface-raised shadow-glass overflow-hidden flex items-center justify-center focus-glow interactive-tap interactive-soft pointer-events-auto"
           aria-label="Open profile"
         >
-          {avatarSrc ? (
-            <img src={avatarSrc} alt="Profile avatar" className="h-full w-full object-cover" />
-          ) : (
-            <span className="text-sm font-semibold text-content-primary">
-              {(state.profile.display_name || 'P').charAt(0)}
-            </span>
-          )}
+          <img src={avatarSrc} alt="Profile avatar" className="h-full w-full object-cover" />
         </button>
 
         <div className="flex-1 min-w-0 h-12 surface-raised rounded-2xl px-4 flex flex-col justify-center pointer-events-auto">

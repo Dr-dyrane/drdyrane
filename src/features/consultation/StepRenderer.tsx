@@ -4,10 +4,17 @@ import { ArrowUp, ChevronLeft, Timer, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
+import { resolveProfileAvatarWithFallback } from '../../core/storage/avatarStore';
+import { resolveTheme } from '../../core/theme/resolveTheme';
+import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
+import {
+  ONBOARDING_NOTIFICATION_BODY,
+  ONBOARDING_NOTIFICATION_TITLE,
+  isOnboardingNotification,
+} from '../../core/notifications/onboardingNotification';
 import { Orb } from './Orb';
 import { ClinicalQuestionCard } from './components/ClinicalQuestionCard';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
-import { BiodataCard } from './components/BiodataCard';
 
 const LOADING_PHASES = [
   'Analyzing history',
@@ -20,9 +27,6 @@ export const StepRenderer: React.FC = () => {
   const [val, setVal] = useState('');
   const [loading, setLoading] = useState(false);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
-  const [biodataDismissed, setBiodataDismissed] = useState(false);
-  const [showBiodataPanel, setShowBiodataPanel] = useState(false);
-  const [biodataValue, setBiodataValue] = useState('');
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
@@ -62,6 +66,22 @@ export const StepRenderer: React.FC = () => {
   useEffect(() => {
     setSelectedOptionIds([]);
   }, [state.response_options, state.status]);
+
+  const promptOnboardingFromNotifications = useCallback(() => {
+    const hasOnboardingNotification = state.notifications.some((notification) =>
+      isOnboardingNotification(notification)
+    );
+    if (!hasOnboardingNotification) {
+      dispatch({
+        type: 'ADD_NOTIFICATION',
+        payload: {
+          title: ONBOARDING_NOTIFICATION_TITLE,
+          body: ONBOARDING_NOTIFICATION_BODY,
+        },
+      });
+    }
+    dispatch({ type: 'TOGGLE_SHEET', payload: 'notifications' });
+  }, [dispatch, state.notifications]);
 
   const runInteraction = useCallback(
     async (
@@ -115,35 +135,12 @@ export const StepRenderer: React.FC = () => {
     return () => window.clearInterval(intervalId);
   }, [gateTimeoutSeconds, isTimedGateStep, loading, state.response_options]);
 
-  useEffect(() => {
-    if (
-      !isTimedGateStep ||
-      gateCountdown === null ||
-      gateCountdown > 0 ||
-      loading ||
-      !state.response_options
-    ) {
-      return;
-    }
-
-    const unsureOption = state.response_options.options.find((option) =>
-      /(not sure|unsure|unknown|maybe)/i.test(option.text)
-    );
-    const fallbackOption = unsureOption || state.response_options.options.find((option) => /^no$/i.test(option.text));
-    const optionToSend = fallbackOption || state.response_options.options[0];
-
-    if (!optionToSend) {
-      setGateCountdown(null);
-      return;
-    }
-
-    setGateCountdown(null);
-    setSelectedOptionIds([optionToSend.id]);
-    void runInteraction([optionToSend.id], true, undefined, 0);
-  }, [gateCountdown, isTimedGateStep, loading, runInteraction, state.response_options]);
-
   const handleInitialInput = async (e?: React.FormEvent) => {
     e?.preventDefault();
+    if (!isProfileOnboardingComplete(state.profile)) {
+      promptOnboardingFromNotifications();
+      return;
+    }
     const trimmed = val.trim();
     if (!trimmed || loading) return;
 
@@ -159,6 +156,10 @@ export const StepRenderer: React.FC = () => {
     optionId: string,
     event?: React.MouseEvent<HTMLButtonElement>
   ) => {
+    if (!isProfileOnboardingComplete(state.profile)) {
+      promptOnboardingFromNotifications();
+      return;
+    }
     if (!state.response_options || loading) return;
 
     const { mode, ui_variant: variant } = state.response_options;
@@ -198,6 +199,10 @@ export const StepRenderer: React.FC = () => {
   };
 
   const handleSingleSubmit = async () => {
+    if (!isProfileOnboardingComplete(state.profile)) {
+      promptOnboardingFromNotifications();
+      return;
+    }
     if (selectedOptionIds.length === 0 || loading) return;
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
@@ -208,6 +213,10 @@ export const StepRenderer: React.FC = () => {
   };
 
   const handleMultipleSubmit = async () => {
+    if (!isProfileOnboardingComplete(state.profile)) {
+      promptOnboardingFromNotifications();
+      return;
+    }
     if (selectedOptionIds.length === 0 || loading) return;
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
@@ -222,6 +231,17 @@ export const StepRenderer: React.FC = () => {
     state.history.length > 0 || state.status !== 'idle' || state.conversation.length > 0;
   const currentMessage =
     state.conversation.length > 0 ? state.conversation[state.conversation.length - 1] : null;
+  const activeDoctorMessageId = currentMessage?.role === 'doctor' ? currentMessage.id : null;
+  const conversationTimeline = state.conversation
+    .filter((entry) => entry.role !== 'system')
+    .slice(-10);
+  const transcriptMessages = conversationTimeline.filter((entry) => entry.id !== activeDoctorMessageId);
+  const resolvedTheme = resolveTheme(state.theme);
+  const doctorAvatarSrc = resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png';
+  const patientAvatarSrc = resolveProfileAvatarWithFallback(
+    state.profile.avatar_url,
+    state.profile.display_name || 'Patient'
+  );
   const currentQuestion = currentMessage?.metadata?.question ?? currentMessage?.content ?? '';
   const resolvedQuestion = currentQuestion.trim() || 'What symptom is bothering you the most right now?';
   const statement = currentMessage?.metadata?.statement;
@@ -229,106 +249,15 @@ export const StepRenderer: React.FC = () => {
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
   const isClarifierMode = Boolean(state.question_gate?.active);
-  const profileNeedsBiodata =
-    !state.profile.age ||
-    !state.profile.sex ||
-    !state.profile.display_name ||
-    state.profile.display_name.trim().toLowerCase() === 'patient';
-  const biodataStep: 'name' | 'age' | 'sex' | null = (() => {
-    if (
-      !state.profile.display_name ||
-      state.profile.display_name.trim().toLowerCase() === 'patient'
-    ) {
-      return 'name';
-    }
-    if (!state.profile.age) return 'age';
-    if (!state.profile.sex) return 'sex';
-    return null;
-  })();
-  const showBiodataCard =
-    !biodataDismissed &&
-    profileNeedsBiodata &&
-    !!biodataStep &&
-    showBiodataPanel &&
-    state.conversation.length === 0 &&
-    (state.status === 'idle' || state.status === 'intake');
-  const canPromptBiodata =
-    !biodataDismissed &&
-    profileNeedsBiodata &&
-    !!biodataStep &&
-    !showBiodataPanel &&
-    state.conversation.length === 0 &&
-    (state.status === 'idle' || state.status === 'intake');
-
-  useEffect(() => {
-    if (!showBiodataCard || !biodataStep) return;
-    if (biodataStep === 'name') {
-      setBiodataValue(
-        state.profile.display_name && state.profile.display_name.toLowerCase() !== 'patient'
-          ? state.profile.display_name
-          : ''
-      );
-      return;
-    }
-    if (biodataStep === 'age') {
-      setBiodataValue(state.profile.age ? String(state.profile.age) : '');
-      return;
-    }
-    setBiodataValue('');
-  }, [biodataStep, showBiodataCard, state.profile.age, state.profile.display_name]);
-
-  useEffect(() => {
-    if (!profileNeedsBiodata) {
-      setShowBiodataPanel(false);
-    }
-  }, [profileNeedsBiodata]);
-
-  const submitBiodataStep = () => {
-    if (!biodataStep) return;
-    if (biodataStep === 'name') {
-      const name = biodataValue.trim();
-      if (!name) return;
-      dispatch({ type: 'UPDATE_PROFILE', payload: { display_name: name } });
-      signalFeedback('submit', {
-        hapticsEnabled: state.settings.haptics_enabled,
-        audioEnabled: state.settings.audio_enabled,
-      });
-      return;
-    }
-    if (biodataStep === 'age') {
-      const age = Number(biodataValue);
-      if (Number.isNaN(age) || age < 0 || age > 125) return;
-      dispatch({ type: 'UPDATE_PROFILE', payload: { age } });
-      signalFeedback('submit', {
-        hapticsEnabled: state.settings.haptics_enabled,
-        audioEnabled: state.settings.audio_enabled,
-      });
-    }
-  };
-
-  const selectSex = (sex: NonNullable<typeof state.profile.sex>) => {
-    dispatch({ type: 'UPDATE_PROFILE', payload: { sex } });
-    signalFeedback('submit', {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
-  };
-
-  const canSubmitBiodataStep = (() => {
-    if (!biodataStep) return false;
-    if (biodataStep === 'name') return biodataValue.trim().length > 0;
-    if (biodataStep === 'age') {
-      const age = Number(biodataValue);
-      return !Number.isNaN(age) && age >= 0 && age <= 125;
-    }
-    return false;
-  })();
+  const isIntakeView = state.status === 'idle' || state.status === 'intake';
+  const onboardingComplete = isProfileOnboardingComplete(state.profile);
+  const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
 
   if (state.status === 'complete') return null;
 
   return (
-    <div className="flex-1 flex flex-col justify-start min-h-0 px-2">
-      <div className="flex items-center justify-between px-1 z-20 pt-1">
+    <div className="flex-1 flex flex-col justify-start min-h-0 px-2 consult-room-shell">
+      <div className="flex items-center justify-between px-1 z-20 pt-1 consult-room-actions">
         <div className="w-10">
           {canGoBack && (
             <button
@@ -353,87 +282,70 @@ export const StepRenderer: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex flex-col items-center justify-center">
-        <Orb loading={loading} prominence="hero" />
-        <AnimatePresence mode="wait">
-          {loading && (
-            <motion.span
-              key={LOADING_PHASES[loadingPhaseIndex]}
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              className="energy-chip px-3 h-7 rounded-full text-[11px] tracking-wide text-content-primary font-semibold inline-flex items-center mt-1"
-            >
-              {LOADING_PHASES[loadingPhaseIndex]}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </div>
+      {isIntakeView && (
+        <div className="consult-room-stage">
+          <div className="consult-room-presence">
+            <Orb loading={loading} prominence="hero" />
+          </div>
+          <AnimatePresence mode="wait">
+            {loading && (
+              <motion.span
+                key={LOADING_PHASES[loadingPhaseIndex]}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="energy-chip px-3 h-7 rounded-full text-[11px] tracking-wide text-content-primary font-semibold inline-flex items-center mt-1"
+              >
+                {LOADING_PHASES[loadingPhaseIndex]}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+      )}
 
       <AnimatePresence mode="wait">
-        {(state.status === 'idle' || state.status === 'intake') ? (
+        {isIntakeView ? (
           <motion.div
             key="intake"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-start pt-6 px-2"
+            className="flex-1 flex flex-col items-center justify-start pt-4 px-2"
           >
             <div className="max-w-2xl w-full flex flex-col items-center">
-              <motion.h1
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-[1.35rem] font-semibold tracking-tight text-content-primary leading-tight text-center pb-3"
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full surface-raised rounded-[24px] px-4 py-4 shadow-glass mb-3"
               >
-                {state.conversation.length > 0
-                  ? 'Anything else to add?'
-                  : "Tell me what's bothering you."}
-              </motion.h1>
-
-              {canPromptBiodata && (
-                <button
-                  onClick={() => setShowBiodataPanel(true)}
-                  className="h-9 px-3 rounded-full surface-chip text-[11px] text-content-secondary font-medium mb-3 interactive-tap"
-                >
-                  Add optional details
-                </button>
-              )}
-
-              <BiodataCard
-                visible={showBiodataCard}
-                step={biodataStep}
-                value={biodataValue}
-                canSubmit={canSubmitBiodataStep}
-                selectedSex={state.profile.sex}
-                onValueChange={setBiodataValue}
-                onSubmit={submitBiodataStep}
-                onSelectSex={selectSex}
-                onSkip={() => {
-                  setBiodataDismissed(true);
-                  setShowBiodataPanel(false);
-                }}
-              />
+                <p className="text-[11px] text-content-dim mb-1">Dr. Dyrane</p>
+                <p className="text-[0.98rem] text-content-primary leading-relaxed">
+                  {state.conversation.length > 0
+                    ? 'Anything else you noticed before this started?'
+                    : 'Welcome to the consulting room. Tell me in your own words what is bothering you.'}
+                </p>
+              </motion.div>
 
               <form onSubmit={handleInitialInput} className="space-y-4 w-full">
-                <div className="relative">
+                <div className="relative surface-raised rounded-[24px] p-3 shadow-glass">
                   <textarea
                     autoFocus
                     rows={2}
                     value={val}
                     onChange={(e) => setVal(e.target.value)}
-                    placeholder="Sharp chest pain, high fever, sudden weakness..."
-                    disabled={loading}
+                    placeholder="Describe your main concern..."
+                    disabled={loading || !onboardingComplete}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         void handleInitialInput();
                       }
                     }}
-                    className="w-full surface-raised p-5 rounded-[24px] text-base text-left text-content-primary placeholder-content-dim transition-all resize-none shadow-glass focus-glow"
+                    className="w-full surface-strong p-3 rounded-2xl text-[15px] text-left text-content-primary placeholder-content-dim transition-all resize-none focus-glow"
                   />
 
                   <AnimatePresence>
-                    {val.trim() && !loading && (
+                    {val.trim() && !loading && onboardingComplete && (
                       <motion.button
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -441,12 +353,10 @@ export const StepRenderer: React.FC = () => {
                         whileHover={{ scale: 1.01, y: -2 }}
                         whileTap={{ scale: 0.98 }}
                         type="submit"
-                        className="w-full mt-4 py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow"
+                        aria-label="Send first message"
+                        className="absolute right-3 bottom-3 h-11 w-11 flex items-center justify-center cta-live-icon rounded-2xl focus-glow"
                       >
-                        <span className="inline-flex items-center justify-center gap-2">
-                          <ArrowUp size={14} />
-                          Start Consultation
-                        </span>
+                        <ArrowUp size={16} />
                       </motion.button>
                     )}
                   </AnimatePresence>
@@ -463,10 +373,80 @@ export const StepRenderer: React.FC = () => {
             className="flex flex-col h-full relative px-2 pb-24"
           >
             <div className="max-w-2xl mx-auto w-full space-y-4 consult-flow-shell">
-              {(currentMessage || state.status === 'active' || loading) && (
-                <div className="pt-6 space-y-3">
+              {transcriptMessages.length > 0 && (
+                <div className="consult-chat-log space-y-2">
+                  {transcriptMessages.map((entry, index) => {
+                    const isDoctor = entry.role === 'doctor';
+                    return (
+                      <motion.div
+                        key={entry.id}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.02, duration: 0.2 }}
+                        className={`flex ${isDoctor ? 'justify-start' : 'justify-end'} items-end gap-2`}
+                      >
+                        {isDoctor && (
+                          <img
+                            src={doctorAvatarSrc}
+                            alt="Doctor avatar"
+                            className="h-8 w-8 rounded-full object-cover shrink-0 surface-chip"
+                            loading="lazy"
+                          />
+                        )}
+                        <div
+                          className={`consult-chat-bubble ${
+                            isDoctor ? 'consult-chat-bubble-doctor' : 'consult-chat-bubble-patient'
+                          }`}
+                        >
+                          <p className="text-sm text-content-primary leading-relaxed">{entry.content}</p>
+                        </div>
+                        {!isDoctor && (
+                          <img
+                            src={patientAvatarSrc}
+                            alt="Patient avatar"
+                            className="h-8 w-8 rounded-full object-cover shrink-0 surface-chip"
+                            loading="lazy"
+                          />
+                        )}
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {loading && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start items-end gap-2 pt-1"
+                >
+                  <img
+                    src={doctorAvatarSrc}
+                    alt="Doctor avatar"
+                    className="h-8 w-8 rounded-full object-cover shrink-0 surface-chip"
+                    loading="lazy"
+                  />
+                  <div className="consult-chat-bubble consult-chat-bubble-doctor">
+                    <p className="text-[11px] text-content-dim">{LOADING_PHASES[loadingPhaseIndex]}</p>
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-content-dim animate-pulse" />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-content-dim animate-pulse"
+                        style={{ animationDelay: '120ms' }}
+                      />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-content-dim animate-pulse"
+                        style={{ animationDelay: '240ms' }}
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
+              {!loading && (currentMessage || state.status === 'active') && (
+                <div className="pt-2 space-y-3">
                   {(gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
-                    <div className="flex items-center justify-center gap-2">
+                    <div className="flex items-center justify-center gap-2 flex-wrap">
                       {gateProgress && (
                         <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
                           Step {gateProgress}
@@ -476,6 +456,11 @@ export const StepRenderer: React.FC = () => {
                         <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center gap-1">
                           <Timer size={11} />
                           {gateCountdown}s
+                        </span>
+                      )}
+                      {gateTimerExpired && (
+                        <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+                          Select or type to continue
                         </span>
                       )}
                     </div>
@@ -506,7 +491,7 @@ export const StepRenderer: React.FC = () => {
                       rows={1}
                       value={val}
                       onChange={(e) => setVal(e.target.value)}
-                      placeholder="Add details..."
+                      placeholder="Type your response..."
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -531,6 +516,7 @@ export const StepRenderer: React.FC = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 };
