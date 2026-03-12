@@ -77,7 +77,7 @@ export const HistoryView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 px-2 py-7 space-y-5 animate-emergence">
+    <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
       <div className="flex justify-center">
         <Orb />
       </div>
@@ -88,7 +88,7 @@ export const HistoryView: React.FC = () => {
 
       <button
         onClick={createManualRecord}
-        className="w-full h-12 rounded-2xl cta-live text-content-primary text-sm font-semibold focus-glow interactive-tap"
+        className="w-full min-w-0 h-12 rounded-2xl cta-live text-content-primary text-sm font-semibold focus-glow interactive-tap"
       >
         <span className="inline-flex items-center gap-2.5">
           <span className="h-8 w-8 rounded-xl bg-white/20 inline-flex items-center justify-center">
@@ -110,7 +110,7 @@ export const HistoryView: React.FC = () => {
               key={session.id}
               interactive
               onClick={() => openRecord(session)}
-              className="p-5 rounded-[22px] space-y-4 shadow-none active:scale-[0.98] transition-all bg-surface-muted"
+              className="w-full min-w-0 p-5 rounded-[22px] space-y-4 shadow-none active:scale-[0.98] transition-all bg-surface-muted"
             >
               <div className="flex items-start gap-4">
                 <div className={`p-3 rounded-2xl ${session.status === 'emergency' ? 'bg-danger-soft text-danger-primary' : 'bg-accent-soft text-accent-primary'
@@ -128,7 +128,7 @@ export const HistoryView: React.FC = () => {
                   </div>
                   <p className="text-sm text-content-secondary truncate">{session.diagnosis}</p>
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs text-content-dim font-light tracking-wide">
+                    <p className="text-xs text-content-dim font-light tracking-wide truncate">
                       {session.complaint || 'No complaint recorded'}
                     </p>
                     <ChevronRight size={14} className="text-content-dim opacity-40" />

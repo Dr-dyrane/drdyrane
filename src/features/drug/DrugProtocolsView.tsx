@@ -1,7 +1,19 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Copy, Pill, Printer, Search } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import {
+  ChevronRight,
+  Copy,
+  FlaskConical,
+  Image as ImageIcon,
+  Pill,
+  Printer,
+  Search,
+  X,
+} from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
+import { signalFeedback } from '../../core/services/feedback';
+import { OverlayPortal } from '../../components/shared/OverlayPortal';
+import { Orb } from '../consultation/Orb';
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
 
@@ -19,6 +31,14 @@ interface DrugProtocolEntry {
   value: string;
   label: string;
   drugs: DrugProtocolRow[];
+}
+
+interface RenderedDrugLine {
+  form: string;
+  medication: string;
+  dose: string;
+  frequency: string;
+  duration: string;
 }
 
 const normalize = (value: string): string =>
@@ -85,18 +105,33 @@ const formatTimestamp = (value: number): string =>
     minute: '2-digit',
   });
 
+const MODULES = [
+  { id: 'pharmacy', label: 'Pharmacy', icon: Pill, active: true },
+  { id: 'labs', label: 'Labs', icon: FlaskConical, active: false },
+  { id: 'radiology', label: 'Radiology', icon: ImageIcon, active: false },
+];
+
 export const DrugProtocolsView: React.FC = () => {
   const { state, dispatch } = useClinical();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [protocols, setProtocols] = useState<DrugProtocolEntry[]>([]);
-  const [selectedValue, setSelectedValue] = useState('');
-  const [weightInput, setWeightInput] = useState<string>(state.profile.weight_kg ? String(state.profile.weight_kg) : '');
+  const [activeProtocol, setActiveProtocol] = useState<DrugProtocolEntry | null>(null);
+  const [weightInput, setWeightInput] = useState<string>(
+    state.profile.weight_kg ? String(state.profile.weight_kg) : ''
+  );
   const [ageInput, setAgeInput] = useState<string>(state.profile.age ? String(state.profile.age) : '');
+
+  const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
+    signalFeedback(kind, {
+      hapticsEnabled: state.settings.haptics_enabled,
+      audioEnabled: state.settings.audio_enabled,
+    });
 
   useEffect(() => {
     let isMounted = true;
+
     const loadProtocols = async () => {
       setLoading(true);
       setError('');
@@ -111,7 +146,6 @@ export const DrugProtocolsView: React.FC = () => {
           : [];
         if (!isMounted) return;
         setProtocols(sanitized);
-        setSelectedValue((current) => current || sanitized[0]?.value || '');
       } catch (loadError) {
         if (!isMounted) return;
         setError(loadError instanceof Error ? loadError.message : 'Unable to load treatment dataset.');
@@ -141,30 +175,6 @@ export const DrugProtocolsView: React.FC = () => {
     });
   }, [protocols, query]);
 
-  useEffect(() => {
-    if (filteredProtocols.length === 0) {
-      setSelectedValue('');
-      return;
-    }
-    const exists = filteredProtocols.some((item) => item.value === selectedValue);
-    if (!exists) {
-      setSelectedValue(filteredProtocols[0].value);
-    }
-  }, [filteredProtocols, selectedValue]);
-
-  const selectedProtocol =
-    filteredProtocols.find((item) => item.value === selectedValue) ||
-    protocols.find((item) => item.value === selectedValue) ||
-    null;
-
-  const parsedWeight = Number(weightInput);
-  const parsedAge = Number(ageInput);
-  const explicitWeight = isValidWeight(parsedWeight) ? Math.round(parsedWeight * 10) / 10 : null;
-  const validAge = isValidAge(parsedAge) ? Math.round(parsedAge) : null;
-  const effectiveWeight = explicitWeight ?? estimateWeightFromAge(validAge);
-  const weightSource =
-    explicitWeight !== null ? 'Entered weight' : effectiveWeight !== null ? 'Age-estimated weight' : 'No weight';
-
   const quickPickProtocols = useMemo(
     () =>
       protocols
@@ -175,35 +185,24 @@ export const DrugProtocolsView: React.FC = () => {
     [protocols]
   );
 
-  const selectedRxLines =
-    selectedProtocol?.drugs.map((drug) => {
-      const dose = buildDose(drug.factor, drug.max, drug.unit, effectiveWeight);
-      return `${drug.form} ${drug.name} ${dose} ${drug.frequency || '-'} ${drug.duration || '-'}`.replace(/\s+/g, ' ').trim();
-    }) || [];
+  const parsedWeight = Number(weightInput);
+  const parsedAge = Number(ageInput);
+  const explicitWeight = isValidWeight(parsedWeight) ? Math.round(parsedWeight * 10) / 10 : null;
+  const validAge = isValidAge(parsedAge) ? Math.round(parsedAge) : null;
+  const effectiveWeight = explicitWeight ?? estimateWeightFromAge(validAge);
+  const weightSource =
+    explicitWeight !== null ? 'Entered weight' : effectiveWeight !== null ? 'Age-estimated weight' : 'No weight';
 
-  const printSelectedProtocol = async () => {
-    if (!selectedProtocol) return;
-    const { exportDrugProtocolPdf } = await import('../../core/pdf/clinicalPdf');
-    const generatedAt = Date.now();
-    exportDrugProtocolPdf({
-      generatedAt,
-      protocolLabel: selectedProtocol.label,
-      weightBasis: `Weight basis: ${weightSource}${effectiveWeight ? ` (${effectiveWeight} kg)` : ''}`,
-      patient: {
-        displayName: state.profile.display_name,
-        age: validAge ?? state.profile.age,
-        sex: state.profile.sex,
-        weightKg: explicitWeight ?? state.profile.weight_kg ?? null,
-      },
-      rows: selectedProtocol.drugs.map((drug) => ({
-        form: drug.form,
-        medication: drug.name,
-        dose: buildDose(drug.factor, drug.max, drug.unit, effectiveWeight),
-        frequency: (drug.frequency || '-').trim() || '-',
-        duration: (drug.duration || '-').trim() || '-',
-      })),
-    });
-  };
+  const activeProtocolRows: RenderedDrugLine[] = useMemo(() => {
+    if (!activeProtocol) return [];
+    return activeProtocol.drugs.map((drug) => ({
+      form: drug.form,
+      medication: drug.name,
+      dose: buildDose(drug.factor, drug.max, drug.unit, effectiveWeight),
+      frequency: (drug.frequency || '-').trim() || '-',
+      duration: (drug.duration || '-').trim() || '-',
+    }));
+  }, [activeProtocol, effectiveWeight]);
 
   const persistProfileContext = () => {
     const payload: { age?: number; weight_kg?: number } = {};
@@ -218,230 +217,293 @@ export const DrugProtocolsView: React.FC = () => {
     }
   };
 
-  const copySelectedProtocol = async () => {
-    if (!selectedProtocol) return;
+  const openProtocol = (protocol: DrugProtocolEntry) => {
+    setActiveProtocol(protocol);
+    feedback('select');
+  };
+
+  const closeProtocol = () => {
+    setActiveProtocol(null);
+    feedback('select');
+  };
+
+  const exportActiveProtocolPdf = async () => {
+    if (!activeProtocol) return;
+    const { exportDrugProtocolPdf } = await import('../../core/pdf/clinicalPdf');
+    feedback('submit');
+    exportDrugProtocolPdf({
+      generatedAt: Date.now(),
+      protocolLabel: activeProtocol.label,
+      weightBasis: `Weight basis: ${weightSource}${effectiveWeight ? ` (${effectiveWeight} kg)` : ''}`,
+      patient: {
+        displayName: state.profile.display_name,
+        age: validAge ?? state.profile.age,
+        sex: state.profile.sex,
+        weightKg: explicitWeight ?? state.profile.weight_kg ?? null,
+      },
+      rows: activeProtocolRows,
+    });
+  };
+
+  const copyActiveProtocol = async () => {
+    if (!activeProtocol) return;
     const lines = [
-      `Dr Dyrane Treatment Sheet`,
-      `Protocol: ${selectedProtocol.label}`,
+      'Dr Dyrane Treatment Sheet',
+      `Protocol: ${activeProtocol.label}`,
       `Generated: ${formatTimestamp(Date.now())}`,
       `Weight basis: ${weightSource}${effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}`,
       'Prescription:',
-      ...selectedRxLines.map((line, index) => `${index + 1}. ${line}`),
+      ...activeProtocolRows.map(
+        (row, index) =>
+          `${index + 1}. ${row.form} ${row.medication} ${row.dose} ${row.frequency} ${row.duration}`.replace(
+            /\s+/g,
+            ' '
+          )
+      ),
     ];
     const payload = lines.join('\n');
     try {
       await navigator.clipboard.writeText(payload);
+      feedback('submit');
     } catch {
       window.prompt('Copy treatment sheet', payload);
     }
   };
 
   return (
-    <div className="flex-1 px-2 py-7 space-y-6 animate-emergence">
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-2">
-        <div className="inline-flex items-center gap-2 h-8 px-3 rounded-full surface-chip text-xs text-content-secondary">
-          <Pill size={13} />
-          Drug Formulary
-        </div>
-        <h1 className="display-type text-[1.8rem] leading-tight tracking-tight text-content-primary">
-          Quick Treatment Sheets
-        </h1>
-        <p className="text-sm text-content-secondary">
-          Search a known diagnosis or workflow, then print a treatment plan instantly.
-        </p>
-      </motion.div>
-
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.05 }}
-        className="surface-raised rounded-[24px] p-4 space-y-3"
-      >
-        <label className="text-xs text-content-dim uppercase tracking-wide">Search Treatment</label>
-        <div className="h-11 rounded-2xl surface-strong px-3 inline-flex items-center gap-2 w-full">
-          <Search size={15} className="text-content-dim" />
-          <input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Malaria, hypertension, asthma..."
-            className="w-full text-sm text-content-primary"
-          />
+    <>
+      <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
+        <div className="flex justify-center">
+          <Orb />
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div className="surface-strong rounded-2xl px-3 py-2">
-            <label className="text-[11px] text-content-dim uppercase tracking-wide">Weight (kg)</label>
-            <input
-              value={weightInput}
-              onChange={(event) => setWeightInput(event.target.value)}
-              onBlur={persistProfileContext}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  persistProfileContext();
-                }
-              }}
-              type="number"
-              min={1}
-              max={300}
-              step="0.1"
-              placeholder="Optional"
-              className="h-9 w-full text-sm text-content-primary"
-            />
-          </div>
-          <div className="surface-strong rounded-2xl px-3 py-2">
-            <label className="text-[11px] text-content-dim uppercase tracking-wide">Age (years)</label>
-            <input
-              value={ageInput}
-              onChange={(event) => setAgeInput(event.target.value)}
-              onBlur={persistProfileContext}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  persistProfileContext();
-                }
-              }}
-              type="number"
-              min={0}
-              max={125}
-              placeholder="Optional"
-              className="h-9 w-full text-sm text-content-primary"
-            />
-          </div>
-        </div>
-        <p className="text-[11px] text-content-dim">
-          Dosing basis: {weightSource}
-          {effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}.
-        </p>
-      </motion.section>
-
-      <motion.section
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }}
-        className="surface-raised rounded-[24px] p-4 space-y-3"
-      >
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-content-dim uppercase tracking-wide">Diagnosis Library</p>
-          <p className="text-xs text-content-dim">{filteredProtocols.length} match(es)</p>
+        <div className="text-center space-y-2">
+          <span className="text-content-dim text-xs font-medium">Pharmacy workspace</span>
+          <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">Treatment Library</h1>
+          <p className="text-sm text-content-secondary px-2">
+            Pick a known protocol fast, adjust dosing context, then export a clean prescription PDF.
+          </p>
         </div>
 
-        {loading && <p className="text-sm text-content-secondary">Loading treatment data...</p>}
-        {error && !loading && <p className="text-sm text-danger-primary">{error}</p>}
-        {!loading && !error && filteredProtocols.length === 0 && (
-          <p className="text-sm text-content-secondary">No result found. Try another search term.</p>
-        )}
-
-        {!loading && !error && filteredProtocols.length > 0 && (
-          <div className="max-h-[220px] overflow-y-auto no-scrollbar space-y-2 pr-1">
-            {filteredProtocols.map((entry) => {
-              const isActive = selectedValue === entry.value;
+        <section className="surface-raised rounded-[24px] p-4 space-y-3">
+          <p className="text-xs text-content-dim uppercase tracking-wide">Clinical Modules</p>
+          <div className="grid grid-cols-3 gap-2">
+            {MODULES.map((module) => {
+              const Icon = module.icon;
               return (
                 <button
-                  key={entry.value}
-                  onClick={() => setSelectedValue(entry.value)}
-                  className={`w-full text-left rounded-2xl px-3.5 py-3 transition-all interactive-tap ${
-                    isActive ? 'bg-surface-active selected-elevation text-content-active' : 'surface-strong text-content-primary'
+                  key={module.id}
+                  disabled={!module.active}
+                  className={`h-[62px] rounded-2xl text-xs font-medium inline-flex flex-col items-center justify-center gap-1.5 transition-all ${
+                    module.active
+                      ? 'bg-surface-active text-content-active selected-elevation'
+                      : 'surface-strong text-content-dim opacity-70'
                   }`}
                 >
-                  <p className="text-sm font-semibold leading-tight">{entry.label}</p>
-                  <p className="text-[11px] text-content-dim mt-1">{entry.drugs.length} medication line(s)</p>
+                  <Icon size={15} />
+                  {module.label}
                 </button>
               );
             })}
           </div>
-        )}
-      </motion.section>
+          <p className="text-[11px] text-content-dim">
+            Labs and radiology modules will use the same nested native stack pattern from this page.
+          </p>
+        </section>
 
-      {quickPickProtocols.length > 0 && (
-        <motion.section
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.12 }}
-          className="surface-raised rounded-[24px] p-4 space-y-3"
-        >
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-content-dim uppercase tracking-wide">Quick Picks</p>
-            <p className="text-xs text-content-dim">One tap select</p>
+        <section className="surface-raised rounded-[24px] p-4 space-y-3">
+          <label className="text-xs text-content-dim uppercase tracking-wide">Find Protocol</label>
+          <div className="h-11 rounded-2xl surface-strong px-3 inline-flex items-center gap-2 w-full">
+            <Search size={15} className="text-content-dim" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search diagnosis or workflow"
+              className="w-full text-sm text-content-primary"
+            />
           </div>
-          <div className="flex flex-wrap gap-2">
-            {quickPickProtocols.map((entry) => {
-              const active = selectedValue === entry.value;
-              return (
+          {quickPickProtocols.length > 0 && (
+            <div className="flex flex-wrap gap-2">
+              {quickPickProtocols.map((entry) => (
                 <button
                   key={`quick-${entry.value}`}
                   onClick={() => {
-                    setSelectedValue(entry.value);
                     setQuery('');
+                    openProtocol(entry);
                   }}
-                  className={`h-9 px-3 rounded-full text-xs font-medium transition-all interactive-tap ${
-                    active ? 'bg-surface-active text-content-active selected-elevation' : 'surface-strong text-content-primary'
-                  }`}
+                  className="h-9 px-3 rounded-full surface-strong text-xs font-medium text-content-primary interactive-tap"
                 >
                   {entry.label}
                 </button>
-              );
-            })}
-          </div>
-        </motion.section>
-      )}
+              ))}
+            </div>
+          )}
+        </section>
 
-      {selectedProtocol && (
-        <motion.section
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15 }}
-          className="surface-raised rounded-[24px] p-4 space-y-3"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs text-content-dim uppercase tracking-wide">Selected Treatment</p>
-              <h2 className="text-base font-semibold text-content-primary leading-tight mt-1">{selectedProtocol.label}</h2>
-              <p className="text-[11px] text-content-dim mt-1">
-                Weight basis: {weightSource}
-                {effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => void copySelectedProtocol()}
-                className="h-10 px-3 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap"
-              >
-                <Copy size={14} />
-                Copy
-              </button>
-              <button
-                onClick={() => void printSelectedProtocol()}
-                className="h-10 px-3 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap"
-              >
-                <Printer size={14} />
-                Export PDF
-              </button>
-            </div>
+        <section className="surface-raised rounded-[24px] p-4 space-y-3 pb-24">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-content-dim uppercase tracking-wide">Protocols</p>
+            <p className="text-xs text-content-dim">{filteredProtocols.length} match(es)</p>
           </div>
 
-          <div className="space-y-2">
-            {selectedProtocol.drugs.map((drug, index) => {
-              const dose = buildDose(drug.factor, drug.max, drug.unit, effectiveWeight);
-              return (
-                <div key={`${drug.name}-${index}`} className="surface-strong rounded-2xl px-3.5 py-3">
-                  <p className="text-sm font-semibold text-content-primary">
-                    {index + 1}. {drug.form} {drug.name}
-                  </p>
-                  <div className="mt-2 grid grid-cols-[72px,1fr] gap-y-1 text-xs">
-                    <span className="text-content-dim uppercase tracking-wide">Dose</span>
-                    <span className="text-content-secondary">{dose}</span>
-                    <span className="text-content-dim uppercase tracking-wide">Frequency</span>
-                    <span className="text-content-secondary">{(drug.frequency || '-').trim() || '-'}</span>
-                    <span className="text-content-dim uppercase tracking-wide">Duration</span>
-                    <span className="text-content-secondary">{(drug.duration || '-').trim() || '-'}</span>
+          {loading && <p className="text-sm text-content-secondary">Loading treatment data...</p>}
+          {error && !loading && <p className="text-sm text-danger-primary">{error}</p>}
+          {!loading && !error && filteredProtocols.length === 0 && (
+            <p className="text-sm text-content-secondary">No result found. Try another search term.</p>
+          )}
+
+          {!loading && !error && filteredProtocols.length > 0 && (
+            <div className="max-h-[46vh] overflow-y-auto no-scrollbar space-y-2 pr-1">
+              {filteredProtocols.map((entry) => (
+                <button
+                  key={entry.value}
+                  onClick={() => openProtocol(entry)}
+                  className="w-full min-w-0 text-left rounded-2xl px-3.5 py-3 transition-all interactive-tap surface-strong text-content-primary"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold leading-tight truncate">{entry.label}</p>
+                      <p className="text-[11px] text-content-dim mt-1">{entry.drugs.length} medication line(s)</p>
+                    </div>
+                    <ChevronRight size={14} className="text-content-dim opacity-70" />
                   </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <OverlayPortal>
+        <AnimatePresence>
+          {activeProtocol && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={closeProtocol}
+                className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-sm"
+              />
+
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                className="fixed inset-x-0 bottom-0 h-[86vh] max-w-[440px] mx-auto z-[150] rounded-t-[32px] ios-sheet-surface shadow-modal pointer-events-auto flex flex-col overflow-hidden"
+              >
+                <div className="flex items-center justify-center pt-2 pb-1">
+                  <span className="h-1 w-11 rounded-full surface-chip" />
                 </div>
-              );
-            })}
-          </div>
-        </motion.section>
-      )}
-    </div>
+
+                <div className="px-5 py-4 flex items-center justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <p className="text-xs text-content-dim font-medium">Protocol Detail</p>
+                    <p className="text-sm text-content-primary font-semibold truncate">{activeProtocol.label}</p>
+                  </div>
+                  <button
+                    onClick={closeProtocol}
+                    className="h-10 w-10 rounded-full surface-strong flex items-center justify-center interactive-tap interactive-soft"
+                    aria-label="Close protocol details"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-[calc(env(safe-area-inset-bottom)+1.1rem)] space-y-4">
+                  <section className="surface-raised rounded-[22px] p-4 space-y-3">
+                    <p className="text-xs text-content-dim uppercase tracking-wide">Dosing Context</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="surface-strong rounded-2xl px-3 py-2">
+                        <label className="text-[11px] text-content-dim uppercase tracking-wide">Weight (kg)</label>
+                        <input
+                          value={weightInput}
+                          onChange={(event) => setWeightInput(event.target.value)}
+                          onBlur={persistProfileContext}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              persistProfileContext();
+                            }
+                          }}
+                          type="number"
+                          min={1}
+                          max={300}
+                          step="0.1"
+                          placeholder="Optional"
+                          className="h-9 w-full text-sm text-content-primary"
+                        />
+                      </div>
+
+                      <div className="surface-strong rounded-2xl px-3 py-2">
+                        <label className="text-[11px] text-content-dim uppercase tracking-wide">Age (years)</label>
+                        <input
+                          value={ageInput}
+                          onChange={(event) => setAgeInput(event.target.value)}
+                          onBlur={persistProfileContext}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              persistProfileContext();
+                            }
+                          }}
+                          type="number"
+                          min={0}
+                          max={125}
+                          placeholder="Optional"
+                          className="h-9 w-full text-sm text-content-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-content-dim">
+                      {weightSource}
+                      {effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}
+                    </p>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        onClick={() => void copyActiveProtocol()}
+                        className="h-11 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap"
+                      >
+                        <Copy size={14} />
+                        Copy
+                      </button>
+                      <button
+                        onClick={() => void exportActiveProtocolPdf()}
+                        className="h-11 rounded-2xl cta-live text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap"
+                      >
+                        <Printer size={14} />
+                        Export PDF
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="surface-raised rounded-[22px] p-4 space-y-2">
+                    <p className="text-xs text-content-dim uppercase tracking-wide">Prescription Lines</p>
+                    {activeProtocolRows.map((row, index) => (
+                      <div key={`${row.medication}-${index}`} className="surface-strong rounded-2xl px-3.5 py-3 space-y-1.5">
+                        <p className="text-sm font-semibold text-content-primary">
+                          {index + 1}. {row.form} {row.medication}
+                        </p>
+                        <div className="grid grid-cols-[72px,1fr] gap-y-1 text-xs">
+                          <span className="text-content-dim uppercase tracking-wide">Dose</span>
+                          <span className="text-content-secondary">{row.dose}</span>
+                          <span className="text-content-dim uppercase tracking-wide">Frequency</span>
+                          <span className="text-content-secondary">{row.frequency}</span>
+                          <span className="text-content-dim uppercase tracking-wide">Duration</span>
+                          <span className="text-content-secondary">{row.duration}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </section>
+                </div>
+              </motion.div>
+            </>
+          )}
+        </AnimatePresence>
+      </OverlayPortal>
+    </>
   );
 };

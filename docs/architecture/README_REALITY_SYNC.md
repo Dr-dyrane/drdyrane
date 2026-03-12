@@ -18,6 +18,8 @@ Track where documented vision and implementation differ, and what has been align
 - Added a dedicated `Drug` tab with searchable diagnosis protocols and print-ready treatment sheets sourced from `public/data/drug-protocols.json`.
 - Drug and consultation print sheets now use structured premium layout (patient context, generation timestamp, clean section cards).
 - Snapshot/browser print flow has been replaced by programmatic PDF export for consult, formulary, and visit record documents.
+- Drug page now uses a nested stack flow (catalog -> protocol detail sheet) to reduce visual load and align with native iOS sheet patterns.
+- History and routed views now enforce horizontal clipping (`overflow-x-hidden`) to prevent x-axis overflow on localhost/mobile shells.
 
 ## Remaining Gaps
 - README references historical folder names and model strategy not fully matching runtime.

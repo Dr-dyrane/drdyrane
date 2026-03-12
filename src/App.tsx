@@ -98,7 +98,7 @@ const MainApp: React.FC = () => {
         />
 
         {/* Main Routing Context */}
-        <main className="relative z-10 flex-1 flex flex-col px-3 pt-[calc(env(safe-area-inset-top)+5rem)] pb-[calc(env(safe-area-inset-bottom)+7.25rem)] min-h-0 overflow-y-auto no-scrollbar">
+        <main className="relative z-10 flex-1 flex flex-col px-3 pt-[calc(env(safe-area-inset-top)+5rem)] pb-[calc(env(safe-area-inset-bottom)+7.25rem)] min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
           <AnimatePresence mode="wait">
             {state.view === 'consult' && (
               <motion.div
@@ -122,7 +122,7 @@ const MainApp: React.FC = () => {
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}
-                className="flex flex-1"
+                className="flex flex-1 min-w-0"
               >
                 <HistoryView />
               </motion.div>
@@ -134,7 +134,7 @@ const MainApp: React.FC = () => {
                 initial={{ opacity: 0, x: 16 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -16 }}
-                className="flex flex-1"
+                className="flex flex-1 min-w-0"
               >
                 <DrugProtocolsView />
               </motion.div>
