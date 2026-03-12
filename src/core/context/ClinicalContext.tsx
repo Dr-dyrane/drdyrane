@@ -13,7 +13,8 @@ import {
   AppNotification,
   SheetType
 } from '../types/clinical';
-import { loadSessionState, persistSessionState } from '../storage/sessionStore';
+import { loadSessionState } from '../storage/sessionStore';
+import { initSessionSyncWorker, queueSessionSync } from '../storage/sessionSync';
 
 export type Action =
   | { type: 'START_INTAKE' }
@@ -623,22 +624,12 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   });
 
   useEffect(() => {
-    try {
-      persistSessionState(state);
-    } catch {
-      console.warn('Storage quota exceeded. Persisting a compact fallback snapshot.');
-      try {
-        persistSessionState({
-          ...state,
-          history: [],
-          archives: state.archives.slice(0, 120),
-          conversation: state.conversation.slice(-24),
-          notifications: state.notifications.slice(0, 60),
-        });
-      } catch {
-        // Ignore hard storage failures to keep UI responsive.
-      }
-    }
+    const stopSyncWorker = initSessionSyncWorker();
+    return () => stopSyncWorker();
+  }, []);
+
+  useEffect(() => {
+    queueSessionSync(state);
   }, [state]);
 
   return (

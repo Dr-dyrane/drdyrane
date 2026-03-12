@@ -1,9 +1,17 @@
 import { ClinicalState } from '../types/clinical';
 
-interface PersistedSessionEnvelope {
+export interface PersistedSessionEnvelope {
   version: number;
   savedAt: number;
+  revision?: number;
+  stateHash?: string;
   state: ClinicalState;
+}
+
+interface PersistSessionMeta {
+  savedAt?: number;
+  revision?: number;
+  stateHash?: string;
 }
 
 const SESSION_STORAGE_KEY = 'dr_dyrane.v2.session';
@@ -46,10 +54,38 @@ export const loadSessionState = (): ClinicalState | null => {
   return null;
 };
 
-export const persistSessionState = (state: ClinicalState): void => {
+export const loadSessionEnvelope = (): PersistedSessionEnvelope | null => {
+  const primary = localStorage.getItem(SESSION_STORAGE_KEY);
+  if (!primary) return null;
+  try {
+    const parsed = JSON.parse(primary) as PersistedSessionEnvelope | ClinicalState;
+    if ((parsed as PersistedSessionEnvelope).state) {
+      const envelope = parsed as PersistedSessionEnvelope;
+      if (envelope.version <= STORAGE_VERSION) {
+        return envelope;
+      }
+      return null;
+    }
+
+    return {
+      version: STORAGE_VERSION,
+      savedAt: Date.now(),
+      state: parsed as ClinicalState,
+    };
+  } catch {
+    return null;
+  }
+};
+
+export const persistSessionState = (
+  state: ClinicalState,
+  meta?: PersistSessionMeta
+): void => {
   const envelope: PersistedSessionEnvelope = {
     version: STORAGE_VERSION,
-    savedAt: Date.now(),
+    savedAt: meta?.savedAt || Date.now(),
+    revision: meta?.revision,
+    stateHash: meta?.stateHash,
     state,
   };
   localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(envelope));
