@@ -5,6 +5,7 @@ import {
   ClipboardCheck,
   ImagePlus,
   Loader2,
+  Printer,
   Send,
   Sparkles,
   TriangleAlert,
@@ -169,10 +170,15 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
               .map((entry) => `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''}`)
               .join('; ')}`
           : '';
+      const treatmentSummary =
+        review.analysis?.treatment_lines && review.analysis.treatment_lines.length > 0
+          ? `Treatment: ${review.analysis.treatment_lines.join('; ')}`
+          : review.analysis?.treatment_summary || '';
       const noteParts = [
         review.context_note || '',
         review.analysis?.recommendation || '',
         differentialSummary,
+        treatmentSummary,
       ].filter(Boolean);
       const complaint = `${config.pageLabel} ${review.lens} review`;
       const archive: SessionRecord = {
@@ -420,6 +426,18 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
             .join('; ')}.`
         );
       }
+      if (analysis.investigations && analysis.investigations.length > 0) {
+        lines.push(`Investigations: ${analysis.investigations.join('; ')}.`);
+      }
+      if (analysis.treatment_summary) {
+        lines.push(`Treatment summary: ${analysis.treatment_summary}.`);
+      }
+      if (analysis.treatment_lines && analysis.treatment_lines.length > 0) {
+        lines.push(`Treatment lines: ${analysis.treatment_lines.join('; ')}.`);
+      }
+      if (analysis.counseling && analysis.counseling.length > 0) {
+        lines.push(`Counseling: ${analysis.counseling.join('; ')}.`);
+      }
       lines.push(`Summary: ${analysis.summary}`);
       if (analysis.findings.length > 0) {
         lines.push(`Findings: ${analysis.findings.join('; ')}`);
@@ -441,6 +459,51 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
     return lines.join(' ');
   }, [analysis, config.pageLabel, contextNote]);
+
+  const exportReviewPdf = useCallback(async () => {
+    if (!analysis) {
+      setError('Run AI review before exporting PDF.');
+      return;
+    }
+
+    const { exportDiagnosticReviewPdf } = await import('../../core/pdf/clinicalPdf');
+    exportDiagnosticReviewPdf({
+      generatedAt: Date.now(),
+      pageLabel: config.pageLabel,
+      lens: scanLens,
+      imageName: imageName || undefined,
+      patient: {
+        displayName: state.profile.display_name,
+        age: state.profile.age,
+        sex: state.profile.sex,
+        weightKg: state.profile.weight_kg ?? null,
+      },
+      contextNote: contextNote.trim() || undefined,
+      summary: analysis.summary,
+      findings: analysis.findings,
+      redFlags: analysis.red_flags,
+      confidence: analysis.confidence,
+      recommendation: analysis.recommendation,
+      spotDiagnosis: analysis.spot_diagnosis,
+      differentials: analysis.differentials || [],
+      treatmentSummary: analysis.treatment_summary,
+      treatmentLines: analysis.treatment_lines || [],
+      investigations: analysis.investigations || [],
+      counseling: analysis.counseling || [],
+    });
+    feedback('submit');
+  }, [
+    analysis,
+    config.pageLabel,
+    contextNote,
+    feedback,
+    imageName,
+    scanLens,
+    state.profile.age,
+    state.profile.display_name,
+    state.profile.sex,
+    state.profile.weight_kg,
+  ]);
 
   const pushToConsultation = useCallback(async () => {
     if (!analysis && !contextNote.trim()) {
@@ -530,18 +593,26 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       void pushToConsultation();
     };
 
+    const handlePrint = (event: Event) => {
+      if (!matchesKind(event)) return;
+      applyFocusFromEvent(event);
+      void exportReviewPdf();
+    };
+
     window.addEventListener('drdyrane:diagnostic:open-upload', handleUpload);
     window.addEventListener('drdyrane:diagnostic:open-scanner', handleScanner);
     window.addEventListener('drdyrane:diagnostic:run-review', handleReview);
     window.addEventListener('drdyrane:diagnostic:send-consult', handleSend);
+    window.addEventListener('drdyrane:diagnostic:print-review', handlePrint);
 
     return () => {
       window.removeEventListener('drdyrane:diagnostic:open-upload', handleUpload);
       window.removeEventListener('drdyrane:diagnostic:open-scanner', handleScanner);
       window.removeEventListener('drdyrane:diagnostic:run-review', handleReview);
       window.removeEventListener('drdyrane:diagnostic:send-consult', handleSend);
+      window.removeEventListener('drdyrane:diagnostic:print-review', handlePrint);
     };
-  }, [feedback, openFilePicker, pushToConsultation, runAnalysis]);
+  }, [exportReviewPdf, feedback, openFilePicker, pushToConsultation, runAnalysis]);
 
   return (
     <>
@@ -617,7 +688,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => void runAnalysis()}
                   disabled={analyzing || !imageDataUrl}
@@ -634,6 +705,15 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                 >
                   {pushing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
                   Send to Consult
+                </button>
+
+                <button
+                  onClick={() => void exportReviewPdf()}
+                  disabled={!analysis}
+                  className="h-11 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
+                >
+                  <Printer size={14} />
+                  Print PDF
                 </button>
               </div>
             </>
@@ -708,6 +788,40 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
               </div>
             )}
 
+            {(analysis.treatment_summary ||
+              (analysis.treatment_lines && analysis.treatment_lines.length > 0)) && (
+              <div className="surface-strong rounded-2xl p-3 space-y-2">
+                <p className="text-[11px] text-content-dim uppercase tracking-wide">Treatment Plan</p>
+                {analysis.treatment_summary && (
+                  <p className="text-sm text-content-primary leading-relaxed">
+                    {analysis.treatment_summary}
+                  </p>
+                )}
+                {analysis.treatment_lines && analysis.treatment_lines.length > 0 && (
+                  <div className="space-y-1.5">
+                    {analysis.treatment_lines.map((item, index) => (
+                      <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
+                        {index + 1}. {item}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {analysis.investigations && analysis.investigations.length > 0 && (
+              <div className="surface-strong rounded-2xl p-3 space-y-2">
+                <p className="text-[11px] text-content-dim uppercase tracking-wide">Investigations</p>
+                <div className="space-y-1.5">
+                  {analysis.investigations.map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
+                      {index + 1}. {item}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="surface-strong rounded-2xl p-3 space-y-2">
               <p className="text-[11px] text-content-dim uppercase tracking-wide">Summary</p>
               <p className="text-sm text-content-primary leading-relaxed">{analysis.summary}</p>
@@ -730,6 +844,19 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
               <p className="text-[11px] text-content-dim uppercase tracking-wide">Recommendation</p>
               <p className="text-sm text-content-primary leading-relaxed">{analysis.recommendation}</p>
             </div>
+
+            {analysis.counseling && analysis.counseling.length > 0 && (
+              <div className="surface-strong rounded-2xl p-3 space-y-2">
+                <p className="text-[11px] text-content-dim uppercase tracking-wide">Counseling</p>
+                <div className="space-y-1.5">
+                  {analysis.counseling.map((item, index) => (
+                    <p key={`${item}-${index}`} className="text-sm text-content-primary leading-snug">
+                      {index + 1}. {item}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {analysis.red_flags.length > 0 && (
               <div className="surface-strong rounded-2xl p-3 space-y-2">

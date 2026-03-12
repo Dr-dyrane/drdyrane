@@ -221,6 +221,20 @@ const sanitizeDiagnosticReviewRecord = (
               .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
               .slice(0, 6)
           : [],
+        treatment_summary:
+          typeof record.analysis.treatment_summary === 'string' &&
+          record.analysis.treatment_summary.trim()
+            ? record.analysis.treatment_summary.trim()
+            : undefined,
+        treatment_lines: Array.isArray(record.analysis.treatment_lines)
+          ? record.analysis.treatment_lines.map(String).filter(Boolean).slice(0, 8)
+          : [],
+        investigations: Array.isArray(record.analysis.investigations)
+          ? record.analysis.investigations.map(String).filter(Boolean).slice(0, 8)
+          : [],
+        counseling: Array.isArray(record.analysis.counseling)
+          ? record.analysis.counseling.map(String).filter(Boolean).slice(0, 8)
+          : [],
       }
     : null;
 

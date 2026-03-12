@@ -38,6 +38,37 @@ interface TreatmentPdfRow {
   duration: string;
 }
 
+export interface DiagnosticReviewPdfInput {
+  filename?: string;
+  generatedAt?: number;
+  pageLabel: string;
+  lens: 'general' | 'lab' | 'radiology';
+  imageName?: string;
+  patient?: PatientMeta;
+  contextNote?: string;
+  summary: string;
+  findings: string[];
+  redFlags: string[];
+  confidence: number;
+  recommendation: string;
+  spotDiagnosis?: {
+    label: string;
+    icd10?: string;
+    confidence: number;
+    rationale?: string;
+  };
+  differentials?: Array<{
+    label: string;
+    icd10?: string;
+    likelihood: 'high' | 'medium' | 'low';
+    rationale?: string;
+  }>;
+  treatmentSummary?: string;
+  treatmentLines?: string[];
+  investigations?: string[];
+  counseling?: string[];
+}
+
 export interface EncounterPdfInput {
   filename?: string;
   generatedAt?: number;
@@ -531,4 +562,96 @@ export const exportVisitRecordPdf = (input: VisitRecordPdfInput) => {
 
   drawFooters(frame, 'Dr Dyrane - Visit Record');
   frame.doc.save(input.filename || toFileName('dr-dyrane-visit', input.visitLabel));
+};
+
+export const exportDiagnosticReviewPdf = (input: DiagnosticReviewPdfInput) => {
+  const frame = createFrame();
+  const generatedAt = formatTimestamp(input.generatedAt || Date.now());
+  const patientMetaLine = buildPatientMetaLine(input.patient);
+  const chips = [
+    `${input.pageLabel} Report`,
+    `Lens: ${input.lens}`,
+    input.spotDiagnosis?.label || '',
+  ].filter(Boolean);
+
+  drawHeader(
+    frame,
+    `Dr Dyrane ${input.pageLabel} Report`,
+    'Structured AI scan output with diagnosis, differentials, treatment, and safety markers.',
+    [
+      `Generated: ${generatedAt}`,
+      patientMetaLine,
+      input.imageName ? `Image: ${input.imageName}` : '',
+    ],
+    chips
+  );
+
+  if (input.spotDiagnosis?.label) {
+    const spotLine = `${input.spotDiagnosis.label}${
+      input.spotDiagnosis.icd10 ? ` (ICD-10: ${input.spotDiagnosis.icd10})` : ''
+    }`;
+    const spotConfidence = `Confidence: ${Math.max(
+      0,
+      Math.min(100, Math.round(input.spotDiagnosis.confidence))
+    )}%`;
+    drawParagraphSection(
+      frame,
+      'Spot Diagnosis',
+      [spotLine, spotConfidence, input.spotDiagnosis.rationale || '']
+        .filter(Boolean)
+        .join('\n')
+    );
+  }
+
+  if ((input.differentials || []).length > 0) {
+    drawListSection(
+      frame,
+      'Differentials',
+      (input.differentials || []).map((entry) =>
+        [
+          `${entry.label}${entry.icd10 ? ` (ICD-10: ${entry.icd10})` : ''}`,
+          `[${entry.likelihood}]`,
+          entry.rationale || '',
+        ]
+          .filter(Boolean)
+          .join(' ')
+      )
+    );
+  }
+
+  drawParagraphSection(frame, 'Summary', input.summary || 'Not recorded.');
+  drawListSection(frame, 'Key Findings', input.findings || []);
+  drawListSection(frame, 'Red Flags', input.redFlags || []);
+
+  if ((input.investigations || []).length > 0) {
+    drawListSection(frame, 'Investigations', input.investigations || []);
+  }
+
+  if (input.treatmentSummary || (input.treatmentLines || []).length > 0) {
+    drawParagraphSection(
+      frame,
+      'Treatment Summary',
+      input.treatmentSummary || 'Provisional treatment pathway generated from scan context.'
+    );
+    drawListSection(frame, 'Treatment Lines', input.treatmentLines || []);
+  }
+
+  if ((input.counseling || []).length > 0) {
+    drawListSection(frame, 'Counseling', input.counseling || []);
+  }
+
+  drawParagraphSection(frame, 'Recommendation', input.recommendation || 'Continue clinical assessment.');
+
+  if ((input.contextNote || '').trim().length > 0) {
+    drawParagraphSection(frame, 'Clinical Note', input.contextNote || '');
+  }
+
+  drawFooters(frame, 'Dr Dyrane - Scan Diagnostic Report');
+  frame.doc.save(
+    input.filename ||
+      toFileName(
+        'dr-dyrane-scan-report',
+        input.spotDiagnosis?.label || input.pageLabel
+      )
+  );
 };

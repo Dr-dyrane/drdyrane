@@ -134,7 +134,20 @@ export const TheLens: React.FC = () => {
               )
               .join('; ')}.`
           : 'No ranked differentials available.';
-      const visualInput = `Visual analysis summary: ${analysis.summary}. Findings: ${findingText}. ${redFlagText} ${spotDxText} ${differentialText} Recommendation: ${analysis.recommendation}. Confidence: ${analysis.confidence}%.`;
+      const treatmentText =
+        analysis.treatment_summary ||
+        (analysis.treatment_lines.length > 0
+          ? `Treatment lines: ${analysis.treatment_lines.join('; ')}.`
+          : 'Treatment pathway pending.');
+      const investigationText =
+        analysis.investigations.length > 0
+          ? `Investigations: ${analysis.investigations.join('; ')}.`
+          : '';
+      const counselingText =
+        analysis.counseling.length > 0
+          ? `Counseling: ${analysis.counseling.join('; ')}.`
+          : '';
+      const visualInput = `Visual analysis summary: ${analysis.summary}. Findings: ${findingText}. ${redFlagText} ${spotDxText} ${differentialText} ${treatmentText} ${investigationText} ${counselingText} Recommendation: ${analysis.recommendation}. Confidence: ${analysis.confidence}%.`;
       await returnToConsultation(visualInput);
     } catch (error) {
       console.error('Lens analysis failed:', error);

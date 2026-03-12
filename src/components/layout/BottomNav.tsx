@@ -183,7 +183,14 @@ export const BottomNav: React.FC = () => {
   }, [dispatch, feedback]);
 
   const triggerDiagnostic = useCallback(
-    (action: 'open-upload' | 'open-scanner' | 'run-review' | 'send-consult') => {
+    (
+      action:
+        | 'open-upload'
+        | 'open-scanner'
+        | 'run-review'
+        | 'send-consult'
+        | 'print-review'
+    ) => {
       emitEvent(`drdyrane:diagnostic:${action}`, { kind: 'scan' });
       feedback(action === 'send-consult' ? 'submit' : 'select');
     },
@@ -218,6 +225,7 @@ export const BottomNav: React.FC = () => {
           { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') },
           { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review') },
           { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult') },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: () => triggerDiagnostic('print-review') },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       default:

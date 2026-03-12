@@ -111,6 +111,10 @@ type VisionPayload = {
     likelihood?: 'high' | 'medium' | 'low' | string;
     rationale?: string;
   }>;
+  treatment_summary?: string;
+  treatment_lines?: string[];
+  investigations?: string[];
+  counseling?: string[];
 };
 
 const URGENCY_RANK: Record<NonNullable<ConsultPayload['urgency']>, number> = {
@@ -239,7 +243,11 @@ RESPONSE JSON:
       "likelihood": "high|medium|low",
       "rationale": "short reason"
     }
-  ]
+  ],
+  "treatment_summary": "high-level treatment intent",
+  "treatment_lines": ["medication or intervention line"],
+  "investigations": ["test"],
+  "counseling": ["key counseling point"]
 }`;
 
 const normalizeEnvValue = (value: string | undefined): string =>
@@ -498,6 +506,10 @@ const normalizeVisionPayload = (value: unknown): VisionPayload => {
       })
       .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
       .slice(0, 6),
+    treatment_summary: sanitizeText(source.treatment_summary) || undefined,
+    treatment_lines: sanitizeList(source.treatment_lines, 8),
+    investigations: sanitizeList(source.investigations, 8),
+    counseling: sanitizeList(source.counseling, 8),
   };
 };
 

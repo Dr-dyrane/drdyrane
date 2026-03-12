@@ -16,6 +16,10 @@ export interface VisionAnalysisResult {
     likelihood: 'high' | 'medium' | 'low';
     rationale?: string;
   }>;
+  treatment_summary?: string;
+  treatment_lines: string[];
+  investigations: string[];
+  counseling: string[];
 }
 
 const sanitizeText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
@@ -93,5 +97,9 @@ export const analyzeClinicalImage = async (payload: {
         }
       : undefined,
     differentials,
+    treatment_summary: sanitizeText(data.treatment_summary) || undefined,
+    treatment_lines: sanitizeList(data.treatment_lines, 8),
+    investigations: sanitizeList(data.investigations, 8),
+    counseling: sanitizeList(data.counseling, 8),
   };
 };

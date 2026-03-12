@@ -84,6 +84,10 @@ export interface DiagnosticReviewAnalysis {
     likelihood: 'high' | 'medium' | 'low';
     rationale?: string;
   }>;
+  treatment_summary?: string;
+  treatment_lines?: string[];
+  investigations?: string[];
+  counseling?: string[];
 }
 
 export interface DiagnosticReviewRecord {
