@@ -352,7 +352,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     <>
       <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
         <div className="flex justify-center">
-          <Orb />
+          <Orb prominence="support" />
         </div>
 
         <div className="text-center space-y-2">

@@ -159,7 +159,7 @@ export const PillarCard: React.FC = () => {
   return (
     <div className="flex-1 px-2 py-7 space-y-7 animate-emergence">
       <div className="flex justify-center">
-        <Orb />
+        <Orb prominence="support" />
       </div>
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}

@@ -14,7 +14,7 @@ export const AboutView: React.FC = () => {
   return (
     <div className="flex-1 px-2 py-7 space-y-4 animate-emergence">
       <div className="flex justify-center">
-        <Orb />
+        <Orb prominence="support" />
       </div>
       <div className="text-center space-y-4">
         <span className="text-content-dim text-xs font-medium">System</span>

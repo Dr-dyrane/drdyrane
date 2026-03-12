@@ -371,7 +371,7 @@ export const StepRenderer: React.FC = () => {
       </div>
 
       <div className="flex flex-col items-center justify-center">
-        <Orb loading={loading} />
+        <Orb loading={loading} prominence="hero" />
         <AnimatePresence mode="wait">
           {loading && (
             <motion.span

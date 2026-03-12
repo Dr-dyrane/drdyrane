@@ -79,7 +79,7 @@ export const HistoryView: React.FC = () => {
   return (
     <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
       <div className="flex justify-center">
-        <Orb />
+        <Orb prominence="support" />
       </div>
       <div className="text-center space-y-2">
         <span className="text-content-dim text-xs font-medium">Past visits</span>
