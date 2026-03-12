@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell,
   History,
@@ -32,6 +33,19 @@ interface ProfileSheetProps {
   isOpen: boolean;
   onClose: () => void;
 }
+
+const panelVariants = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.03, delayChildren: 0.02 },
+  },
+};
+
+const sectionVariants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.22 } },
+};
 
 export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) => {
   const { state, dispatch } = useClinical();
@@ -118,26 +132,53 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
               <p className="text-xs text-content-dim font-medium">Settings</p>
               <h2 className="display-type text-[2rem] leading-none text-content-primary mt-1">Profile</h2>
             </div>
-            <button
+            <motion.button
               onClick={closeSheet}
+              whileHover={{ y: -1, scale: 1.01 }}
+              whileTap={{ scale: 0.96 }}
               className="h-10 w-10 rounded-full surface-raised flex items-center justify-center focus-glow interactive-tap interactive-soft"
               aria-label="Close profile sheet"
             >
               <X size={16} />
-            </button>
+            </motion.button>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-4">
-          <section className="surface-raised rounded-[24px] p-4 space-y-4">
+        <motion.div
+          initial="hidden"
+          animate="show"
+          variants={panelVariants}
+          className="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-4"
+        >
+          <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-4 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="h-16 w-16 rounded-full surface-strong overflow-hidden flex items-center justify-center text-xl font-semibold">
-                {avatarSrc ? (
-                  <img src={avatarSrc} alt="Profile avatar" className="h-full w-full object-cover" />
-                ) : (
-                  profileInitial
-                )}
-              </div>
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                className="h-16 w-16 rounded-full surface-strong overflow-hidden flex items-center justify-center text-xl font-semibold"
+              >
+                <AnimatePresence mode="wait">
+                  {avatarSrc ? (
+                    <motion.img
+                      key={avatarSrc}
+                      initial={{ opacity: 0.4, scale: 1.05 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      src={avatarSrc}
+                      alt="Profile avatar"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <motion.span
+                      key="profile-initial"
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      {profileInitial}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </motion.div>
               <div>
                 <p className="text-xl font-semibold text-content-primary leading-none">
                   {profile.display_name || 'Patient'}
@@ -154,30 +195,47 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
               onChange={handleAvatarSelected}
             />
             <div className="grid grid-cols-2 gap-2">
-              <button
+              <motion.button
                 onClick={openFilePicker}
                 disabled={isUploadingAvatar}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.97 }}
                 className="h-11 rounded-xl surface-strong text-sm font-medium disabled:opacity-50 interactive-tap interactive-soft"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Upload size={14} />
-                  {avatarSrc ? 'Replace photo' : 'Upload photo'}
+                  {isUploadingAvatar ? 'Preparing image...' : avatarSrc ? 'Replace photo' : 'Upload photo'}
                 </span>
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 onClick={clearAvatar}
                 disabled={!avatarSrc || isUploadingAvatar}
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.97 }}
                 className="h-11 rounded-xl surface-strong text-sm font-medium disabled:opacity-50 interactive-tap interactive-soft"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Trash2 size={14} />
                   Remove
                 </span>
-              </button>
+              </motion.button>
             </div>
-          </section>
 
-          <section className="surface-raised rounded-[24px] p-2">
+            <AnimatePresence>
+              {isUploadingAvatar && (
+                <motion.p
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  className="text-xs text-content-dim"
+                >
+                  Processing avatar...
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </motion.section>
+
+          <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-2">
             <div className="px-3 py-2 text-xs font-semibold text-content-dim uppercase tracking-wide inline-flex items-center gap-1.5">
               <User size={13} />
               Patient Details
@@ -230,9 +288,9 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 </select>
               </div>
             </div>
-          </section>
+          </motion.section>
 
-          <section className="surface-raised rounded-[24px] p-3 space-y-3">
+          <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-3 space-y-3">
             <div className="text-xs font-semibold text-content-dim uppercase tracking-wide inline-flex items-center gap-1.5">
               <Sparkles size={13} />
               Appearance
@@ -244,41 +302,66 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 { id: 'dark' as const, icon: Moon, label: 'Dark' },
                 { id: 'light' as const, icon: Sun, label: 'Light' },
               ].map((theme) => (
-                <button
+                <motion.button
                   key={theme.id}
                   onClick={() => {
                     feedback('select');
                     dispatch({ type: 'SET_THEME', payload: theme.id });
                   }}
-                  className={`h-10 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap ${
-                    state.theme === theme.id ? 'bg-surface-active text-content-active' : 'surface-chip'
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`relative h-10 rounded-xl text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap ${
+                    state.theme === theme.id ? 'text-content-active' : 'text-content-secondary'
                   }`}
                 >
-                  <theme.icon size={14} />
-                  {theme.label}
-                </button>
+                  {state.theme === theme.id && (
+                    <motion.span
+                      layoutId="theme-option-pill"
+                      className="absolute inset-0 rounded-xl bg-surface-active selected-elevation"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  )}
+                  {state.theme !== theme.id && <span className="absolute inset-0 rounded-xl surface-chip" />}
+                  <span className="relative z-10 inline-flex items-center gap-1.5">
+                    <theme.icon size={14} />
+                    {theme.label}
+                  </span>
+                </motion.button>
               ))}
             </div>
 
             <div className="surface-strong rounded-[18px] p-1.5 grid grid-cols-3 gap-1.5">
               {(['sm', 'md', 'lg'] as const).map((scale) => (
-                <button
+                <motion.button
                   key={scale}
                   onClick={() => toggleSetting({ text_scale: scale })}
-                  className={`h-10 rounded-xl text-xs font-semibold uppercase tracking-wide interactive-tap ${
-                    settings.text_scale === scale ? 'bg-surface-active text-content-active' : 'surface-chip'
+                  whileHover={{ y: -1 }}
+                  whileTap={{ scale: 0.97 }}
+                  className={`relative h-10 rounded-xl text-xs font-semibold uppercase tracking-wide interactive-tap ${
+                    settings.text_scale === scale ? 'text-content-active' : 'text-content-secondary'
                   }`}
                 >
-                  {scale}
-                </button>
+                  {settings.text_scale === scale && (
+                    <motion.span
+                      layoutId="text-scale-option-pill"
+                      className="absolute inset-0 rounded-xl bg-surface-active selected-elevation"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  )}
+                  {settings.text_scale !== scale && <span className="absolute inset-0 rounded-xl surface-chip" />}
+                  <span className="relative z-10">{scale}</span>
+                </motion.button>
               ))}
             </div>
-          </section>
+          </motion.section>
 
-          <section className="surface-raised rounded-[24px] p-3 space-y-2">
+          <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-3 space-y-2">
             <div className="text-xs font-semibold text-content-dim uppercase tracking-wide">Feedback</div>
 
-            <div className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between">
+            <motion.div
+              whileHover={{ y: -1 }}
+              className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between"
+            >
               <span className="inline-flex items-center gap-2 text-sm">
                 <Vibrate size={14} />
                 Haptics
@@ -288,9 +371,12 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 onToggle={() => toggleSetting({ haptics_enabled: !settings.haptics_enabled })}
                 ariaLabel="Toggle haptics"
               />
-            </div>
+            </motion.div>
 
-            <div className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between">
+            <motion.div
+              whileHover={{ y: -1 }}
+              className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between"
+            >
               <span className="inline-flex items-center gap-2 text-sm">
                 <Volume2 size={14} />
                 Audio cues
@@ -300,9 +386,12 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 onToggle={() => toggleSetting({ audio_enabled: !settings.audio_enabled })}
                 ariaLabel="Toggle audio cues"
               />
-            </div>
+            </motion.div>
 
-            <div className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between">
+            <motion.div
+              whileHover={{ y: -1 }}
+              className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between"
+            >
               <span className="inline-flex items-center gap-2 text-sm">
                 <Bell size={14} />
                 Notifications
@@ -312,36 +401,83 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 onToggle={() => toggleSetting({ notifications_enabled: !settings.notifications_enabled })}
                 ariaLabel="Toggle notifications"
               />
-            </div>
-          </section>
+            </motion.div>
+          </motion.section>
 
-          <section className="surface-raised rounded-[24px] p-2 pb-3">
+          <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-2 pb-3">
             <div className="px-3 py-2 text-xs font-semibold text-content-dim uppercase tracking-wide">Quick Navigation</div>
             <div className="grid grid-cols-3 gap-2">
-              <button
+              <motion.button
                 onClick={() => setViewAndClose('consult')}
-                className="h-[60px] rounded-[18px] surface-strong inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft"
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.97 }}
+                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
+                  state.view === 'consult' ? 'text-content-active' : 'text-content-primary'
+                }`}
               >
-                <Stethoscope size={15} />
-                Consult
-              </button>
-              <button
+                {state.view === 'consult' ? (
+                  <motion.span
+                    layoutId="profile-nav-pill"
+                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                ) : (
+                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
+                )}
+                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
+                  <Stethoscope size={15} />
+                  Consult
+                </span>
+              </motion.button>
+
+              <motion.button
                 onClick={() => setViewAndClose('history')}
-                className="h-[60px] rounded-[18px] surface-strong inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft"
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.97 }}
+                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
+                  state.view === 'history' ? 'text-content-active' : 'text-content-primary'
+                }`}
               >
-                <History size={15} />
-                History
-              </button>
-              <button
+                {state.view === 'history' ? (
+                  <motion.span
+                    layoutId="profile-nav-pill"
+                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                ) : (
+                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
+                )}
+                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
+                  <History size={15} />
+                  History
+                </span>
+              </motion.button>
+
+              <motion.button
                 onClick={() => setViewAndClose('about')}
-                className="h-[60px] rounded-[18px] surface-strong inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft"
+                whileHover={{ y: -1 }}
+                whileTap={{ scale: 0.97 }}
+                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
+                  state.view === 'about' ? 'text-content-active' : 'text-content-primary'
+                }`}
               >
-                <Info size={15} />
-                About
-              </button>
+                {state.view === 'about' ? (
+                  <motion.span
+                    layoutId="profile-nav-pill"
+                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
+                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                  />
+                ) : (
+                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
+                )}
+                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
+                  <Info size={15} />
+                  About
+                </span>
+              </motion.button>
             </div>
-          </section>
-        </div>
+          </motion.section>
+        </motion.div>
       </div>
 
       <AvatarCropModal

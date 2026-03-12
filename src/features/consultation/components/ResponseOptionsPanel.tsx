@@ -81,31 +81,59 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   const isSingle = responseOptions.mode === 'single' || responseOptions.mode === 'confirm';
   const isScale = variant === 'scale';
   const isSegmentedLike = variant === 'segmented' || variant === 'binary';
-  const showMultipleSubmit = isMultiple && selectedOptionIds.length > 0;
-  const showSingleSubmit = isSingle && (isScale || variant === 'ladder') && selectedOptionIds.length > 0;
+  const hasSelection = selectedOptionIds.length > 0;
+  const showMultipleSubmit = isMultiple;
+  const showSingleSubmit = isSingle && (isScale || variant === 'ladder');
 
   const selectedScaleOption = getSelectedSingleOption(responseOptions, selectedOptionIds);
   const selectedScaleIndex = selectedScaleOption
     ? responseOptions.options.findIndex((option) => option.id === selectedScaleOption.id)
     : 0;
   const sliderValue = Math.max(1, selectedScaleIndex + 1);
+  const statusLabel = loading
+    ? 'Analyzing...'
+    : isMultiple
+      ? hasSelection
+        ? `${selectedOptionIds.length} selected`
+        : 'Select all that apply'
+      : hasSelection
+        ? 'Selection ready'
+        : 'Select one option';
 
   return (
-    <div className="space-y-4">
-      {responseOptions.context_hint && (
-        <motion.div
-          key={responseOptions.context_hint}
-          initial={{ opacity: 0, y: 6, scale: 0.985 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0 }}
-          transition={SPRING_CONFIG}
-          className={`option-hint-chip ${getHintToneClass(variant)}`}
+    <div className="space-y-4 relative">
+      <div className="flex items-center justify-between px-1">
+        <p className="text-[11px] text-content-dim tracking-wide uppercase">
+          {isMultiple ? 'Multi Select' : 'Single Select'}
+        </p>
+        <motion.span
+          key={`${statusLabel}-${selectedOptionIds.length}-${loading ? 'busy' : 'idle'}`}
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={`h-7 px-2.5 rounded-full inline-flex items-center text-[11px] font-semibold ${
+            hasSelection ? 'bg-accent-soft text-accent-primary' : 'surface-chip text-content-secondary'
+          }`}
         >
-          <p className="text-xs tracking-wide text-content-primary text-center font-medium">
-            {responseOptions.context_hint}
-          </p>
-        </motion.div>
-      )}
+          {statusLabel}
+        </motion.span>
+      </div>
+
+      <AnimatePresence mode="wait">
+        {responseOptions.context_hint && (
+          <motion.div
+            key={responseOptions.context_hint}
+            initial={{ opacity: 0, y: 6, scale: 0.985 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.98 }}
+            transition={SPRING_CONFIG}
+            className={`option-hint-chip ${getHintToneClass(variant)}`}
+          >
+            <p className="text-xs tracking-wide text-content-primary text-center font-medium">
+              {responseOptions.context_hint}
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {isScale ? (
         <motion.div
@@ -147,6 +175,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             {responseOptions.options.map((option, index) => {
               const isSelected = selectedOptionIds.includes(option.id);
               const depth = index + 1;
+              const selectionOrder = selectedOptionIds.indexOf(option.id) + 1;
               return (
                 <motion.button
                   layout
@@ -165,6 +194,15 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                   }`}
                 >
                   {option.text}
+                  {isSelected && isMultiple && (
+                    <motion.span
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="absolute -top-1 -right-1 h-5 min-w-[20px] px-1 rounded-full bg-surface-active text-content-active text-[10px] inline-flex items-center justify-center"
+                    >
+                      {selectionOrder}
+                    </motion.span>
+                  )}
                 </motion.button>
               );
             })}
@@ -194,6 +232,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             const isBinary = variant === 'binary' || variant === 'segmented';
             const isChip = variant === 'chips';
             const isLadder = variant === 'ladder';
+            const selectionOrder = selectedOptionIds.indexOf(option.id) + 1;
 
             return (
               <motion.button
@@ -243,6 +282,16 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                   {option.text}
                 </span>
 
+                {isSelected && isMultiple && !isSegmentedLike && (
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="absolute top-2 right-2 h-5 min-w-[20px] px-1 rounded-full bg-surface-active text-content-active text-[10px] inline-flex items-center justify-center"
+                  >
+                    {selectionOrder}
+                  </motion.span>
+                )}
+
                 {isLadder && (
                   <span
                     className={`absolute right-0 top-0 h-full rounded-r-2xl transition-all ${
@@ -264,30 +313,63 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
       )}
 
       {showSingleSubmit && (
-        <motion.button
-          layout
-          onClick={onSubmitSingle}
-          disabled={loading}
-          whileHover={HOVER_MOTION}
-          whileTap={TAP_MOTION}
-          className="w-full py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Continue ({selectedScaleOption?.text || 'Selected'})
-        </motion.button>
+        <div className="space-y-1.5">
+          <motion.button
+            layout
+            onClick={onSubmitSingle}
+            disabled={loading || !hasSelection}
+            whileHover={HOVER_MOTION}
+            whileTap={TAP_MOTION}
+            className="w-full py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading
+              ? 'Analyzing...'
+              : hasSelection
+                ? `Continue (${selectedScaleOption?.text || 'Selected'})`
+                : 'Select one option'}
+          </motion.button>
+          {!hasSelection && !loading && (
+            <p className="text-xs text-content-dim text-center">
+              Choose a response before continuing.
+            </p>
+          )}
+        </div>
       )}
 
       {showMultipleSubmit && (
-        <motion.button
-          layout
-          onClick={onSubmitMultiple}
-          disabled={loading}
-          whileHover={HOVER_MOTION}
-          whileTap={TAP_MOTION}
-          className="w-full py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          Continue ({selectedOptionIds.length})
-        </motion.button>
+        <div className="space-y-1.5">
+          <motion.button
+            layout
+            onClick={onSubmitMultiple}
+            disabled={loading || !hasSelection}
+            whileHover={HOVER_MOTION}
+            whileTap={TAP_MOTION}
+            className="w-full py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading
+              ? 'Analyzing...'
+              : hasSelection
+                ? `Continue (${selectedOptionIds.length})`
+                : 'Select at least one option'}
+          </motion.button>
+          {!hasSelection && !loading && (
+            <p className="text-xs text-content-dim text-center">
+              You can choose more than one response.
+            </p>
+          )}
+        </div>
       )}
+
+      <AnimatePresence>
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="absolute inset-0 rounded-[24px] overlay-backdrop-soft backdrop-blur-[1px] pointer-events-none"
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

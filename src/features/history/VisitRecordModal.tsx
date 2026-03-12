@@ -41,6 +41,14 @@ const buildPrintableText = (record: SessionRecord): string => {
   return lines.join('\n');
 };
 
+const clerkingFields = [
+  { key: 'hpc', label: 'HPC' },
+  { key: 'pmh', label: 'PMH' },
+  { key: 'dh', label: 'DH' },
+  { key: 'sh', label: 'SH' },
+  { key: 'fh', label: 'FH' },
+] as const;
+
 export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
   record,
   isOpen,
@@ -51,6 +59,11 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
   const [visitLabel, setVisitLabel] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
+  const timestampLabel = useMemo(
+    () => (record ? new Date(record.timestamp).toLocaleString() : ''),
+    [record]
+  );
+
   const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
     signalFeedback(kind, {
       hapticsEnabled: state.settings.haptics_enabled,
@@ -149,6 +162,10 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
     onOpenHx(record);
   };
 
+  const statusLabel = record
+    ? record.status.charAt(0).toUpperCase() + record.status.slice(1)
+    : 'Archived';
+
   return (
     <OverlayPortal>
       <AnimatePresence>
@@ -169,144 +186,193 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
               className="fixed inset-x-0 bottom-0 h-[88vh] max-w-[440px] mx-auto z-[150] rounded-t-[32px] ios-sheet-surface shadow-modal flex flex-col overflow-hidden pointer-events-auto"
             >
-            <div className="px-5 py-5 flex items-center justify-between">
-              <div>
-                <p className="text-xs text-content-dim font-medium">Visit Record</p>
-                <p className="text-sm text-content-secondary mt-1">
-                  {new Date(record.timestamp).toLocaleString()}
-                </p>
+              <div className="flex items-center justify-center pt-2 pb-1">
+                <span className="h-1 w-11 rounded-full surface-chip" />
               </div>
-              <button
-                onClick={handleClose}
-                className="h-10 w-10 rounded-full surface-strong flex items-center justify-center focus-glow interactive-tap interactive-soft"
-                aria-label="Close visit modal"
+
+              <div className="px-5 py-4 flex items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <p className="text-xs text-content-dim font-medium">Visit Record</p>
+                  <p className="text-sm text-content-secondary">{timestampLabel}</p>
+                </div>
+                <button
+                  onClick={handleClose}
+                  className="h-10 w-10 rounded-full surface-strong flex items-center justify-center focus-glow interactive-tap interactive-soft"
+                  aria-label="Close visit modal"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <motion.div
+                initial="hidden"
+                animate="show"
+                variants={{
+                  hidden: { opacity: 0 },
+                  show: { opacity: 1, transition: { staggerChildren: 0.03 } },
+                }}
+                className="flex-1 overflow-y-auto no-scrollbar px-5 pb-36 space-y-4"
               >
-                <X size={16} />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-28 space-y-5">
-              <section className="surface-strong rounded-[24px] p-4 space-y-3">
-                <label className="block space-y-1">
-                  <span className="text-xs text-content-dim">Visit label</span>
-                  <input
-                    value={visitLabel}
-                    onChange={(e) => setVisitLabel(e.target.value)}
-                    className="w-full px-3 py-3 rounded-xl surface-raised text-sm text-content-primary"
-                    placeholder="e.g., Follow-up visit"
-                  />
-                </label>
-
-                <label className="block space-y-1">
-                  <span className="text-xs text-content-dim">Diagnosis</span>
-                  <input
-                    value={diagnosis}
-                    onChange={(e) => setDiagnosis(e.target.value)}
-                    className="w-full px-3 py-3 rounded-xl surface-raised text-sm text-content-primary"
-                    placeholder="Working diagnosis"
-                  />
-                </label>
-
-                <label className="block space-y-1">
-                  <span className="text-xs text-content-dim">Record notes</span>
-                  <textarea
-                    rows={4}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-3 rounded-xl surface-raised text-sm text-content-primary resize-none"
-                    placeholder="Follow-up plan, context, reminders..."
-                  />
-                </label>
-              </section>
-
-              <section className="surface-strong rounded-[24px] p-4 space-y-3">
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-xs text-content-dim">Complaint</span>
-                  <span className="text-xs text-content-dim">
-                    {record.status}
-                  </span>
-                </div>
-                <p className="text-sm text-content-primary leading-relaxed">
-                  {record.complaint || 'No complaint captured for this visit.'}
-                </p>
-              </section>
-
-              <section className="surface-strong rounded-[24px] p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-content-dim">Patient Clerking</span>
-                </div>
-                <div className="space-y-3">
-                  {[
-                    { label: 'HPC', value: record.clerking?.hpc || record.snapshot?.clerking?.hpc },
-                    { label: 'PMH', value: record.clerking?.pmh || record.snapshot?.clerking?.pmh },
-                    { label: 'DH', value: record.clerking?.dh || record.snapshot?.clerking?.dh },
-                    { label: 'SH', value: record.clerking?.sh || record.snapshot?.clerking?.sh },
-                    { label: 'FH', value: record.clerking?.fh || record.snapshot?.clerking?.fh },
-                  ].map((item) => (
-                    <div key={item.label} className="space-y-1">
-                      <p className="text-xs text-content-dim">{item.label}</p>
-                      <p className="text-sm text-content-primary leading-relaxed">{item.value || 'Not recorded.'}</p>
+                <motion.section
+                  variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+                  className="surface-raised rounded-[24px] p-4 space-y-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-content-dim">Visit Label</p>
+                      <p className="text-lg text-content-primary display-type leading-tight mt-1">
+                        {visitLabel.trim() || record.visit_label || 'Visit'}
+                      </p>
                     </div>
-                  ))}
-                </div>
-              </section>
-            </div>
+                    <span className="h-8 px-3 rounded-full inline-flex items-center text-xs font-semibold bg-accent-soft text-accent-primary">
+                      {statusLabel}
+                    </span>
+                  </div>
+                  <p className="text-sm text-content-primary leading-relaxed">
+                    {diagnosis.trim() || record.diagnosis || 'Unlabeled Visit'}
+                  </p>
+                  <AnimatePresence mode="wait">
+                    <motion.p
+                      key={isDirty ? 'dirty' : 'saved'}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -4 }}
+                      className={`text-xs ${isDirty ? 'text-accent-primary' : 'text-content-dim'}`}
+                    >
+                      {isDirty ? 'Unsaved edits' : 'All changes saved'}
+                    </motion.p>
+                  </AnimatePresence>
+                </motion.section>
 
-            <div className="absolute bottom-0 inset-x-0 px-4 pb-6 pt-3 overlay-fade-bottom">
-              <div className="surface-raised rounded-[26px] p-3 space-y-2">
-                <div className="grid grid-cols-4 gap-2">
+                <motion.section
+                  variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+                  className="surface-strong rounded-[24px] p-4 space-y-3"
+                >
+                  <label className="block space-y-1">
+                    <span className="text-xs text-content-dim">Visit label</span>
+                    <input
+                      value={visitLabel}
+                      onChange={(e) => setVisitLabel(e.target.value)}
+                      className="w-full px-3 py-3 rounded-xl surface-raised text-sm text-content-primary"
+                      placeholder="e.g., Follow-up visit"
+                    />
+                  </label>
+
+                  <label className="block space-y-1">
+                    <span className="text-xs text-content-dim">Diagnosis</span>
+                    <input
+                      value={diagnosis}
+                      onChange={(e) => setDiagnosis(e.target.value)}
+                      className="w-full px-3 py-3 rounded-xl surface-raised text-sm text-content-primary"
+                      placeholder="Working diagnosis"
+                    />
+                  </label>
+
+                  <label className="block space-y-1">
+                    <span className="text-xs text-content-dim">Record notes</span>
+                    <textarea
+                      rows={4}
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="w-full px-3 py-3 rounded-xl surface-raised text-sm text-content-primary resize-none"
+                      placeholder="Follow-up plan, context, reminders..."
+                    />
+                  </label>
+                </motion.section>
+
+                <motion.section
+                  variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+                  className="surface-strong rounded-[24px] p-4 space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-content-dim">Chief Complaint</span>
+                    <span className="text-xs text-content-dim">{statusLabel}</span>
+                  </div>
+                  <p className="text-sm text-content-primary leading-relaxed">
+                    {record.complaint || 'No complaint captured for this visit.'}
+                  </p>
+                </motion.section>
+
+                <motion.section
+                  variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
+                  className="surface-strong rounded-[24px] p-4 space-y-3"
+                >
+                  <span className="text-xs text-content-dim">Patient Clerking</span>
+                  <div className="space-y-2">
+                    {clerkingFields.map((item) => {
+                      const current = record.clerking?.[item.key] || record.snapshot?.clerking?.[item.key];
+                      return (
+                        <div key={item.key} className="surface-raised rounded-2xl px-3 py-2.5">
+                          <p className="text-[11px] text-content-dim">{item.label}</p>
+                          <p className="text-sm text-content-primary mt-1 leading-relaxed">
+                            {current || 'Not recorded.'}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.section>
+              </motion.div>
+
+              <div className="absolute bottom-0 inset-x-0 px-4 pb-6 pt-3 overlay-fade-bottom">
+                <div className="surface-raised rounded-[26px] p-3 space-y-2.5">
                   <button
                     onClick={saveRecord}
                     disabled={!isDirty}
-                    className="h-[64px] rounded-2xl surface-strong text-content-primary disabled:opacity-50 focus-glow interactive-tap interactive-soft"
+                    className={`h-12 w-full rounded-2xl text-sm font-semibold focus-glow interactive-tap ${
+                      isDirty ? 'cta-live' : 'surface-strong text-content-dim'
+                    }`}
                     aria-label="Save visit record"
                   >
-                    <span className="inline-flex flex-col items-center gap-1.5">
-                      <Save size={15} />
-                      <span className="text-[11px]">Save</span>
+                    <span className="inline-flex items-center gap-2">
+                      <Save size={14} />
+                      {isDirty ? 'Save Updates' : 'Saved'}
                     </span>
                   </button>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={revisitRecord}
+                      className="h-[62px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                      aria-label="Revisit this consultation"
+                    >
+                      <span className="inline-flex flex-col items-center gap-1.5">
+                        <RotateCcw size={15} />
+                        <span className="text-[11px]">Revisit</span>
+                      </span>
+                    </button>
+                    <button
+                      onClick={printRecord}
+                      className="h-[62px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                      aria-label="Print visit record"
+                    >
+                      <span className="inline-flex flex-col items-center gap-1.5">
+                        <Printer size={15} />
+                        <span className="text-[11px]">Print</span>
+                      </span>
+                    </button>
+                    <button
+                      onClick={openHxFromRecord}
+                      className="h-[62px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
+                      aria-label="Open SOAP data"
+                    >
+                      <span className="inline-flex flex-col items-center gap-1.5">
+                        <ClipboardList size={15} />
+                        <span className="text-[11px]">SOAP</span>
+                      </span>
+                    </button>
+                  </div>
+
                   <button
-                    onClick={revisitRecord}
-                    className="h-[64px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
-                    aria-label="Revisit this consultation"
+                    onClick={deleteRecord}
+                    className="h-12 rounded-2xl cta-danger text-sm font-semibold focus-glow interactive-tap"
                   >
-                    <span className="inline-flex flex-col items-center gap-1.5">
-                      <RotateCcw size={15} />
-                      <span className="text-[11px]">Revisit</span>
-                    </span>
-                  </button>
-                  <button
-                    onClick={printRecord}
-                    className="h-[64px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
-                    aria-label="Print visit record"
-                  >
-                    <span className="inline-flex flex-col items-center gap-1.5">
-                      <Printer size={15} />
-                      <span className="text-[11px]">Print</span>
-                    </span>
-                  </button>
-                  <button
-                    onClick={openHxFromRecord}
-                    className="h-[64px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
-                    aria-label="Open SOAP data"
-                  >
-                    <span className="inline-flex flex-col items-center gap-1.5">
-                      <ClipboardList size={15} />
-                      <span className="text-[11px]">SOAP</span>
+                    <span className="inline-flex items-center gap-2">
+                      <Trash2 size={14} /> Delete Visit
                     </span>
                   </button>
                 </div>
-                <button
-                  onClick={deleteRecord}
-                  className="h-12 rounded-2xl cta-danger text-sm font-semibold focus-glow interactive-tap"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Trash2 size={14} /> Delete Visit
-                  </span>
-                </button>
               </div>
-            </div>
             </motion.div>
           </>
         )}
