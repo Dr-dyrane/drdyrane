@@ -10,7 +10,7 @@ interface SideSheetProps {
 }
 
 export const SideSheet: React.FC<SideSheetProps> = ({ isOpen, side, onClose, children }) => {
-  const isLeft = side === 'left';
+  const lateralOffset = side === 'left' ? -10 : 10;
 
   return (
     <OverlayPortal>
@@ -22,17 +22,22 @@ export const SideSheet: React.FC<SideSheetProps> = ({ isOpen, side, onClose, chi
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 z-[120] overlay-backdrop-soft backdrop-blur-md"
+              className="fixed inset-0 z-[120] overlay-backdrop-soft backdrop-blur-sm"
             />
 
             <motion.aside
-              initial={{ x: isLeft ? '-100%' : '100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: isLeft ? '-100%' : '100%' }}
-              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className={`fixed top-0 ${isLeft ? 'left-0 rounded-r-[30px]' : 'right-0 rounded-l-[30px]'} h-full w-[82%] max-w-[360px] z-[130] surface-raised shadow-modal pointer-events-auto`}
+              initial={{ opacity: 0, y: '12%', x: lateralOffset }}
+              animate={{ opacity: 1, y: 0, x: 0 }}
+              exit={{ opacity: 0, y: '14%', x: lateralOffset }}
+              transition={{ type: 'spring', damping: 30, stiffness: 290, mass: 0.85 }}
+              className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-[440px] z-[130] pointer-events-auto"
             >
-              {children}
+              <div className="ios-sheet-surface rounded-t-[32px] shadow-modal overflow-hidden max-h-[88dvh] min-h-[60dvh] h-[min(88dvh,760px)] pb-[env(safe-area-inset-bottom)]">
+                <div className="flex items-center justify-center pt-2 pb-1">
+                  <span className="h-1 w-11 rounded-full surface-chip" />
+                </div>
+                {children}
+              </div>
             </motion.aside>
           </>
         )}

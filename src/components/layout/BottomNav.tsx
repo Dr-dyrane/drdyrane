@@ -190,9 +190,9 @@ export const BottomNav: React.FC = () => {
 
   return (
     <>
-      <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-2 pb-7 pointer-events-none">
-        <div className="flex items-end justify-between pointer-events-auto">
-          <div className="surface-raised rounded-full px-2 py-2 shadow-glass flex items-center gap-1 backdrop-blur-xl">
+      <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] pointer-events-none">
+        <div className="relative pointer-events-auto">
+          <div className="ios-tabbar-surface rounded-[30px] p-2.5 shadow-float flex items-center justify-between gap-2">
             {navItems.map((item) => {
               const isActive = state.view === item.id;
               return (
@@ -203,9 +203,9 @@ export const BottomNav: React.FC = () => {
                     setView(item.id);
                   }}
                   whileTap={{ scale: 0.97 }}
-                  className={`h-11 rounded-full flex items-center transition-all ${
+                  className={`h-11 rounded-2xl flex items-center transition-all ${
                     isActive
-                      ? 'px-4 gap-2 bg-surface-strong text-content-primary'
+                      ? 'flex-1 px-4 gap-2 bg-content-primary/12 text-content-primary'
                       : 'w-11 justify-center text-content-dim hover:text-content-secondary'
                   }`}
                   aria-label={`Open ${item.id}`}
@@ -217,7 +217,7 @@ export const BottomNav: React.FC = () => {
                         initial={{ opacity: 0, width: 0 }}
                         animate={{ opacity: 1, width: 'auto' }}
                         exit={{ opacity: 0, width: 0 }}
-                        className="text-[10px] uppercase tracking-[0.2em] font-semibold overflow-hidden whitespace-nowrap"
+                        className="text-xs font-semibold overflow-hidden whitespace-nowrap"
                       >
                         {item.label}
                       </motion.span>
@@ -226,71 +226,57 @@ export const BottomNav: React.FC = () => {
                 </motion.button>
               );
             })}
+
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => {
+                feedback('select');
+                setMenuOpen((prev) => !prev);
+              }}
+              className="h-10 w-10 rounded-full surface-raised text-content-dim shadow-glass flex items-center justify-center interactive-tap"
+              aria-label="Open more clinical actions"
+            >
+              {menuOpen ? <X size={15} /> : <MoreHorizontal size={15} />}
+            </motion.button>
+
+            <motion.button
+              whileHover={{ scale: 1.02, y: -1 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={triggerPrimaryAction}
+              className="h-12 px-4 rounded-2xl fab-live inline-flex items-center justify-center gap-2 text-sm font-semibold"
+              aria-label={menuOpen ? 'Close actions' : primaryAction.label}
+            >
+              {menuOpen ? <X size={17} /> : <PrimaryIcon size={17} />}
+              {!menuOpen && <span className="max-w-[96px] truncate text-xs">{primaryAction.label}</span>}
+            </motion.button>
           </div>
 
-          <div className="relative">
-            {!menuOpen && (
-              <motion.span
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="absolute -top-9 right-0 h-7 px-3 rounded-full surface-raised text-[9px] uppercase tracking-[0.16em] text-content-secondary inline-flex items-center"
+          <AnimatePresence>
+            {menuOpen && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                className="absolute bottom-[4.7rem] right-0 w-[260px] ios-sheet-surface rounded-[24px] p-3 shadow-float"
               >
-                {primaryAction.label}
-              </motion.span>
+                <div className="grid grid-cols-3 gap-2">
+                  {actionItems.map((item) => (
+                    <button
+                      key={item.key}
+                      onClick={() => triggerAction(item.onClick, item.disabled)}
+                      disabled={item.disabled}
+                      className="h-[74px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
+                    >
+                      <span className="h-8 w-8 rounded-xl surface-chip flex items-center justify-center">
+                        <item.icon size={14} />
+                      </span>
+                      <span className="text-[11px] font-medium">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
             )}
-
-            <AnimatePresence>
-              {menuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                  className="absolute bottom-16 right-0 w-[252px] surface-raised rounded-[28px] p-3 shadow-float"
-                >
-                  <div className="grid grid-cols-3 gap-2">
-                    {actionItems.map((item) => (
-                      <button
-                        key={item.key}
-                        onClick={() => triggerAction(item.onClick, item.disabled)}
-                        disabled={item.disabled}
-                        className="h-[72px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
-                      >
-                        <span className="h-8 w-8 rounded-xl surface-chip flex items-center justify-center">
-                          <item.icon size={14} />
-                        </span>
-                        <span className="text-[9px] uppercase tracking-[0.16em]">
-                          {item.label}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="flex items-center gap-2 justify-end">
-              <motion.button
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  feedback('select');
-                  setMenuOpen((prev) => !prev);
-                }}
-                className="h-10 w-10 rounded-full surface-raised option-live option-tone-amber text-content-dim shadow-glass flex items-center justify-center interactive-tap"
-                aria-label="Open more clinical actions"
-              >
-                {menuOpen ? <X size={14} /> : <MoreHorizontal size={14} />}
-              </motion.button>
-              <motion.button
-                whileHover={{ scale: 1.04, y: -1 }}
-                whileTap={{ scale: 0.96 }}
-                onClick={triggerPrimaryAction}
-                className="h-14 w-14 rounded-full fab-live flex items-center justify-center"
-                aria-label={menuOpen ? 'Close actions' : primaryAction.label}
-              >
-                {menuOpen ? <X size={18} /> : <PrimaryIcon size={18} />}
-              </motion.button>
-            </div>
-          </div>
+          </AnimatePresence>
         </div>
       </nav>
 
@@ -301,3 +287,4 @@ export const BottomNav: React.FC = () => {
     </>
   );
 };
+

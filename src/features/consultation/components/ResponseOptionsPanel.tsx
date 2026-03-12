@@ -1,6 +1,5 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check } from 'lucide-react';
 import { ResponseOptions } from '../../../core/types/clinical';
 
 interface ResponseOptionsPanelProps {
@@ -36,9 +35,9 @@ const getOptionClass = (variant: NonNullable<ResponseOptions['ui_variant']>): st
   const base =
     'option-button option-live option-live-smooth option-live-bounce relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
 
-  if (variant === 'binary' || variant === 'segmented') return `${base} min-h-12 rounded-[16px] px-3 py-3`;
+  if (variant === 'binary' || variant === 'segmented') return `${base} min-h-12 rounded-[14px] px-3 py-3`;
   if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3 surface-raised shadow-glass`;
-  if (variant === 'grid') return `${base} min-h-20 rounded-3xl px-4 py-6 surface-raised shadow-glass`;
+  if (variant === 'grid') return `${base} min-h-20 rounded-[22px] px-4 py-6 surface-raised shadow-glass`;
   if (variant === 'ladder') return `${base} min-h-14 rounded-2xl px-4 py-4 text-left surface-raised shadow-glass`;
   return `${base} min-h-16 rounded-2xl px-4 py-5 surface-raised shadow-glass`;
 };
@@ -102,7 +101,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           transition={SPRING_CONFIG}
           className={`option-hint-chip ${getHintToneClass(variant)}`}
         >
-          <p className="text-[10px] uppercase tracking-[0.2em] text-content-primary text-center">
+          <p className="text-xs tracking-wide text-content-primary text-center font-medium">
             {responseOptions.context_hint}
           </p>
         </motion.div>
@@ -114,16 +113,16 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={SPRING_CONFIG}
-          className="space-y-4 surface-raised rounded-[24px] p-4 shadow-glass"
+          className="space-y-4 surface-raised rounded-[22px] p-4 shadow-glass"
         >
           <div className="flex items-center justify-between px-1">
-            <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">
+            <span className="text-xs tracking-wide text-content-dim">
               {responseOptions.scale?.low_label || 'Low'}
             </span>
             <span className="h-8 min-w-[48px] px-2 rounded-full bg-surface-active text-content-active text-xs font-semibold inline-flex items-center justify-center">
               {selectedScaleOption?.text || sliderValue}
             </span>
-            <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">
+            <span className="text-xs tracking-wide text-content-dim">
               {responseOptions.scale?.high_label || 'High'}
             </span>
           </div>
@@ -183,7 +182,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           }}
           className={`${
             isSegmentedLike
-              ? `surface-raised segment-live-shell option-shell-live rounded-[22px] p-1.5 grid gap-1.5 ${getGridByVariant(
+              ? `surface-raised segment-live-shell option-shell-live rounded-[20px] p-2 grid gap-1.5 ${getGridByVariant(
                   variant,
                   responseOptions.options.length
                 )}`
@@ -233,12 +232,12 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 <span
                   className={`relative z-10 block ${
                     isBinary
-                      ? 'text-[10px] uppercase tracking-[0.22em] font-semibold'
+                      ? 'text-sm tracking-wide font-medium'
                       : isChip
-                        ? 'text-[10px] uppercase tracking-[0.2em] font-semibold'
+                        ? 'text-sm tracking-wide font-medium'
                         : isLadder
-                          ? 'text-sm tracking-[0.04em] font-semibold text-left'
-                          : 'text-[11px] uppercase tracking-[0.2em] font-semibold'
+                          ? 'text-sm tracking-[0.02em] font-semibold text-left'
+                          : 'text-sm tracking-wide font-medium'
                   } ${isSelected ? 'text-content-active' : 'group-hover:text-content-primary'}`}
                 >
                   {option.text}
@@ -250,12 +249,6 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                       isSelected ? 'w-4 option-ladder-bar-active' : 'w-2 option-ladder-bar'
                     } ${index >= Math.floor(responseOptions.options.length * 0.6) ? 'opacity-90' : 'opacity-50'}`}
                   />
-                )}
-
-                {isSelected && !isLadder && !isSegmentedLike && (
-                  <span className="absolute right-3 top-3 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full option-selected-badge">
-                    <Check size={12} />
-                  </span>
                 )}
 
                 {isSelected && isSegmentedLike && (
@@ -277,7 +270,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           disabled={loading}
           whileHover={HOVER_MOTION}
           whileTap={TAP_MOTION}
-          className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.35em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue ({selectedScaleOption?.text || 'Selected'})
         </motion.button>
@@ -290,7 +283,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           disabled={loading}
           whileHover={HOVER_MOTION}
           whileTap={TAP_MOTION}
-          className="w-full py-5 cta-live font-bold text-[10px] uppercase tracking-[0.4em] transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Continue ({selectedOptionIds.length})
         </motion.button>
@@ -298,3 +291,4 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
     </div>
   );
 };
+

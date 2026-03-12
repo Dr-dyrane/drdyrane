@@ -5,6 +5,7 @@ import { Camera } from 'lucide-react';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback } from '../../core/services/feedback';
 import { resolveTheme } from '../../core/theme/resolveTheme';
+import { analyzeClinicalImage } from '../../core/api/visionEngine';
 
 export const TheLens: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -74,19 +75,62 @@ export const TheLens: React.FC = () => {
     }
   };
 
+  const captureFrameDataUrl = (): string | null => {
+    const video = videoRef.current;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return null;
+    const canvas = document.createElement('canvas');
+    const maxEdge = 1024;
+    const longest = Math.max(video.videoWidth, video.videoHeight);
+    const scale = longest > maxEdge ? maxEdge / longest : 1;
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.84);
+  };
+
   const handleCapture = async () => {
     setAnalyzing(true);
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
     });
-    window.setTimeout(async () => {
-      const visualInput =
-        'Visual review complete: morphology appears non-acute. Continue with focused history questions.';
+    try {
+      const imageDataUrl = captureFrameDataUrl();
+      if (!imageDataUrl) {
+        throw new Error('Unable to capture frame from camera.');
+      }
+
+      const latestDoctorQuestion = [...state.conversation]
+        .reverse()
+        .find((entry) => entry.role === 'doctor')?.content;
+
+      const analysis = await analyzeClinicalImage({
+        imageDataUrl,
+        clinicalContext: state.thinking || state.agent_state.focus_area,
+        lensPrompt:
+          latestDoctorQuestion ||
+          'Review this image for clinically relevant morphology and urgency signals.',
+      });
+
+      const findingText = analysis.findings.length > 0
+        ? analysis.findings.join('; ')
+        : 'No dominant visual abnormalities detected.';
+      const redFlagText = analysis.red_flags.length > 0
+        ? `Possible red flags: ${analysis.red_flags.join('; ')}.`
+        : 'No immediate red flag visual cues detected.';
+      const visualInput = `Visual analysis summary: ${analysis.summary}. Findings: ${findingText}. ${redFlagText} Recommendation: ${analysis.recommendation}. Confidence: ${analysis.confidence}%.`;
       await returnToConsultation(visualInput);
+    } catch (error) {
+      console.error('Lens analysis failed:', error);
+      const visualInput =
+        'Visual review unavailable. No reliable image interpretation captured. Continue with focused history and symptom progression.';
+      await returnToConsultation(visualInput);
+    } finally {
       setAnalyzing(false);
       setActive(false);
-    }, 1200);
+    }
   };
 
   const handleSkip = () => {
@@ -116,22 +160,22 @@ export const TheLens: React.FC = () => {
         {!active ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center p-8 space-y-12 text-center bg-surface-primary">
             <div className="space-y-4">
-              <h2 className="text-2xl font-light text-content-primary leading-tight tracking-tight">Show Dr. Dyrane.</h2>
-              <p className="text-content-dim text-sm font-light max-w-[280px] mx-auto leading-relaxed">
+              <h2 className="display-type text-[1.9rem] text-content-primary leading-tight tracking-tight">Show Dr. Dyrane.</h2>
+              <p className="text-content-dim text-sm max-w-[280px] mx-auto leading-relaxed">
                 Optical analysis helps determine morphology, vascularity, and clinical margins.
               </p>
             </div>
             <button 
               onClick={() => setActive(true)}
-              className="w-20 h-20 bg-surface-muted hover:bg-surface-muted/80 rounded-full flex items-center justify-center text-neon-cyan transition-all active:scale-95 border-none outline-none"
+              className="w-20 h-20 surface-raised rounded-full flex items-center justify-center text-accent-primary transition-all active:scale-95 interactive-tap"
             >
               <Camera className="w-8 h-8 opacity-60" />
             </button>
             <button 
                onClick={handleSkip}
-               className="text-[10px] uppercase tracking-[0.3em] font-bold text-content-dim hover:text-content-primary transition-all border-none outline-none bg-transparent"
+               className="text-sm font-medium text-content-dim hover:text-content-primary transition-all bg-transparent"
              >
-               Skip Visual Analysis
+               Skip visual analysis
              </button>
           </div>
         ) : (
@@ -150,14 +194,14 @@ export const TheLens: React.FC = () => {
             <div className="absolute bottom-16 left-0 right-0 flex justify-center items-center gap-16">
               <button 
                 onClick={() => setActive(false)}
-                className="text-content-dim uppercase tracking-widest text-[9px] font-bold border-none outline-none bg-transparent"
+                className="text-content-dim text-sm font-medium bg-transparent"
               >
                 Cancel
               </button>
               <button 
                 onClick={handleCapture}
                 disabled={analyzing}
-                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all border-none outline-none ${
+                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all ${
                    analyzing ? 'bg-surface-muted' : 'bg-surface-active text-content-active active:scale-90 shadow-2xl'
                 }`}
               >
@@ -186,11 +230,11 @@ export const TheLens: React.FC = () => {
                           ]
                         }}
                         transition={{ repeat: Infinity, duration: 2 }}
-                        className="w-16 h-16 bg-neon-cyan/20 rounded-full mx-auto flex items-center justify-center"
+                        className="w-16 h-16 bg-accent-soft rounded-full mx-auto flex items-center justify-center"
                       >
-                         <div className="w-4 h-4 bg-neon-cyan rounded-full" />
+                         <div className="w-4 h-4 bg-accent-primary rounded-full" />
                       </motion.div>
-                      <span className="text-lg font-light text-content-primary tracking-[0.2em] uppercase">Analyzing Pathophysiology</span>
+                      <span className="text-lg font-medium text-content-primary">Analyzing clinical visuals</span>
                    </div>
                  </motion.div>
                )}
@@ -201,3 +245,4 @@ export const TheLens: React.FC = () => {
     </div>
   );
 };
+

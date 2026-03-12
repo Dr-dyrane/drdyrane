@@ -45,18 +45,18 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-md"
+              className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-sm"
             />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 290 }}
-              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[150] rounded-t-[34px] surface-raised shadow-modal pointer-events-auto"
+              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[150] rounded-t-[32px] ios-sheet-surface shadow-modal pointer-events-auto"
             >
             <div className="px-5 py-5 flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">Clinical Process</p>
+                <p className="text-xs text-content-dim font-medium">Clinical Process</p>
                 <p className="text-sm text-content-secondary">Current consult trajectory</p>
               </div>
               <button onClick={onClose} className="h-10 w-10 rounded-full surface-strong flex items-center justify-center" aria-label="Close clinical process modal">
@@ -68,7 +68,7 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
               <section className="surface-strong rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Activity size={15} className="text-accent-primary" />
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Stage</span>
+                  <span className="text-xs text-content-dim">Stage</span>
                 </div>
                 <p className="text-lg text-content-primary display-type">{phaseLabel(state.agent_state.phase)}</p>
                 <p className="text-sm text-content-secondary">{state.agent_state.focus_area}</p>
@@ -77,7 +77,7 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
               <section className="surface-strong rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <Gauge size={15} className="text-accent-primary" />
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Confidence</span>
+                  <span className="text-xs text-content-dim">Confidence</span>
                 </div>
                 <div className="h-2 rounded-full bg-surface-muted overflow-hidden">
                   <motion.div
@@ -92,7 +92,7 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
               <section className="surface-strong rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <ListChecks size={15} className="text-accent-primary" />
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Pending Actions</span>
+                  <span className="text-xs text-content-dim">Pending Actions</span>
                 </div>
                 {state.agent_state.pending_actions.length === 0 ? (
                   <p className="text-sm text-content-dim">No pending actions.</p>
@@ -110,22 +110,22 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
               <section className="surface-strong rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center gap-2">
                   <AlertTriangle size={15} className={state.urgency === 'high' || state.urgency === 'critical' ? 'text-danger-primary' : 'text-accent-primary'} />
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Urgency</span>
+                  <span className="text-xs text-content-dim">Urgency</span>
                 </div>
                 <p className={`text-sm ${state.urgency === 'high' || state.urgency === 'critical' ? 'text-danger-primary' : 'text-content-primary'}`}>
-                  {state.urgency.toUpperCase()}
+                  {state.urgency}
                 </p>
               </section>
 
               <section className="surface-strong rounded-[24px] p-4 space-y-3">
-                <p className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Timeline</p>
+                <p className="text-xs text-content-dim">Timeline</p>
                 {timeline.length === 0 ? (
                   <p className="text-sm text-content-dim">No clinical exchange yet.</p>
                 ) : (
                   <div className="space-y-2">
                     {timeline.map((entry) => (
                       <div key={entry.id} className="surface-raised rounded-xl p-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-content-dim">
+                        <p className="text-xs text-content-dim">
                           {entry.role === 'doctor' ? 'Dr Dyrane' : entry.role === 'patient' ? 'Patient' : 'System'}
                         </p>
                         <p className="text-sm text-content-primary mt-1 leading-relaxed">{entry.content}</p>
@@ -142,3 +142,4 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
     </OverlayPortal>
   );
 };
+

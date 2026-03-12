@@ -29,16 +29,16 @@ export const ClinicalQuestionCard: React.FC<ClinicalQuestionCardProps> = ({
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, ease: 'easeOut' }}
-      className="surface-raised rounded-[30px] px-5 py-6 shadow-glass min-h-[182px] sm:min-h-[198px] flex flex-col justify-center"
+      className="surface-raised rounded-[24px] px-5 py-5 shadow-glass min-h-[168px] sm:min-h-[186px] flex flex-col justify-center"
     >
       {statement && (
-        <p className="text-[10px] uppercase tracking-[0.28em] text-accent-soft font-semibold text-center mb-3">
+        <p className="text-xs tracking-wide text-accent-soft font-medium text-center mb-3">
           {statement}
         </p>
       )}
       <h2
         aria-live="polite"
-        className={`display-type ${questionSizeClass} font-medium tracking-tight text-content-primary text-center break-words hyphens-auto min-h-[88px] max-h-[118px] overflow-y-auto no-scrollbar flex items-center justify-center pr-1`}
+        className={`display-type ${questionSizeClass} font-semibold tracking-tight text-content-primary text-center break-words hyphens-auto min-h-[86px] max-h-[124px] overflow-y-auto no-scrollbar flex items-center justify-center pr-1`}
       >
         {typedQuestion}
         {!reducedMotion && typedQuestion.length < question.length && (
@@ -48,3 +48,4 @@ export const ClinicalQuestionCard: React.FC<ClinicalQuestionCardProps> = ({
     </motion.div>
   );
 };
+

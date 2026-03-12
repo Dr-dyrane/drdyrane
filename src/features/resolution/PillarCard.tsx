@@ -21,7 +21,7 @@ export const PillarCard: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 px-2 py-8 space-y-8 animate-emergence">
+    <div className="flex-1 px-2 py-7 space-y-7 animate-emergence">
       <div className="flex justify-center">
         <Orb />
       </div>
@@ -30,10 +30,10 @@ export const PillarCard: React.FC = () => {
         animate={{ opacity: 1, scale: 1 }}
         className="text-center space-y-2"
       >
-        <h1 className="text-3xl font-light text-content-primary leading-tight tracking-tight px-4">
+        <h1 className="display-type text-[1.9rem] text-content-primary leading-tight tracking-tight px-4">
           Conclusion
         </h1>
-        <p className="text-sm text-content-dim font-light italic">Clinical synthesis complete</p>
+        <p className="text-sm text-content-dim">Clinical synthesis complete</p>
       </motion.div>
 
       <div className="flex flex-col gap-6 pb-24">
@@ -43,15 +43,15 @@ export const PillarCard: React.FC = () => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 + idx * 0.1 }}
-            className="p-8 bg-surface-muted rounded-[40px] space-y-4 shadow-glass"
+            className="p-6 bg-surface-muted rounded-[24px] space-y-4 shadow-glass"
           >
             <div className="flex items-center gap-4">
-              <div className="p-2.5 bg-neon-cyan/5 rounded-2xl">
-                <pillar.icon className="w-5 h-5 text-neon-cyan/60" />
+              <div className="p-2.5 bg-accent-soft rounded-2xl">
+                <pillar.icon className="w-5 h-5 text-accent-primary" />
               </div>
-              <h3 className="text-xs font-bold text-content-dim uppercase tracking-[0.3em]">{pillar.title}</h3>
+              <h3 className="text-xs font-semibold text-content-dim tracking-wide">{pillar.title}</h3>
             </div>
-            <p className="text-lg leading-relaxed text-content-secondary font-light pr-4">
+            <p className="text-base leading-relaxed text-content-secondary pr-2">
               {pillar.content}
             </p>
           </motion.div>
@@ -65,7 +65,7 @@ export const PillarCard: React.FC = () => {
         >
           <button
             onClick={reset}
-            className="px-10 py-5 bg-surface-active hover:opacity-90 text-content-active rounded-[32px] text-xs font-bold uppercase tracking-[0.4em] transition-all active:scale-95 shadow-glass"
+            className="px-10 py-4 cta-live rounded-2xl text-sm font-semibold tracking-wide transition-all active:scale-95 shadow-glass"
           >
             New Consultation
           </button>

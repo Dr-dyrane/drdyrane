@@ -35,15 +35,15 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -8 }}
-        className="w-full surface-raised rounded-[26px] p-4 mb-4 space-y-3 shadow-glass"
+        className="w-full surface-raised rounded-[24px] p-4 mb-4 space-y-3 shadow-glass"
       >
         <div className="flex items-center justify-between gap-2">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">
-            Optional Biodata
+          <p className="text-xs text-content-dim font-medium">
+            Optional details
           </p>
           <button
             onClick={onSkip}
-            className="h-8 w-8 rounded-full surface-strong flex items-center justify-center"
+            className="h-8 w-8 rounded-full surface-strong flex items-center justify-center interactive-tap"
             aria-label="Skip biodata"
           >
             <X size={14} />
@@ -62,12 +62,12 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               <input
                 value={value}
                 onChange={(event) => onValueChange(event.target.value)}
-                className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm"
+                className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm focus-glow"
                 placeholder="Your name"
               />
               <button
                 onClick={onSkip}
-                className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim"
+                className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim interactive-tap"
                 aria-label="Skip biodata for now"
               >
                 <SkipForward size={14} />
@@ -75,7 +75,7 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               <button
                 onClick={onSubmit}
                 disabled={!canSubmit}
-                className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45"
+                className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45 interactive-tap"
                 aria-label="Save name"
               >
                 <ArrowDownToLine size={14} />
@@ -93,12 +93,12 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
                 type="number"
                 min={0}
                 max={125}
-                className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm"
+                className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm focus-glow"
                 placeholder="Age"
               />
               <button
                 onClick={onSkip}
-                className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim"
+                className="h-11 w-11 rounded-xl surface-strong flex items-center justify-center text-content-dim interactive-tap"
                 aria-label="Skip biodata for now"
               >
                 <SkipForward size={14} />
@@ -106,7 +106,7 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               <button
                 onClick={onSubmit}
                 disabled={!canSubmit}
-                className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45"
+                className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45 interactive-tap"
                 aria-label="Save age"
               >
                 <ArrowDownToLine size={14} />
@@ -129,7 +129,7 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
                   <button
                     key={option.id}
                     onClick={() => onSelectSex(option.id as ProfileSex)}
-                    className={`h-10 rounded-xl text-[10px] uppercase tracking-[0.2em] transition-all ${
+                    className={`h-10 rounded-xl text-sm font-medium transition-all interactive-tap ${
                       isSelected
                         ? 'bg-surface-active text-content-active shadow-glass'
                         : 'surface-strong text-content-primary'
@@ -145,7 +145,7 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
             <div className="flex justify-end">
               <button
                 onClick={onSkip}
-                className="h-10 w-10 rounded-xl surface-strong flex items-center justify-center text-content-dim"
+                className="h-10 w-10 rounded-xl surface-strong flex items-center justify-center text-content-dim interactive-tap"
                 aria-label="Skip biodata for now"
               >
                 <SkipForward size={14} />
@@ -157,3 +157,4 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
     )}
   </AnimatePresence>
 );
+

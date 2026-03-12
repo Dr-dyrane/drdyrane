@@ -16,11 +16,38 @@ export default defineConfig(({ mode }) => {
     process.env.ANTHROPIC_API_KEY = resolvedAnthropicKey.trim()
   }
 
+  const resolvedOpenAiKey =
+    process.env.OPENAI_API_KEY ||
+    env.OPENAI_API_KEY ||
+    env.VITE_OPENAI_API_KEY ||
+    ''
+
+  if (resolvedOpenAiKey.trim()) {
+    process.env.OPENAI_API_KEY = resolvedOpenAiKey.trim()
+  }
+
+  const resolvedAnthropicModel =
+    process.env.ANTHROPIC_MODEL ||
+    env.ANTHROPIC_MODEL ||
+    env.CLAUDE_MODEL ||
+    ''
+  if (resolvedAnthropicModel.trim()) {
+    process.env.ANTHROPIC_MODEL = resolvedAnthropicModel.trim()
+  }
+
+  const resolvedOpenAiModel =
+    process.env.OPENAI_MODEL ||
+    env.OPENAI_MODEL ||
+    ''
+  if (resolvedOpenAiModel.trim()) {
+    process.env.OPENAI_MODEL = resolvedOpenAiModel.trim()
+  }
+
   return {
     plugins: [
       react(),
       {
-        name: 'dr-dyrane-anthropic-proxy',
+        name: 'dr-dyrane-llm-proxy',
         configureServer(server) {
           attachAnthropicProxy(server.middlewares)
         },

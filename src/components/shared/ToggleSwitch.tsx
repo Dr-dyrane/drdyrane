@@ -15,17 +15,18 @@ export const ToggleSwitch: React.FC<ToggleSwitchProps> = ({ checked, onToggle, a
       aria-checked={checked}
       aria-label={ariaLabel}
       onClick={onToggle}
-      className={`relative h-8 w-14 rounded-full transition-colors duration-300 focus-glow ${
-        checked ? 'bg-surface-active' : 'bg-surface-muted'
+      className={`relative h-8 w-[54px] rounded-full transition-all duration-300 focus-glow interactive-tap ${
+        checked ? 'bg-accent-primary' : 'surface-chip'
       }`}
     >
       <motion.span
         layout
         transition={{ type: 'spring', stiffness: 450, damping: 30 }}
         className={`absolute top-1 h-6 w-6 rounded-full ${
-          checked ? 'left-7 bg-content-active' : 'left-1 bg-content-primary'
+          checked ? 'left-[1.7rem] bg-white shadow-[0_2px_8px_rgba(0,0,0,0.28)]' : 'left-1 bg-white shadow-[0_2px_8px_rgba(0,0,0,0.24)]'
         }`}
       />
     </button>
   );
 };
+

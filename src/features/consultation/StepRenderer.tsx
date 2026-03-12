@@ -277,12 +277,12 @@ export const StepRenderer: React.FC = () => {
 
   return (
     <div className="flex-1 flex flex-col justify-start min-h-0 px-2">
-      <div className="flex items-center justify-between px-2 z-20">
+      <div className="flex items-center justify-between px-1 z-20 pt-1">
         <div className="w-10">
           {canGoBack && (
             <button
               onClick={() => dispatch({ type: 'GO_BACK' })}
-              className="p-2 text-content-dim hover:text-accent-primary transition-all active:scale-90 rounded-full focus-glow"
+              className="h-10 w-10 surface-raised text-content-dim hover:text-accent-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
               aria-label="Go back"
             >
               <ChevronLeft size={20} />
@@ -293,7 +293,7 @@ export const StepRenderer: React.FC = () => {
           {state.status !== 'idle' && (
             <button
               onClick={() => dispatch({ type: 'RESET' })}
-              className="p-2 text-content-dim hover:text-danger-primary transition-all active:scale-90 rounded-full focus-glow"
+              className="h-10 w-10 surface-raised text-content-dim hover:text-danger-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
               aria-label="Reset consultation"
             >
               <X size={18} />
@@ -311,7 +311,7 @@ export const StepRenderer: React.FC = () => {
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -4 }}
-              className="energy-chip px-3 h-7 rounded-full text-[10px] uppercase tracking-[0.28em] text-content-primary font-semibold inline-flex items-center"
+              className="energy-chip px-3 h-7 rounded-full text-[11px] tracking-wide text-content-primary font-semibold inline-flex items-center mt-1"
             >
               {LOADING_PHASES[loadingPhaseIndex]}
             </motion.span>
@@ -326,17 +326,17 @@ export const StepRenderer: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-start pt-8 px-2"
+            className="flex-1 flex flex-col items-center justify-start pt-6 px-2"
           >
             <div className="max-w-2xl w-full flex flex-col items-center">
               <motion.h1
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="display-type text-4xl font-medium tracking-tight text-content-primary/90 leading-tight text-center pb-3"
+                className="display-type text-[2rem] font-semibold tracking-tight text-content-primary leading-tight text-center pb-3"
               >
                 {state.conversation.length > 0
-                  ? 'Anything else?'
-                  : "Hi, I'm Dr Dyrane. Tell me what's happening."}
+                  ? 'Anything else to add?'
+                  : "Tell me what's bothering you."}
               </motion.h1>
 
               <BiodataCard
@@ -366,7 +366,7 @@ export const StepRenderer: React.FC = () => {
                         void handleInitialInput();
                       }
                     }}
-                    className="w-full surface-raised p-5 rounded-3xl text-lg text-center text-content-primary placeholder-content-dim transition-all resize-none shadow-glass focus-glow"
+                    className="w-full surface-raised p-5 rounded-[24px] text-base text-left text-content-primary placeholder-content-dim transition-all resize-none shadow-glass focus-glow"
                   />
 
                   <AnimatePresence>
@@ -378,11 +378,11 @@ export const StepRenderer: React.FC = () => {
                         whileHover={{ scale: 1.01, y: -2 }}
                         whileTap={{ scale: 0.98 }}
                         type="submit"
-                        className="w-full mt-4 py-5 cta-live font-bold text-[10px] uppercase tracking-[0.3em] transition-all rounded-2xl focus-glow"
+                        className="w-full mt-4 py-4 cta-live font-semibold text-sm tracking-wide transition-all rounded-2xl focus-glow"
                       >
                         <span className="inline-flex items-center justify-center gap-2">
                           <ArrowUp size={14} />
-                          Start
+                          Start Consultation
                         </span>
                       </motion.button>
                     )}
@@ -403,13 +403,13 @@ export const StepRenderer: React.FC = () => {
               {(currentMessage || state.status === 'active' || loading) && (
                 <div className="pt-6 space-y-2">
                   {gateProgress && (
-                    <p className="text-[10px] uppercase tracking-[0.22em] text-content-dim text-center mb-2">
+                    <p className="text-xs tracking-wide text-content-dim text-center mb-2">
                       Clarifier {gateProgress}
                     </p>
                   )}
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
+                  <p className="text-xs tracking-wide text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
                     <MessageCircleQuestion size={11} />
-                    Prompt
+                    Current Question
                   </p>
                   <ClinicalQuestionCard
                     statement={statement}
@@ -420,9 +420,9 @@ export const StepRenderer: React.FC = () => {
               )}
 
               <div className="space-y-4 consult-answer-zone">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
+                <p className="text-xs tracking-wide text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
                   <ListChecks size={11} />
-                  Response
+                  Your Response
                 </p>
                 <ResponseOptionsPanel
                   responseOptions={state.response_options}
@@ -434,7 +434,7 @@ export const StepRenderer: React.FC = () => {
                 />
 
                 {showInput && (
-                  <div className="pt-1 flex items-center gap-3 rounded-[28px] surface-raised p-3 shadow-glass consult-free-input">
+                  <div className="pt-1 flex items-center gap-3 rounded-[24px] surface-raised p-3 shadow-glass consult-free-input">
                     <textarea
                       rows={1}
                       value={val}
@@ -446,12 +446,12 @@ export const StepRenderer: React.FC = () => {
                           void handleInitialInput();
                         }
                       }}
-                      className="flex-1 surface-raised p-4 rounded-2xl text-sm text-content-primary placeholder-content-dim transition-all resize-none no-scrollbar text-left focus-glow"
+                      className="flex-1 surface-strong p-3 rounded-xl text-sm text-content-primary placeholder-content-dim transition-all resize-none no-scrollbar text-left focus-glow"
                     />
                     {val.trim() && !loading && (
                       <button
                         onClick={() => void handleInitialInput()}
-                        className="h-12 w-12 flex items-center justify-center cta-live-icon rounded-2xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95"
+                        className="h-11 w-11 flex items-center justify-center cta-live-icon rounded-xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95"
                         aria-label="Send response"
                       >
                         <ArrowUp size={16} />
@@ -467,3 +467,4 @@ export const StepRenderer: React.FC = () => {
     </div>
   );
 };
+

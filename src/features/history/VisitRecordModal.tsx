@@ -159,7 +159,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={handleClose}
-              className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-md"
+              className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-sm"
             />
 
             <motion.div
@@ -167,11 +167,11 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 h-[88vh] z-[150] rounded-t-[36px] surface-raised shadow-modal flex flex-col overflow-hidden pointer-events-auto"
+              className="fixed inset-x-0 bottom-0 h-[88vh] max-w-[440px] mx-auto z-[150] rounded-t-[32px] ios-sheet-surface shadow-modal flex flex-col overflow-hidden pointer-events-auto"
             >
             <div className="px-5 py-5 flex items-center justify-between">
               <div>
-                <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">Visit Record</p>
+                <p className="text-xs text-content-dim font-medium">Visit Record</p>
                 <p className="text-sm text-content-secondary mt-1">
                   {new Date(record.timestamp).toLocaleString()}
                 </p>
@@ -188,7 +188,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
             <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-28 space-y-5">
               <section className="surface-strong rounded-[24px] p-4 space-y-3">
                 <label className="block space-y-1">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Visit label</span>
+                  <span className="text-xs text-content-dim">Visit label</span>
                   <input
                     value={visitLabel}
                     onChange={(e) => setVisitLabel(e.target.value)}
@@ -198,7 +198,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Diagnosis</span>
+                  <span className="text-xs text-content-dim">Diagnosis</span>
                   <input
                     value={diagnosis}
                     onChange={(e) => setDiagnosis(e.target.value)}
@@ -208,7 +208,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                 </label>
 
                 <label className="block space-y-1">
-                  <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Record notes</span>
+                  <span className="text-xs text-content-dim">Record notes</span>
                   <textarea
                     rows={4}
                     value={notes}
@@ -221,8 +221,8 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
 
               <section className="surface-strong rounded-[24px] p-4 space-y-3">
                 <div className="flex items-center justify-between gap-3">
-                  <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim">Complaint</span>
-                  <span className="text-[10px] uppercase tracking-[0.18em] text-content-dim">
+                  <span className="text-xs text-content-dim">Complaint</span>
+                  <span className="text-xs text-content-dim">
                     {record.status}
                   </span>
                 </div>
@@ -233,7 +233,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
 
               <section className="surface-strong rounded-[24px] p-4 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim">Patient Clerking</span>
+                  <span className="text-xs text-content-dim">Patient Clerking</span>
                 </div>
                 <div className="space-y-3">
                   {[
@@ -244,7 +244,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                     { label: 'FH', value: record.clerking?.fh || record.snapshot?.clerking?.fh },
                   ].map((item) => (
                     <div key={item.label} className="space-y-1">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-content-dim">{item.label}</p>
+                      <p className="text-xs text-content-dim">{item.label}</p>
                       <p className="text-sm text-content-primary leading-relaxed">{item.value || 'Not recorded.'}</p>
                     </div>
                   ))}
@@ -263,7 +263,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                   >
                     <span className="inline-flex flex-col items-center gap-1.5">
                       <Save size={15} />
-                      <span className="text-[9px] uppercase tracking-[0.16em]">Save</span>
+                      <span className="text-[11px]">Save</span>
                     </span>
                   </button>
                   <button
@@ -273,7 +273,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                   >
                     <span className="inline-flex flex-col items-center gap-1.5">
                       <RotateCcw size={15} />
-                      <span className="text-[9px] uppercase tracking-[0.16em]">Revisit</span>
+                      <span className="text-[11px]">Revisit</span>
                     </span>
                   </button>
                   <button
@@ -283,7 +283,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                   >
                     <span className="inline-flex flex-col items-center gap-1.5">
                       <Printer size={15} />
-                      <span className="text-[9px] uppercase tracking-[0.16em]">Print</span>
+                      <span className="text-[11px]">Print</span>
                     </span>
                   </button>
                   <button
@@ -293,13 +293,13 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                   >
                     <span className="inline-flex flex-col items-center gap-1.5">
                       <ClipboardList size={15} />
-                      <span className="text-[9px] uppercase tracking-[0.16em]">SOAP</span>
+                      <span className="text-[11px]">SOAP</span>
                     </span>
                   </button>
                 </div>
                 <button
                   onClick={deleteRecord}
-                  className="h-12 rounded-2xl cta-danger text-[10px] uppercase tracking-[0.2em] font-semibold focus-glow interactive-tap"
+                  className="h-12 rounded-2xl cta-danger text-sm font-semibold focus-glow interactive-tap"
                 >
                   <span className="inline-flex items-center gap-2">
                     <Trash2 size={14} /> Delete Visit
@@ -314,3 +314,4 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
     </OverlayPortal>
   );
 };
+

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import {
   ClinicalState, 
@@ -94,9 +95,23 @@ const initialState: ClinicalState = {
   notifications: [
     {
       id: crypto.randomUUID(),
-      title: 'Welcome',
-      body: 'I am Dr Dyrane. Share what is happening and we will move step by step.',
+      title: 'Welcome to Dr Dyrane',
+      body: 'Start with your main symptom and I will guide the consultation step by step.',
       created_at: Date.now(),
+      read: false,
+    },
+    {
+      id: crypto.randomUUID(),
+      title: 'Privacy',
+      body: 'Your profile and visit history stay on this device unless you export them.',
+      created_at: Date.now() - 1000 * 60,
+      read: false,
+    },
+    {
+      id: crypto.randomUUID(),
+      title: 'Tip',
+      body: 'Open Profile to tune text size, sound, haptics, and visual theme.',
+      created_at: Date.now() - 1000 * 120,
       read: false,
     },
   ],
@@ -165,9 +180,11 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
 
   const pushHistory = (newState: ClinicalState, lastFeedback?: string): ClinicalState => {
     // Strip heavy recursive properties to prevent exponential localStorage growth
-    const { history: _, archives: __, ...snapshot } = state;
+    const snapshot = { ...state } as Record<string, unknown>;
+    delete snapshot.history;
+    delete snapshot.archives;
     if (lastFeedback) snapshot.lastFeedback = lastFeedback;
-    const prunedHistory = [...state.history, snapshot as ClinicalState].slice(-20); // Limit to last 20 steps
+    const prunedHistory = [...state.history, snapshot as unknown as ClinicalState].slice(-20); // Limit to last 20 steps
     return { ...newState, history: prunedHistory };
   };
 
@@ -228,7 +245,7 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
       if (updated.status === 'complete' || updated.status === 'emergency') {
         archives = archiveSession(state.archives, updated);
       }
-      return pushHistory({ ...updated, archives }, (action as any).lastInput);
+      return pushHistory({ ...updated, archives }, action.lastInput);
     }
 
     case 'SET_AGENT_RESPONSE': {
@@ -238,7 +255,7 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
       if (updated.status === 'complete' || updated.status === 'emergency') {
         archives = archiveSession(state.archives, updated);
       }
-      return pushHistory({ ...updated, archives }, (action as any).lastInput);
+      return pushHistory({ ...updated, archives }, action.lastInput);
     }
 
     case 'SELECT_OPTIONS':
@@ -413,7 +430,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const saved = loadSessionState();
     if (saved) {
       try {
-        const parsed = saved as any;
+        const parsed = saved as ClinicalState & Record<string, unknown>;
         
         // Ensure all new agent-driven fields have defaults in case of legacy localstorage (Rule 5)
         if (!parsed.archives) parsed.archives = [];
@@ -430,33 +447,45 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (!parsed.theme || !['system', 'dark', 'light'].includes(parsed.theme)) {
           parsed.theme = 'system';
         }
-        if (!parsed.notifications) parsed.notifications = [];
+        if (!parsed.notifications || parsed.notifications.length === 0) {
+          parsed.notifications = [...initialState.notifications];
+        }
         if (parsed.active_sheet === undefined) parsed.active_sheet = null;
         if (!parsed.clerking) {
           parsed.clerking = defaultClerking();
         }
         
         // Ensure we don't load corrupt recursive history
-        parsed.history = parsed.history.map((h: any) => {
-          const { history, archives, ...clean } = h;
-          return clean;
+        parsed.history = (Array.isArray(parsed.history) ? parsed.history : []).map((entry) => {
+          const clean = { ...(entry as unknown as Record<string, unknown>) };
+          delete clean.history;
+          delete clean.archives;
+          return clean as unknown as ClinicalState;
         });
 
-        parsed.archives = parsed.archives.map((record: any) => {
-          const snapshot = record.snapshot || {
+        parsed.archives = (Array.isArray(parsed.archives) ? parsed.archives : []).map((entry) => {
+          const record = entry as Partial<SessionRecord> & Record<string, unknown>;
+          const legacyClerkingNotes = Array.isArray(record['clerking_notes'])
+            ? (record['clerking_notes'] as unknown[]).map(String)
+            : [];
+
+          const snapshot = (record.snapshot as ConsultationSnapshot | undefined) || {
             soap: record.soap || { S: {}, O: {}, A: {}, P: {} },
-            ddx: record.ddx || [],
+            ddx: (record as { ddx?: string[] }).ddx || [],
             status: record.status || 'complete',
             redFlag: record.status === 'emergency',
             pillars: record.pillars || null,
-            conversation: record.conversation || [],
-            agent_state: record.agent_state || { ...initialState.agent_state },
-            probability: record.probability ?? 0,
-            urgency: record.urgency || 'low',
-            thinking: record.thinking || '',
+            conversation: (record as { conversation?: ConversationMessage[] }).conversation || [],
+            agent_state:
+              (record as { agent_state?: ClinicalState['agent_state'] }).agent_state || {
+                ...initialState.agent_state,
+              },
+            probability: (record as { probability?: number }).probability ?? 0,
+            urgency: (record as { urgency?: ClinicalState['urgency'] }).urgency || 'low',
+            thinking: (record as { thinking?: string }).thinking || '',
             clerking: record.clerking || {
               ...defaultClerking(),
-              hpc: Array.isArray(record.clerking_notes) ? record.clerking_notes.join('\n') : '',
+              hpc: legacyClerkingNotes.join('\n'),
             },
           };
 
@@ -478,7 +507,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         });
 
         return parsed;
-      } catch (e) {
+      } catch {
         return initial;
       }
     }
@@ -488,7 +517,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   useEffect(() => {
     try {
       persistSessionState(state);
-    } catch (e) {
+    } catch {
       console.warn("Storage quota exceeded. Pruning history.");
       // If we hit quota, clear non-essential history snapshots to save the session
       if (state.history.length > 0) {

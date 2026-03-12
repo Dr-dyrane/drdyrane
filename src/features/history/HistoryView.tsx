@@ -77,24 +77,24 @@ export const HistoryView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 px-2 py-8 space-y-6 animate-emergence">
+    <div className="flex-1 px-2 py-7 space-y-5 animate-emergence">
       <div className="flex justify-center">
         <Orb />
       </div>
       <div className="text-center space-y-2">
-        <span className="text-neon-cyan/40 uppercase tracking-[0.3em] text-[10px] font-bold">Archives</span>
-        <h1 className="text-2xl font-light text-content-primary">Clinical History</h1>
+        <span className="text-content-dim text-xs font-medium">Past visits</span>
+        <h1 className="display-type text-[1.7rem] text-content-primary">Clinical History</h1>
       </div>
 
       <button
         onClick={createManualRecord}
-        className="w-full h-12 rounded-2xl surface-raised text-content-primary text-[10px] uppercase tracking-[0.2em] font-semibold focus-glow interactive-tap interactive-soft"
+        className="w-full h-12 rounded-2xl cta-live text-content-primary text-sm font-semibold focus-glow interactive-tap"
       >
         <span className="inline-flex items-center gap-2.5">
-          <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
+          <span className="h-8 w-8 rounded-xl bg-white/20 inline-flex items-center justify-center">
             <Plus size={14} />
           </span>
-          New Record
+          Create Record
         </span>
       </button>
 
@@ -110,10 +110,10 @@ export const HistoryView: React.FC = () => {
               key={session.id}
               interactive
               onClick={() => openRecord(session)}
-              className="p-5 rounded-[28px] space-y-4 shadow-none active:scale-[0.98] transition-all bg-surface-muted"
+              className="p-5 rounded-[22px] space-y-4 shadow-none active:scale-[0.98] transition-all bg-surface-muted"
             >
               <div className="flex items-start gap-4">
-                <div className={`p-3 rounded-2xl ${session.status === 'emergency' ? 'bg-neon-red/12 text-neon-red' : 'bg-neon-cyan/12 text-neon-cyan'
+                <div className={`p-3 rounded-2xl ${session.status === 'emergency' ? 'bg-danger-soft text-danger-primary' : 'bg-accent-soft text-accent-primary'
                   }`}>
                   {session.status === 'emergency' ? <AlertCircle size={20} /> : <CheckCircle size={20} />}
                 </div>
@@ -122,7 +122,7 @@ export const HistoryView: React.FC = () => {
                     <h3 className="text-sm font-bold text-content-primary truncate">
                       {session.visit_label || session.diagnosis}
                     </h3>
-                    <span className="text-[10px] text-content-dim whitespace-nowrap">
+                    <span className="text-xs text-content-dim whitespace-nowrap">
                       {new Date(session.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
                     </span>
                   </div>
@@ -159,3 +159,4 @@ export const HistoryView: React.FC = () => {
     </div>
   );
 };
+
