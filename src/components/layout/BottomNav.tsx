@@ -3,13 +3,14 @@ import { useClinical } from '../../core/context/ClinicalContext';
 import { AppView } from '../../core/types/clinical';
 import {
   ClipboardList,
+  FlaskConical,
   History,
   LineChart,
   MoreHorizontal,
-  Plus,
   Pill,
   Printer,
   RotateCcw,
+  ScanLine,
   Stethoscope,
   X,
 } from 'lucide-react';
@@ -17,6 +18,23 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { signalFeedback } from '../../core/services/feedback';
 import { playCelebrationBurst } from '../../core/services/celebration';
 import { ClinicalProcessModal } from '../../features/consultation/ClinicalProcessModal';
+
+type ActionIcon = React.ComponentType<{ size?: string | number }>;
+
+interface NavAction {
+  key: string;
+  label: string;
+  icon: ActionIcon;
+  onClick: () => void;
+  disabled?: boolean;
+}
+
+interface PrimaryAction {
+  label: string;
+  icon: ActionIcon;
+  onClick: () => void;
+  disabled?: boolean;
+}
 
 export const BottomNav: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -32,11 +50,22 @@ export const BottomNav: React.FC = () => {
     [state.settings.audio_enabled, state.settings.haptics_enabled]
   );
 
-  const setView = (view: AppView) => {
-    dispatch({ type: 'CLOSE_SHEETS' });
-    dispatch({ type: 'SET_VIEW', payload: view });
-    setMenuOpen(false);
-  };
+  const setView = useCallback(
+    (view: AppView) => {
+      dispatch({ type: 'CLOSE_SHEETS' });
+      dispatch({ type: 'SET_VIEW', payload: view });
+      setMenuOpen(false);
+    },
+    [dispatch]
+  );
+
+  const openView = useCallback(
+    (view: AppView, kind: Parameters<typeof signalFeedback>[0] = 'select') => {
+      feedback(kind);
+      setView(view);
+    },
+    [feedback, setView]
+  );
 
   const exportPdfFromContext = useCallback(async () => {
     const { exportEncounterPdf, exportVisitRecordPdf } = await import('../../core/pdf/clinicalPdf');
@@ -89,154 +118,182 @@ export const BottomNav: React.FC = () => {
   const navItems = [
     { id: 'consult' as AppView, icon: Stethoscope, label: 'Consult' },
     { id: 'history' as AppView, icon: History, label: 'History' },
-    { id: 'drug' as AppView, icon: Pill, label: 'Pharmacy' },
+    { id: 'drug' as AppView, icon: Pill, label: 'Rx' },
+    { id: 'lab' as AppView, icon: FlaskConical, label: 'Lab' },
+    { id: 'radiology' as AppView, icon: ScanLine, label: 'Radio' },
   ];
 
   const hasArchives = state.archives.length > 0;
-  const actionItems = useMemo(
-    () => [
-      {
-        key: 'case-record',
-        label: 'Record',
-        icon: ClipboardList,
-        onClick: () => {
-          dispatch({ type: 'TOGGLE_HX' });
-          feedback('select');
-        },
-      },
-      {
-        key: 'process',
-        label: 'Process',
-        icon: LineChart,
-        onClick: () => {
-          setProcessOpen(true);
-          feedback('select');
-        },
-      },
-      {
-        key: 'print',
-        label: 'PDF',
-        icon: Printer,
-        onClick: () => {
-          feedback('submit');
-          void exportPdfFromContext();
-        },
-      },
-      {
-        key: 'revisit',
-        label: 'Revisit',
-        icon: History,
-        disabled: !hasArchives,
-        onClick: () => {
-          if (!hasArchives) return;
-          dispatch({ type: 'RESTORE_ARCHIVE', payload: state.archives[0].id });
-          dispatch({ type: 'SET_VIEW', payload: 'consult' });
-          feedback('question');
-        },
-      },
-      {
-        key: 'new',
-        label: 'Reset',
-        icon: RotateCcw,
-        onClick: () => {
-          dispatch({ type: 'RESET' });
-          feedback('submit');
-        },
-      },
-    ],
-    [
-      dispatch,
-      exportPdfFromContext,
-      hasArchives,
-      state.archives,
-      feedback,
-    ]
-  );
+  const hasCompletedEncounter = state.status === 'complete' && Boolean(state.pillars);
+  const hasHistoryRecord = state.view === 'history' && hasArchives;
+  const canExportPdf = hasCompletedEncounter || hasHistoryRecord;
 
-  const primaryAction = useMemo(() => {
-    if (state.view === 'lab' || state.view === 'radiology') {
-      return {
-        label: 'Back to Pharmacy',
-        icon: Pill,
-        onClick: () => {
-          dispatch({ type: 'SET_VIEW', payload: 'drug' });
-          feedback('select');
-        },
-        disabled: false,
-      };
+  const openRecord = useCallback(() => {
+    dispatch({ type: 'TOGGLE_HX' });
+    feedback('select');
+  }, [dispatch, feedback]);
+
+  const openProcess = useCallback(() => {
+    setProcessOpen(true);
+    feedback('question');
+  }, [feedback]);
+
+  const exportPdf = useCallback(() => {
+    feedback('submit');
+    void exportPdfFromContext();
+  }, [exportPdfFromContext, feedback]);
+
+  const revisitLatest = useCallback(() => {
+    if (!hasArchives) return;
+    dispatch({ type: 'RESTORE_ARCHIVE', payload: state.archives[0].id });
+    dispatch({ type: 'SET_VIEW', payload: 'consult' });
+    feedback('question');
+  }, [dispatch, feedback, hasArchives, state.archives]);
+
+  const resetVisit = useCallback(() => {
+    dispatch({ type: 'RESET' });
+    feedback('submit');
+  }, [dispatch, feedback]);
+
+  const actionItems = useMemo<NavAction[]>(() => {
+    switch (state.view) {
+      case 'consult':
+        return [
+          { key: 'record', label: 'Record', icon: ClipboardList, onClick: openRecord },
+          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !hasCompletedEncounter },
+          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
+          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
+          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
+          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
+          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
+        ];
+      case 'history':
+        return [
+          { key: 'revisit', label: 'Revisit', icon: RotateCcw, onClick: revisitLatest, disabled: !hasArchives },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !hasArchives },
+          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
+          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
+          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
+          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
+          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
+        ];
+      case 'drug':
+        return [
+          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
+          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
+          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
+          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
+          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
+          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
+        ];
+      case 'lab':
+        return [
+          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
+          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
+          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
+          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
+          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
+          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
+        ];
+      case 'radiology':
+        return [
+          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
+          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
+          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
+          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
+          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
+          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
+        ];
+      default:
+        return [
+          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
+          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
+          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
+          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
+          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
+          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
+          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
+        ];
     }
+  }, [
+    canExportPdf,
+    exportPdf,
+    hasArchives,
+    hasCompletedEncounter,
+    openProcess,
+    openRecord,
+    openView,
+    resetVisit,
+    revisitLatest,
+    state.view,
+  ]);
 
-    if (state.view === 'drug') {
-      return {
-        label: 'Back to Consult',
-        icon: Stethoscope,
-        onClick: () => {
-          dispatch({ type: 'SET_VIEW', payload: 'consult' });
-          feedback('select');
-        },
-        disabled: false,
-      };
-    }
-
-    if (state.view === 'history') {
-      if (hasArchives) {
+  const primaryAction = useMemo<PrimaryAction>(() => {
+    switch (state.view) {
+      case 'consult':
+        if (hasCompletedEncounter) {
+          return {
+            label: 'Export PDF',
+            icon: Printer,
+            onClick: exportPdf,
+            disabled: false,
+          };
+        }
         return {
-          label: 'Revisit Last Visit',
-          icon: RotateCcw,
-          onClick: () => {
-            dispatch({ type: 'RESTORE_ARCHIVE', payload: state.archives[0].id });
-            dispatch({ type: 'SET_VIEW', payload: 'consult' });
-            feedback('question');
-          },
+          label: 'Process',
+          icon: LineChart,
+          onClick: openProcess,
           disabled: false,
         };
-      }
-      return {
-        label: 'Start New Visit',
-        icon: Plus,
-        onClick: () => {
-          dispatch({ type: 'SET_VIEW', payload: 'consult' });
-          dispatch({ type: 'RESET' });
-          feedback('submit');
-        },
-        disabled: false,
-      };
+      case 'history':
+        if (hasArchives) {
+          return {
+            label: 'Revisit',
+            icon: RotateCcw,
+            onClick: revisitLatest,
+            disabled: false,
+          };
+        }
+        return {
+          label: 'New Consult',
+          icon: Stethoscope,
+          onClick: () => openView('consult', 'submit'),
+          disabled: false,
+        };
+      case 'drug':
+        return {
+          label: 'Open Labs',
+          icon: FlaskConical,
+          onClick: () => openView('lab'),
+          disabled: false,
+        };
+      case 'lab':
+        return {
+          label: 'Radiology',
+          icon: ScanLine,
+          onClick: () => openView('radiology'),
+          disabled: false,
+        };
+      case 'radiology':
+        return {
+          label: 'Consult',
+          icon: Stethoscope,
+          onClick: () => openView('consult'),
+          disabled: false,
+        };
+      default:
+        return {
+          label: 'Consult',
+          icon: Stethoscope,
+          onClick: () => openView('consult'),
+          disabled: false,
+        };
     }
-
-    if (state.status === 'idle') {
-      return {
-        label: 'Clinical Process',
-        icon: LineChart,
-        onClick: () => {
-          setProcessOpen(true);
-          feedback('question');
-        },
-        disabled: false,
-      };
-    }
-
-    if (state.status === 'active' || state.status === 'intake') {
-      return {
-        label: 'Clinical Process',
-        icon: LineChart,
-        onClick: () => {
-          setProcessOpen(true);
-          feedback('question');
-        },
-        disabled: false,
-      };
-    }
-
-    return {
-      label: 'Reset Visit',
-      icon: RotateCcw,
-      onClick: () => {
-        dispatch({ type: 'RESET' });
-        feedback('submit');
-      },
-      disabled: false,
-    };
-  }, [dispatch, feedback, hasArchives, state.archives, state.status, state.view]);
+  }, [exportPdf, hasArchives, hasCompletedEncounter, openProcess, openView, revisitLatest, state.view]);
 
   const triggerPrimaryAction = () => {
     if (menuOpen) {
@@ -246,7 +303,7 @@ export const BottomNav: React.FC = () => {
     if (primaryAction.disabled) return;
     playCelebrationBurst({
       reducedMotion: state.settings.reduced_motion,
-      intensity: 'medium',
+      intensity: 'soft',
     });
     primaryAction.onClick();
   };
@@ -262,71 +319,60 @@ export const BottomNav: React.FC = () => {
   };
 
   const PrimaryIcon = primaryAction.icon;
-  const showPrimaryLabel =
-    !menuOpen && state.status !== 'idle' && state.status !== 'intake';
+  const showPrimaryLabel = !menuOpen;
 
   return (
     <>
       <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] pointer-events-none">
         <div className="relative pointer-events-auto">
-          <div className="ios-tabbar-surface rounded-[30px] p-2.5 shadow-float flex items-center justify-between gap-2">
-            {navItems.map((item) => {
-              const isActive = state.view === item.id;
-              return (
-                <motion.button
-                  key={item.id}
-                  onClick={() => {
-                    feedback('select');
-                    setView(item.id);
-                  }}
-                  whileTap={{ scale: 0.97 }}
-                  className={`h-11 rounded-2xl flex items-center transition-all ${
-                    isActive
-                      ? 'flex-1 px-4 gap-2 bg-content-primary/12 text-content-primary'
-                      : 'w-11 justify-center text-content-dim hover:text-content-secondary'
-                  }`}
-                  aria-label={`Open ${item.id}`}
-                >
-                  <item.icon size={18} className={isActive ? 'text-accent-primary' : ''} />
-                  <AnimatePresence>
-                    {isActive && (
-                      <motion.span
-                        initial={{ opacity: 0, width: 0 }}
-                        animate={{ opacity: 1, width: 'auto' }}
-                        exit={{ opacity: 0, width: 0 }}
-                        className="text-xs font-semibold overflow-hidden whitespace-nowrap"
-                      >
-                        {item.label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </motion.button>
-              );
-            })}
+          <div className="ios-tabbar-surface rounded-[30px] px-1.5 pt-2 pb-1.5 shadow-float">
+            <div className="grid grid-cols-5 gap-1">
+              {navItems.map((item) => {
+                const isActive = state.view === item.id;
+                const Icon = item.icon;
+                return (
+                  <motion.button
+                    key={item.id}
+                    onClick={() => openView(item.id)}
+                    whileTap={{ scale: 0.96 }}
+                    className={`h-[54px] rounded-[16px] inline-flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold tracking-tight interactive-tap tap-compact transition-all ${
+                      isActive
+                        ? 'bg-surface-active text-content-active selected-elevation'
+                        : 'text-content-dim hover:text-content-secondary'
+                    }`}
+                    aria-label={`Open ${item.label}`}
+                  >
+                    <Icon size={17} className={isActive ? 'text-content-active' : ''} />
+                    <span className="leading-none">{item.label}</span>
+                  </motion.button>
+                );
+              })}
+            </div>
+          </div>
 
+          <div className="absolute -top-[3.15rem] right-0 flex items-center gap-2 pointer-events-auto">
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={() => {
                 feedback('select');
                 setMenuOpen((prev) => !prev);
               }}
-              className="h-10 w-10 rounded-full surface-raised text-content-dim shadow-glass flex items-center justify-center interactive-tap"
-              aria-label="Open more clinical actions"
+              className="h-11 w-11 rounded-full surface-raised text-content-dim shadow-glass flex items-center justify-center interactive-tap"
+              aria-label="Open contextual actions"
             >
               {menuOpen ? <X size={15} /> : <MoreHorizontal size={15} />}
             </motion.button>
 
             <motion.button
-              whileHover={{ scale: 1.02, y: -1 }}
               whileTap={{ scale: 0.96 }}
               onClick={triggerPrimaryAction}
-              className={`h-12 rounded-2xl fab-live inline-flex items-center justify-center gap-2 text-sm font-semibold ${
-                showPrimaryLabel ? 'px-4' : 'w-12'
+              className={`h-11 rounded-2xl cta-live inline-flex items-center justify-center gap-1.5 text-xs font-semibold ${
+                showPrimaryLabel ? 'px-4' : 'w-11'
               }`}
               aria-label={menuOpen ? 'Close actions' : primaryAction.label}
             >
-              {menuOpen ? <X size={17} /> : <PrimaryIcon size={17} />}
-              {showPrimaryLabel && <span className="max-w-[96px] truncate text-xs">{primaryAction.label}</span>}
+              {menuOpen ? <X size={16} /> : <PrimaryIcon size={16} />}
+              {showPrimaryLabel && <span className="max-w-[102px] truncate">{primaryAction.label}</span>}
             </motion.button>
           </div>
 
@@ -336,22 +382,25 @@ export const BottomNav: React.FC = () => {
                 initial={{ opacity: 0, y: 10, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                className="absolute bottom-[4.7rem] right-0 w-[260px] ios-sheet-surface rounded-[24px] p-3 shadow-float"
+                className="absolute bottom-[5.7rem] right-0 w-[292px] ios-sheet-surface rounded-[24px] p-3 shadow-float"
               >
                 <div className="grid grid-cols-3 gap-2">
-                  {actionItems.map((item) => (
-                    <button
-                      key={item.key}
-                      onClick={() => triggerAction(item.onClick, item.disabled)}
-                      disabled={item.disabled}
-                      className="h-[74px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
-                    >
-                      <span className="h-8 w-8 rounded-xl surface-chip flex items-center justify-center">
-                        <item.icon size={14} />
-                      </span>
-                      <span className="text-[11px] font-medium">{item.label}</span>
-                    </button>
-                  ))}
+                  {actionItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => triggerAction(item.onClick, item.disabled)}
+                        disabled={item.disabled}
+                        className="h-[72px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
+                      >
+                        <span className="h-8 w-8 rounded-xl surface-chip flex items-center justify-center">
+                          <Icon size={14} />
+                        </span>
+                        <span className="text-[10px] font-medium leading-none">{item.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </motion.div>
             )}
@@ -366,4 +415,3 @@ export const BottomNav: React.FC = () => {
     </>
   );
 };
-
