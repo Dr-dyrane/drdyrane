@@ -413,36 +413,44 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
             </div>
           )}
 
-          <div className="surface-strong rounded-[20px] p-3 space-y-2">
-            <label className="text-[11px] text-content-dim uppercase tracking-wide">Clinical Note</label>
-            <textarea
-              value={contextNote}
-              onChange={(event) => setContextNote(event.target.value)}
-              rows={3}
-              placeholder="Context, symptoms, timing, and what you want the review to focus on"
-              className="w-full resize-none text-sm text-content-primary leading-relaxed"
-            />
-          </div>
+          {imageDataUrl ? (
+            <>
+              <div className="surface-strong rounded-[20px] p-3 space-y-2">
+                <label className="text-[11px] text-content-dim uppercase tracking-wide">Clinical Note</label>
+                <textarea
+                  value={contextNote}
+                  onChange={(event) => setContextNote(event.target.value)}
+                  rows={3}
+                  placeholder="Context, symptoms, timing, and what you want the review to focus on"
+                  className="w-full resize-none text-sm text-content-primary leading-relaxed"
+                />
+              </div>
 
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => void runAnalysis()}
-              disabled={analyzing || !imageDataUrl}
-              className="h-11 rounded-2xl cta-live text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
-            >
-              {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-              {analyzing ? 'Reviewing...' : 'AI Review'}
-            </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => void runAnalysis()}
+                  disabled={analyzing || !imageDataUrl}
+                  className="h-11 rounded-2xl cta-live text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
+                >
+                  {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                  {analyzing ? 'Reviewing...' : 'AI Review'}
+                </button>
 
-            <button
-              onClick={() => void pushToConsultation()}
-              disabled={pushing}
-              className="h-11 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
-            >
-              {pushing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
-              Send to Consult
-            </button>
-          </div>
+                <button
+                  onClick={() => void pushToConsultation()}
+                  disabled={pushing}
+                  className="h-11 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
+                >
+                  {pushing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}
+                  Send to Consult
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="text-xs text-content-dim leading-relaxed">
+              Upload or scan an image to continue.
+            </p>
+          )}
 
           {error && (
             <p className="text-xs text-danger-primary inline-flex items-start gap-1.5">

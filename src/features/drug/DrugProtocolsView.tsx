@@ -383,7 +383,7 @@ export const DrugProtocolsView: React.FC = () => {
               className="w-full text-sm text-content-primary"
             />
           </div>
-          {quickPickProtocols.length > 0 && (
+          {quickPickProtocols.length > 0 && query.trim().length === 0 && (
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
               {quickPickProtocols.map((entry) => (
                 <button

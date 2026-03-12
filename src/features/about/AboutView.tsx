@@ -19,9 +19,6 @@ export const AboutView: React.FC = () => {
       <div className="text-center space-y-4">
         <span className="text-content-dim text-xs font-medium">System</span>
         <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">System Specification</h1>
-        <p className="text-content-dim text-sm max-w-xs mx-auto leading-relaxed">
-          Dr. Dyrane is a high-fidelity clinical registrar designed to bridge the gap between human distress and mathematical certainty.
-        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-4 pb-24">

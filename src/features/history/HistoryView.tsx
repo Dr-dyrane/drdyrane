@@ -88,10 +88,10 @@ export const HistoryView: React.FC = () => {
 
       <button
         onClick={createManualRecord}
-        className="w-full min-w-0 h-12 rounded-2xl cta-live text-content-primary text-sm font-semibold focus-glow interactive-tap"
+        className="w-full min-w-0 h-11 rounded-2xl surface-strong text-content-primary text-sm font-semibold focus-glow interactive-tap interactive-soft"
       >
         <span className="inline-flex items-center gap-2.5">
-          <span className="h-8 w-8 rounded-xl bg-white/20 inline-flex items-center justify-center">
+          <span className="h-7 w-7 rounded-xl surface-chip inline-flex items-center justify-center">
             <Plus size={14} />
           </span>
           Create Record
