@@ -15,6 +15,20 @@ export interface PillarData {
   management: string;
   prognosis: string;
   prevention: string;
+  encounter?: {
+    source?: string;
+    investigations: string[];
+    prescriptions: Array<{
+      medication: string;
+      form: string;
+      dose: string;
+      frequency: string;
+      duration: string;
+      note?: string;
+    }>;
+    counseling: string[];
+    follow_up: string[];
+  };
 }
 
 export interface ClerkingSchema {

@@ -63,6 +63,12 @@ const NO_ANSWER_PATTERN = /\b(no|none|nothing else|nope)\b/i;
 const UNSURE_ANSWER_PATTERN = /\b(not sure|unsure|unknown|maybe)\b/i;
 const CHECKPOINT_DANGER_SIGNAL_PATTERN =
   /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
+const SYMPTOM_CLUSTER_PROMPT = 'Which symptom cluster stands out most right now?';
+const FEVER_PATTERN_DETAIL_PROMPT = 'Within fever pattern, which cue stands out most?';
+const HEAD_PAIN_DETAIL_PROMPT = 'Within head/pain pattern, which symptom stands out most?';
+const AIRWAY_DETAIL_PROMPT = 'Within airway/throat pattern, which symptom stands out most?';
+const GUT_DETAIL_PROMPT = 'Within stomach/gut pattern, which symptom stands out most?';
+const GENERAL_DETAIL_PROMPT = 'Within energy/general pattern, which symptom stands out most?';
 
 export class AgentCoordinator {
   private state: ClinicalState;
@@ -769,22 +775,36 @@ export class AgentCoordinator {
     if (conversationResult.lens_trigger) {
       responseOptions = null;
     } else if (conversationResult.needs_options || (conversationResult.status === 'active' && aiQuestion)) {
-      responseOptions = await this.resolveQuestionOptions(
+      const resolvedOptions = await this.resolveQuestionOptions(
         aiQuestion,
         baseAgentState,
         nextSoap,
         stateForTurn.profile
       );
 
-      questionGate = this.buildStackedSymptomSurvey(aiQuestion, responseOptions);
+      questionGate = this.buildStackedSymptomSurvey(aiQuestion, resolvedOptions);
       if (questionGate) {
+        const firstSegment = questionGate.segments[0];
+        const firstPrompt = firstSegment?.prompt || aiQuestion;
+        doctorMessage = createDoctorMessage(
+          firstPrompt,
+          conversationResult.message.metadata?.statement
+        );
+        responseOptions = await this.resolveQuestionOptions(
+          firstPrompt,
+          baseAgentState,
+          nextSoap,
+          stateForTurn.profile
+        );
         responseOptions = {
           ...responseOptions,
           allow_custom_input: false,
           context_hint:
             responseOptions.context_hint ||
-            `Step 1 of ${questionGate.segments.length}: Choose the symptom that stands out most.`,
+            `Step 1 of ${questionGate.segments.length}: Choose a symptom cluster first.`,
         };
+      } else {
+        responseOptions = resolvedOptions;
       }
     }
 
@@ -953,6 +973,51 @@ export class AgentCoordinator {
       }
     }
 
+    if (gate.kind === 'stacked_symptom') {
+      if (currentSegment.id === 'dominant_cluster') {
+        const cluster = this.resolveSymptomCluster(answerText);
+        const detailPrompt = this.getClusterDetailPrompt(cluster);
+        if (!detailPrompt) {
+          const nextGate: QuestionGateState = {
+            ...gate,
+            answers: nextAnswers,
+          };
+          return this.stageNextGateStep(nextGate, gate.current_index + 1, patientMessage, profileForTurn);
+        }
+
+        const dynamicSegments: QuestionGateState['segments'] = [
+          {
+            id: `cluster_detail_${cluster}`,
+            prompt: detailPrompt,
+          },
+        ];
+        if (cluster === 'fever') {
+          dynamicSegments.push(
+            {
+              id: 'fever_cycle_pattern',
+              prompt: 'Do episodes start with evening chills, rise at night, then ease by morning?',
+              timeout_seconds: STACKED_BINARY_TIMEOUT_SECONDS,
+            },
+            {
+              id: 'mosquito_exposure',
+              prompt: 'Any recent mosquito exposure or sleeping without mosquito protection?',
+              timeout_seconds: STACKED_BINARY_TIMEOUT_SECONDS,
+            }
+          );
+        }
+        const nextGate: QuestionGateState = {
+          ...gate,
+          answers: nextAnswers,
+          segments: [
+            ...gate.segments.slice(0, gate.current_index + 1),
+            ...dynamicSegments,
+            ...gate.segments.slice(gate.current_index + 1),
+          ],
+        };
+        return this.stageNextGateStep(nextGate, gate.current_index + 1, patientMessage, profileForTurn);
+      }
+    }
+
     const isLastSegment = gate.current_index >= gate.segments.length - 1;
 
     if (!isLastSegment) {
@@ -1011,6 +1076,26 @@ export class AgentCoordinator {
     return getPhaseFallbackQuestion(phase, conversation.length);
   }
 
+  private resolveSymptomCluster(answerText: string): 'fever' | 'head_pain' | 'airway' | 'gut' | 'general' | 'none' {
+    const normalized = answerText.toLowerCase();
+    if (/fever|chill|rigor|sweat|night|intermittent/.test(normalized)) return 'fever';
+    if (/head|pain|ache|eye/.test(normalized)) return 'head_pain';
+    if (/cough|throat|airway|catarrh|nose|breath/.test(normalized)) return 'airway';
+    if (/stomach|gut|abdominal|nausea|vomit|diarrh|appetite|taste/.test(normalized)) return 'gut';
+    if (/none/.test(normalized)) return 'none';
+    if (/fatigue|weak|general|energy|stress/.test(normalized)) return 'general';
+    return 'general';
+  }
+
+  private getClusterDetailPrompt(cluster: 'fever' | 'head_pain' | 'airway' | 'gut' | 'general' | 'none'): string | null {
+    if (cluster === 'fever') return FEVER_PATTERN_DETAIL_PROMPT;
+    if (cluster === 'head_pain') return HEAD_PAIN_DETAIL_PROMPT;
+    if (cluster === 'airway') return AIRWAY_DETAIL_PROMPT;
+    if (cluster === 'gut') return GUT_DETAIL_PROMPT;
+    if (cluster === 'general') return GENERAL_DETAIL_PROMPT;
+    return null;
+  }
+
   private shouldCreateStackedSymptomSurvey(
     question: string,
     responseOptions: ResponseOptions
@@ -1039,7 +1124,7 @@ export class AgentCoordinator {
       kind: 'stacked_symptom',
       source_question: question,
       segments: [
-        { id: 'dominant_symptom', prompt: question },
+        { id: 'dominant_cluster', prompt: SYMPTOM_CLUSTER_PROMPT },
         {
           id: 'onset_48h',
           prompt: 'Did this standout symptom begin within the last 48 hours?',
@@ -1079,21 +1164,34 @@ export class AgentCoordinator {
     const secondDx = secondRaw.replace(/\s*\(icd-10:\s*[a-z0-9.-]+\)\s*/gi, '').trim();
     const hasIcd10Lead = /\(icd-10:\s*[a-z0-9.-]+\)/i.test(ddx[0] || '');
     const subjective = JSON.stringify(soap.S || {}).toLowerCase();
+    const narrative = conversation
+      .filter((entry) => entry.role === 'patient')
+      .map((entry) => entry.content || '')
+      .join(' ')
+      .toLowerCase();
+    const evidenceCorpus = `${subjective} ${narrative}`;
     const subjectiveDensity = Object.keys(soap.S || {}).length;
     const supportSignals = [
-      /fever|pyrexia|temperature/.test(subjective),
-      /chills?|rigors?/.test(subjective),
-      /headache|retro[-\s]?orbital|behind (my )?eyes?/.test(subjective),
-      /body aches?|myalgia|weak(ness)?/.test(subjective),
-      /nausea|vomit/.test(subjective),
-      /cough|breathless|shortness of breath/.test(subjective),
-      /abdominal pain|diarrh|dysuria/.test(subjective),
+      /fever|pyrexia|temperature/.test(evidenceCorpus),
+      /chills?|rigors?/.test(evidenceCorpus),
+      /headache|retro[-\s]?orbital|behind (my )?eyes?/.test(evidenceCorpus),
+      /body aches?|myalgia|weak(ness)?/.test(evidenceCorpus),
+      /nausea|vomit/.test(evidenceCorpus),
+      /cough|breathless|shortness of breath/.test(evidenceCorpus),
+      /abdominal pain|diarrh|dysuria/.test(evidenceCorpus),
+    ].filter(Boolean).length;
+    const malariaPatternSignals = [
+      /intermittent|cyclic|cycles|comes and goes|on and off/.test(evidenceCorpus),
+      /night|nocturnal|worse at night|evening chills/.test(evidenceCorpus),
+      /morning relief|morning off|better in the morning/.test(evidenceCorpus),
+      /mosquito|sleeping without net|insect bites?|high mosquito exposure/.test(evidenceCorpus),
     ].filter(Boolean).length;
     const leadClearOfSecond = !secondDx || leadDx !== secondDx;
     const isMalariaLead = leadDx.includes('malaria');
     const malariaFastTrack =
       isMalariaLead &&
       supportSignals >= 3 &&
+      malariaPatternSignals >= 2 &&
       probability >= 76 &&
       hasIcd10Lead;
     const highCertaintyGeneral =

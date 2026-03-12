@@ -9,6 +9,7 @@ const STRUCTURED_QUESTION_PATTERNS: RegExp[] = [
   /(when did|since when|how long|when .* start|started|start)/,
   /(highest.*(temperature|temp)|temperature|temp|how high|measured|reading|degrees|thermometer)/,
   /(how many|number of|count|frequency|times?\s+(?:in|per|over|within)|episodes?\s+(?:in|per|over|within))/,
+  /(which symptom cluster|symptom cluster|within .* pattern|which cluster stands out)/,
   /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/,
   /(one side|both sides|which side|left side|right side|left or right|right or left|unilateral|bilateral)/,
   /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/,
@@ -48,11 +49,117 @@ export const buildLocalOptions = (
     /(keep fluids down|keep liquid down|hold down fluids|able to drink|drinking fluids|hydration|dehydrat|oral intake|sips)/;
   const symptomInventoryPattern =
     /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/;
+  const symptomClusterPattern =
+    /(which symptom cluster|symptom cluster|which cluster stands out|cluster stands out)/;
+  const feverDetailPattern = /(within fever pattern|fever pattern.*stand out|fever cluster)/;
+  const headPainDetailPattern = /(within head\/pain pattern|head\/pain pattern.*stand out|head pain cluster)/;
+  const airwayDetailPattern = /(within airway\/throat pattern|airway\/throat pattern.*stand out|airway cluster)/;
+  const gutDetailPattern = /(within stomach\/gut pattern|stomach\/gut pattern.*stand out|gut cluster)/;
+  const generalDetailPattern = /(within energy\/general pattern|energy\/general pattern.*stand out|general cluster)/;
   const lateralityPattern =
     /(one side|both sides|which side|left side|right side|left or right|right or left|unilateral|bilateral|\bside\b)/;
   const triggerPattern =
     /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/;
   const yesNoPattern = isDirectYesNoQuestion(normalized);
+
+  if (symptomClusterPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'grid',
+      options: [
+        { id: 'cluster-fever-pattern', text: 'Fever pattern', category: 'symptom_cluster', priority: 10 },
+        { id: 'cluster-head-pain', text: 'Head or pain', category: 'symptom_cluster', priority: 9 },
+        { id: 'cluster-airway-throat', text: 'Airway or throat', category: 'symptom_cluster', priority: 8 },
+        { id: 'cluster-stomach-gut', text: 'Stomach or gut', category: 'symptom_cluster', priority: 7 },
+        { id: 'cluster-energy-general', text: 'Energy or general', category: 'symptom_cluster', priority: 6 },
+        { id: 'cluster-none', text: 'None fits', category: 'symptom_cluster', priority: 5 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Choose one symptom cluster first.',
+    };
+  }
+
+  if (feverDetailPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'stack',
+      options: [
+        { id: 'fever-evening-chills', text: 'Evening chills', category: 'fever_detail', priority: 10 },
+        { id: 'fever-night-spike', text: 'Night fever spike', category: 'fever_detail', priority: 9 },
+        { id: 'fever-morning-relief', text: 'Morning relief', category: 'fever_detail', priority: 8 },
+        { id: 'fever-sweating', text: 'Sweating', category: 'fever_detail', priority: 7 },
+        { id: 'fever-bitter-acid-taste', text: 'Bitter or acid taste', category: 'fever_detail', priority: 6 },
+        { id: 'fever-none', text: 'None stand out', category: 'fever_detail', priority: 5 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Pick the most prominent fever-pattern cue.',
+    };
+  }
+
+  if (headPainDetailPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'stack',
+      options: [
+        { id: 'headache', text: 'Headache', category: 'head_pain_detail', priority: 10 },
+        { id: 'body-aches', text: 'Body aches', category: 'head_pain_detail', priority: 9 },
+        { id: 'eye-pain', text: 'Pain behind eyes', category: 'head_pain_detail', priority: 8 },
+        { id: 'joint-pain', text: 'Joint pain', category: 'head_pain_detail', priority: 7 },
+        { id: 'none', text: 'None stand out', category: 'head_pain_detail', priority: 6 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Choose one standout symptom.',
+    };
+  }
+
+  if (airwayDetailPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'stack',
+      options: [
+        { id: 'sore-throat', text: 'Sore throat', category: 'airway_detail', priority: 10 },
+        { id: 'cough', text: 'Cough', category: 'airway_detail', priority: 9 },
+        { id: 'catarrh', text: 'Catarrh or runny nose', category: 'airway_detail', priority: 8 },
+        { id: 'breathless', text: 'Breathlessness', category: 'airway_detail', priority: 7 },
+        { id: 'none', text: 'None stand out', category: 'airway_detail', priority: 6 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Choose one standout symptom.',
+    };
+  }
+
+  if (gutDetailPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'stack',
+      options: [
+        { id: 'nausea', text: 'Nausea', category: 'gut_detail', priority: 10 },
+        { id: 'vomiting', text: 'Vomiting', category: 'gut_detail', priority: 9 },
+        { id: 'abdominal-pain', text: 'Abdominal pain', category: 'gut_detail', priority: 8 },
+        { id: 'diarrhea', text: 'Diarrhea', category: 'gut_detail', priority: 7 },
+        { id: 'loss-of-appetite', text: 'Loss of appetite', category: 'gut_detail', priority: 6 },
+        { id: 'none', text: 'None stand out', category: 'gut_detail', priority: 5 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Choose one standout symptom.',
+    };
+  }
+
+  if (generalDetailPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'stack',
+      options: [
+        { id: 'fatigue', text: 'Fatigue or malaise', category: 'general_detail', priority: 10 },
+        { id: 'weakness', text: 'Weakness', category: 'general_detail', priority: 9 },
+        { id: 'poor-appetite', text: 'Reduced appetite', category: 'general_detail', priority: 8 },
+        { id: 'stress', text: 'Stress or poor sleep', category: 'general_detail', priority: 7 },
+        { id: 'none', text: 'None stand out', category: 'general_detail', priority: 6 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Choose one standout symptom.',
+    };
+  }
 
   if (symptomInventoryPattern.test(normalized)) {
     return {

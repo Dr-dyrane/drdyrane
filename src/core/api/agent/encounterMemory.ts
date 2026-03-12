@@ -3,6 +3,10 @@ import { ClinicalState, ConversationMessage } from '../../types/clinical';
 const findingMatchers: Array<{ label: string; positive: RegExp; negative?: RegExp }> = [
   { label: 'fever', positive: /\bfever|hot and cold|pyrexia\b/i, negative: /\bno fever\b/i },
   { label: 'chills/rigors', positive: /\bchills?|rigors?\b/i, negative: /\bno chills?|no rigors?\b/i },
+  { label: 'intermittent fever pattern', positive: /\bintermittent|cyclic|comes and goes|on and off\b/i },
+  { label: 'nocturnal fever worsening', positive: /\bnight|nocturnal|worse at night|evening chills|morning relief\b/i },
+  { label: 'mosquito exposure', positive: /\bmosquito(es)? bite(s)?|sleeping without net|mosquito exposure\b/i },
+  { label: 'bitter/acid taste', positive: /\bbitter taste|acid taste|metallic taste\b/i },
   { label: 'headache', positive: /\bheadache|head pain\b/i, negative: /\bno headache\b/i },
   { label: 'body aches', positive: /\bbody aches?|myalgia|joint pain\b/i, negative: /\bno body aches?|no myalgia\b/i },
   { label: 'nausea', positive: /\bnausea\b/i, negative: /\bno nausea\b/i },

@@ -692,10 +692,14 @@ const FEVER_DISEASE_PROFILES: DiseaseProfile[] = [
       { pattern: /\bbody aches?|myalgia|muscle pain\b/i, weight: 1.2 },
       { pattern: /\bnausea|vomit(ing)?\b/i, weight: 1.1 },
       { pattern: /\bweak(ness)?|fatigue\b/i, weight: 0.9 },
+      { pattern: /\bintermittent|cyclic|comes and goes|on and off\b/i, weight: 1.4 },
+      { pattern: /\bnight|nocturnal|worse at night|evening chills\b/i, weight: 1.3 },
+      { pattern: /\bmorning relief|better in the morning|morning off\b/i, weight: 1.1 },
+      { pattern: /\bbitter taste|acid taste|metallic taste\b/i, weight: 0.6 },
       { pattern: /\bmosquito(es)? bite(s)?|travel\b/i, weight: 1 },
     ],
     followUpQuestion:
-      'Can you access a malaria rapid test or blood smear today, and do you have any danger signs?',
+      'Does fever come in cycles (evening chills, night spike, morning relief), and was there mosquito exposure?',
     pendingActions: ['Confirm with malaria RDT or blood smear', 'Screen for severe malaria danger signs'],
   },
   {
@@ -798,6 +802,21 @@ const FEATURE_CUES: FeatureCue[] = [
     question: 'Are the fever episodes associated with chills or rigors?',
   },
   {
+    id: 'fever_pattern_cycle',
+    positive: [/\bintermittent|cyclic|comes and goes|on and off\b/i],
+    question: 'Is the fever intermittent or cyclical rather than constant?',
+  },
+  {
+    id: 'nocturnal_fever',
+    positive: [/\bnight|nocturnal|worse at night|evening chills|morning relief\b/i],
+    question: 'Does fever tend to worsen at night after evening chills and ease by morning?',
+  },
+  {
+    id: 'mosquito_exposure',
+    positive: [/\bmosquito(es)? bite(s)?|sleeping without net|high mosquito exposure\b/i],
+    question: 'Have you had recent mosquito exposure or slept without mosquito protection?',
+  },
+  {
     id: 'headache',
     positive: [/\bheadache|head pain|retro[-\s]?orbital|behind (my )?eyes?\b/i],
     question: 'Is the headache severe, persistent, or associated with eye pain?',
@@ -858,9 +877,14 @@ const FEATURE_CUES: FeatureCue[] = [
 const DIAGNOSIS_HINTS: DiagnosisHint[] = [
   {
     pattern: /\bmalaria\b/i,
-    supports: ['fever', 'chills', 'headache', 'vomiting'],
-    followUpQuestion: 'Can you access a malaria rapid test or blood smear today?',
-    pendingActions: ['Confirm malaria with RDT/smear', 'Check for severe-malaria danger signs'],
+    supports: ['fever', 'chills', 'fever_pattern_cycle', 'nocturnal_fever', 'mosquito_exposure', 'headache', 'vomiting'],
+    followUpQuestion:
+      'Does fever usually start with evening chills, spike at night, ease by morning, and follow mosquito exposure?',
+    pendingActions: [
+      'Confirm fever pattern and mosquito exposure before locking malaria as lead',
+      'Confirm malaria with RDT/smear',
+      'Check for severe-malaria danger signs',
+    ],
   },
   {
     pattern: /\bdengue\b/i,
@@ -1225,6 +1249,17 @@ const shouldOverrideQuestion = (
   }
 
   if (/\bmalaria\b/i.test(lead.diagnosis)) {
+    const mentionsPatternQuestion =
+      /\b(intermittent|cyclic|cycle|night|nocturnal|evening chills|morning relief|mosquito exposure)\b/i.test(
+        normalized
+      );
+    const patternAlreadyCaptured =
+      /\b(intermittent|cyclic|comes and goes|night|nocturnal|evening chills|morning relief)\b/i.test(corpus);
+    const exposureCaptured = /\bmosquito(es)? bite(s)?|sleeping without net|mosquito exposure\b/i.test(corpus);
+    if (!mentionsPatternQuestion && (!patternAlreadyCaptured || !exposureCaptured)) {
+      return true;
+    }
+
     const mentionsTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(normalized);
     const alreadyDiscussedTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(corpus);
     if (!mentionsTest && !alreadyDiscussedTest) return true;

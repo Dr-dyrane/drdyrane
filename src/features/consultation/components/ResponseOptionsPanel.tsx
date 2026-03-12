@@ -61,6 +61,7 @@ const getSelectedSingleOption = (
 const SPRING_CONFIG = { type: 'spring' as const, stiffness: 320, damping: 28 };
 const HOVER_MOTION = { scale: 1.015, y: -1.5 };
 const TAP_MOTION = { scale: 0.97, y: 0 };
+const COMPACT_PAGE_SIZE = 4;
 
 const getHintToneClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
   if (variant === 'chips' || variant === 'grid') return 'option-hint-energetic';
@@ -116,6 +117,10 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   compact = false,
   questionText,
 }) => {
+  const [activePage, setActivePage] = React.useState(0);
+  React.useEffect(() => {
+    setActivePage(0);
+  }, [responseOptions?.options.length, responseOptions?.mode, responseOptions?.ui_variant]);
   if (!responseOptions || responseOptions.options.length === 0) return null;
 
   const variant = getVariant(responseOptions);
@@ -135,6 +140,22 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
     ? responseOptions.options.findIndex((option) => option.id === selectedScaleOption.id)
     : 0;
   const sliderValue = Math.max(1, selectedScaleIndex + 1);
+  const shouldPaginateOptions =
+    compact &&
+    !isScale &&
+    !isSegmentedLike &&
+    responseOptions.options.length > COMPACT_PAGE_SIZE;
+  const optionPages = shouldPaginateOptions
+    ? Array.from(
+        { length: Math.ceil(responseOptions.options.length / COMPACT_PAGE_SIZE) },
+        (_, pageIndex) =>
+          responseOptions.options.slice(
+            pageIndex * COMPACT_PAGE_SIZE,
+            (pageIndex + 1) * COMPACT_PAGE_SIZE
+          )
+      )
+    : [responseOptions.options];
+  const visibleOptions = optionPages[Math.min(activePage, optionPages.length - 1)] || responseOptions.options;
 
   return (
     <div className={`${compact ? 'space-y-3' : 'space-y-4'} relative`}>
@@ -247,12 +268,14 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
               : `grid gap-3 ${getGridByVariant(variant, responseOptions.options.length)}`
           }`}
         >
-          {responseOptions.options.map((option, index) => {
+          {visibleOptions.map((option, index) => {
             const isSelected = selectedOptionIds.includes(option.id);
             const isBinary = variant === 'binary' || variant === 'segmented';
             const isChip = variant === 'chips';
             const isLadder = variant === 'ladder';
             const selectionOrder = selectedOptionIds.indexOf(option.id) + 1;
+            const visualIndex =
+              shouldPaginateOptions ? activePage * COMPACT_PAGE_SIZE + index : index;
 
             return (
               <motion.button
@@ -273,7 +296,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                     : isSelected
                       ? 'scale-[1.01] option-live-selected text-content-active selected-elevation'
                       : 'text-content-primary'
-                } ${isSelected ? '' : getToneClass(index)}`}
+                } ${isSelected ? '' : getToneClass(visualIndex)}`}
               >
                 <AnimatePresence>
                   {isSelected && (
@@ -316,7 +339,11 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                   <span
                     className={`absolute right-0 top-0 h-full rounded-r-2xl transition-all ${
                       isSelected ? 'w-4 option-ladder-bar-active' : 'w-2 option-ladder-bar'
-                    } ${index >= Math.floor(responseOptions.options.length * 0.6) ? 'opacity-90' : 'opacity-50'}`}
+                    } ${
+                      visualIndex >= Math.floor(responseOptions.options.length * 0.6)
+                        ? 'opacity-90'
+                        : 'opacity-50'
+                    }`}
                   />
                 )}
 
@@ -330,6 +357,25 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             );
           })}
         </motion.div>
+      )}
+
+      {shouldPaginateOptions && optionPages.length > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          {optionPages.map((_, pageIndex) => (
+            <button
+              key={`options-page-${pageIndex}`}
+              onClick={() => setActivePage(pageIndex)}
+              disabled={loading}
+              className={`h-7 px-2.5 rounded-full text-[11px] font-medium transition-all ${
+                pageIndex === activePage
+                  ? 'bg-surface-active text-content-active'
+                  : 'surface-chip text-content-secondary'
+              }`}
+            >
+              {pageIndex + 1}
+            </button>
+          ))}
+        </div>
       )}
 
       {showSingleSubmit && (
