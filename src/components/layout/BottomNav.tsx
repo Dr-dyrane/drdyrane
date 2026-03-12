@@ -33,6 +33,13 @@ interface NavAction {
   disabled?: boolean;
 }
 
+interface PrimaryAction {
+  icon: ActionIcon;
+  onClick: () => void;
+  label: string;
+  disabled?: boolean;
+}
+
 interface SmartTab {
   id: AppView;
   label: string;
@@ -225,6 +232,39 @@ export const BottomNav: React.FC = () => {
     triggerDiagnostic,
   ]);
 
+  const primaryAction = useMemo<PrimaryAction>(() => {
+    switch (state.view) {
+      case 'consult':
+        if (hasCompletedEncounter) {
+          return { label: 'Export PDF', icon: Printer, onClick: exportPdf };
+        }
+        return { label: 'Clinical Process', icon: LineChart, onClick: openProcess };
+      case 'history':
+        if (hasArchives) {
+          return { label: 'Revisit Last', icon: RotateCcw, onClick: revisitLatest };
+        }
+        return { label: 'New Record', icon: Plus, onClick: () => emitEvent('drdyrane:history:create-record') };
+      case 'drug':
+        return { label: 'Open Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator') };
+      case 'scan':
+        return { label: 'Open Scanner', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') };
+      default:
+        return { label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') };
+    }
+  }, [emitEvent, exportPdf, hasArchives, hasCompletedEncounter, openProcess, openView, revisitLatest, state.view, triggerDiagnostic]);
+
+  const triggerPrimaryAction = () => {
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+    if (primaryAction.disabled) return;
+    playCelebrationFromSettings(state.settings, {
+      intensity: 'soft',
+    });
+    primaryAction.onClick();
+  };
+
   const triggerAction = (action: NavAction) => {
     if (action.disabled) return;
     playCelebrationFromSettings(state.settings, {
@@ -234,13 +274,15 @@ export const BottomNav: React.FC = () => {
     setMenuOpen(false);
   };
 
+  const PrimaryIcon = primaryAction.icon;
+
   return (
     <>
       <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] pointer-events-none">
-        <div className="relative pointer-events-auto">
+        <div className="relative flex items-end gap-1.5 pointer-events-auto">
           <motion.div
             layout
-            className="ios-tabbar-surface rounded-full h-14 px-1.5 inline-flex items-center gap-0.5 shadow-float w-full"
+            className="ios-tabbar-surface rounded-full h-14 px-1.5 inline-flex items-center gap-0.5 shadow-float min-w-0 max-w-[calc(100%-4.5rem)]"
           >
             {smartTabs.map((tab) => {
               const isActive = state.view === tab.id;
@@ -262,7 +304,7 @@ export const BottomNav: React.FC = () => {
                         animate={{ opacity: 1, width: 'auto' }}
                         exit={{ opacity: 0, width: 0 }}
                         transition={{ duration: 0.18 }}
-                        className="overflow-hidden whitespace-nowrap text-[11px] font-semibold"
+                        className="overflow-hidden whitespace-nowrap text-[10px] font-semibold"
                       >
                         {tab.label}
                       </motion.span>
@@ -271,52 +313,60 @@ export const BottomNav: React.FC = () => {
                 </button>
               );
             })}
+          </motion.div>
+
+          <div className="relative shrink-0">
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={triggerPrimaryAction}
+              className="h-14 w-14 rounded-full cta-live inline-flex items-center justify-center shadow-float interactive-tap"
+              aria-label={menuOpen ? 'Close actions' : primaryAction.label}
+            >
+              {menuOpen ? <X size={19} /> : <PrimaryIcon size={19} />}
+            </motion.button>
+
             <motion.button
               whileTap={{ scale: 0.94 }}
               onClick={() => {
                 feedback('select');
                 setMenuOpen((prev) => !prev);
               }}
-              className={`ml-auto h-10 w-10 rounded-full inline-flex items-center justify-center interactive-tap tap-compact ${
-                menuOpen
-                  ? 'bg-surface-active text-content-active selected-elevation'
-                  : 'surface-chip text-content-dim'
-              }`}
+              className="absolute -top-1 -left-1 h-8 w-8 rounded-full ios-tabbar-surface shadow-glass text-content-dim inline-flex items-center justify-center interactive-tap tap-compact"
               aria-label="Open contextual actions"
             >
-              {menuOpen ? <X size={15} /> : <MoreHorizontal size={15} />}
+              {menuOpen ? <X size={13} /> : <MoreHorizontal size={13} />}
             </motion.button>
-          </motion.div>
 
-          <AnimatePresence>
-            {menuOpen && (
-              <motion.div
-                initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                className="absolute bottom-[4.7rem] right-0 w-[236px] ios-sheet-surface rounded-[24px] p-3 shadow-float"
-              >
-                <div className="grid grid-cols-2 gap-2">
-                  {actionItems.map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <button
-                        key={action.key}
-                        onClick={() => triggerAction(action)}
-                        disabled={action.disabled}
-                        className="h-[70px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
-                      >
-                        <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
-                          <Icon size={14} />
-                        </span>
-                        <span className="text-[10px] font-medium leading-none">{action.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  className="absolute bottom-[4.95rem] right-0 w-[236px] ios-sheet-surface rounded-[24px] p-3 shadow-float"
+                >
+                  <div className="grid grid-cols-2 gap-2">
+                    {actionItems.map((action) => {
+                      const Icon = action.icon;
+                      return (
+                        <button
+                          key={action.key}
+                          onClick={() => triggerAction(action)}
+                          disabled={action.disabled}
+                          className="h-[70px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
+                        >
+                          <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
+                            <Icon size={14} />
+                          </span>
+                          <span className="text-[10px] font-medium leading-none">{action.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </nav>
 
