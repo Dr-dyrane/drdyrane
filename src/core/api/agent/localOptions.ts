@@ -10,7 +10,7 @@ const STRUCTURED_QUESTION_PATTERNS: RegExp[] = [
   /(highest.*(temperature|temp)|temperature|temp|how high|measured|reading|degrees|thermometer)/,
   /(how many|number of|episodes?|times|count|frequency)/,
   /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/,
-  /(one side|both sides|which side|left|right|unilateral|bilateral)/,
+  /(one side|both sides|which side|left side|right side|left or right|right or left|unilateral|bilateral)/,
   /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/,
   /(how old|your age|age\?)/,
   /(how.*(changed|change|improv|wors)|overall.*(better|worse)|since.*started.*(better|worse|change)|progress(ion|ed)?\b|has .* (improved|worsened|changed))/,
@@ -47,7 +47,8 @@ export const buildLocalOptions = (
     /(keep fluids down|keep liquid down|hold down fluids|able to drink|drinking fluids|hydration|dehydrat|oral intake|sips)/;
   const symptomInventoryPattern =
     /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/;
-  const lateralityPattern = /(one side|both sides|which side|left|right|unilateral|bilateral)/;
+  const lateralityPattern =
+    /(one side|both sides|which side|left side|right side|left or right|right or left|unilateral|bilateral|\bside\b)/;
   const triggerPattern =
     /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/;
   const yesNoPattern = isDirectYesNoQuestion(normalized);

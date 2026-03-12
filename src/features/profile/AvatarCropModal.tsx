@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, Scissors, X } from 'lucide-react';
+import { Check, RotateCcw, Scissors, X } from 'lucide-react';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 
 interface AvatarCropModalProps {
@@ -11,6 +11,8 @@ interface AvatarCropModalProps {
   onConfirmCrop: (croppedDataUrl: string) => void;
 }
 
+const DEFAULT_ZOOM = 1.15;
+
 export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   isOpen,
   imageDataUrl,
@@ -19,7 +21,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
   onConfirmCrop,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [zoom, setZoom] = useState(1.15);
+  const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
   const [imageSize, setImageSize] = useState({ width: 1, height: 1 });
@@ -29,7 +31,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
     const img = new Image();
     img.onload = () => {
       setImageSize({ width: img.width, height: img.height });
-      setZoom(1.15);
+      setZoom(DEFAULT_ZOOM);
       setOffsetX(0);
       setOffsetY(0);
     };
@@ -45,6 +47,12 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
       backgroundSize: `${zoom * 100}%`,
     };
   }, [imageDataUrl, offsetX, offsetY, zoom]);
+
+  const resetCrop = () => {
+    setZoom(DEFAULT_ZOOM);
+    setOffsetX(0);
+    setOffsetY(0);
+  };
 
   const confirmCrop = () => {
     if (!imageDataUrl || !canvasRef.current) return;
@@ -69,17 +77,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
       const srcX = maxX * normalizedX;
       const srcY = maxY * normalizedY;
 
-      ctx.drawImage(
-        img,
-        srcX,
-        srcY,
-        cropSize,
-        cropSize,
-        0,
-        0,
-        outputSize,
-        outputSize
-      );
+      ctx.drawImage(img, srcX, srcY, cropSize, cropSize, 0, 0, outputSize, outputSize);
 
       const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
       onConfirmCrop(dataUrl);
@@ -97,112 +95,123 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={onClose}
-              className="fixed inset-0 z-[170] overlay-backdrop-strong backdrop-blur-md"
+              className="fixed inset-0 z-[170] overlay-backdrop-strong backdrop-blur-sm"
             />
+
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
               exit={{ y: '100%' }}
               transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[180] rounded-t-[34px] surface-raised p-5 space-y-4 shadow-modal pointer-events-auto"
+              className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[180] pointer-events-auto"
             >
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.22em] text-content-dim">Crop Avatar (Optional)</p>
-                <p className="text-sm text-content-secondary">
-                  Move and zoom image before saving.
+              <div className="ios-sheet-surface rounded-t-[32px] p-5 shadow-modal space-y-4">
+                <div className="flex items-center justify-center -mt-3">
+                  <span className="h-1 w-11 rounded-full surface-chip" />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-1">
+                    <p className="text-xs text-content-dim font-medium">Avatar</p>
+                    <p className="display-type text-[1.25rem] text-content-primary leading-none">Crop Photo</p>
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="h-9 w-9 rounded-full surface-strong flex items-center justify-center focus-glow interactive-tap"
+                    aria-label="Close avatar crop"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                <div className="w-full flex justify-center">
+                  <div className="relative h-56 w-56">
+                    <div
+                      className="absolute inset-0 rounded-full shadow-glass bg-surface-muted bg-no-repeat"
+                      style={previewStyle}
+                    />
+                    <div className="absolute inset-0 rounded-full bg-[radial-gradient(circle,transparent_62%,rgba(0,0,0,0.16)_100%)] pointer-events-none" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block space-y-1">
+                    <span className="text-xs text-content-dim">Zoom</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={2.2}
+                      step={0.01}
+                      value={zoom}
+                      onChange={(event) => setZoom(Number(event.target.value))}
+                      className="w-full range-accent"
+                    />
+                  </label>
+
+                  <label className="block space-y-1">
+                    <span className="text-xs text-content-dim">Horizontal</span>
+                    <input
+                      type="range"
+                      min={-50}
+                      max={50}
+                      step={1}
+                      value={offsetX}
+                      onChange={(event) => setOffsetX(Number(event.target.value))}
+                      className="w-full range-accent"
+                    />
+                  </label>
+
+                  <label className="block space-y-1">
+                    <span className="text-xs text-content-dim">Vertical</span>
+                    <input
+                      type="range"
+                      min={-50}
+                      max={50}
+                      step={1}
+                      value={offsetY}
+                      onChange={(event) => setOffsetY(Number(event.target.value))}
+                      className="w-full range-accent"
+                    />
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={onSkipCrop}
+                    className="h-11 rounded-xl surface-strong text-sm font-medium interactive-tap"
+                  >
+                    Original
+                  </button>
+                  <button
+                    onClick={resetCrop}
+                    className="h-11 rounded-xl surface-strong text-sm font-medium inline-flex items-center justify-center gap-1.5 interactive-tap"
+                  >
+                    <RotateCcw size={13} />
+                    Reset
+                  </button>
+                  <button
+                    onClick={confirmCrop}
+                    className="h-11 rounded-xl cta-live-icon text-sm font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap"
+                  >
+                    <Scissors size={13} />
+                    Crop
+                  </button>
+                </div>
+
+                <button
+                  onClick={confirmCrop}
+                  className="w-full h-11 rounded-xl cta-live text-sm font-semibold inline-flex items-center justify-center gap-2 interactive-tap"
+                >
+                  <Check size={14} />
+                  Save Avatar
+                </button>
+
+                <p className="text-xs text-content-dim text-center">
+                  Source: {imageSize.width} x {imageSize.height}
                 </p>
+
+                <canvas ref={canvasRef} className="hidden" />
               </div>
-              <button onClick={onClose} className="h-9 w-9 rounded-full surface-strong flex items-center justify-center">
-                <X size={14} />
-              </button>
-            </div>
-
-            <div className="w-full flex justify-center">
-              <div
-                className="h-52 w-52 rounded-[26px] shadow-glass bg-surface-muted bg-no-repeat"
-                style={previewStyle}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <label className="block space-y-1">
-                <span className="text-xs uppercase tracking-[0.18em] text-content-dim">
-                  Zoom
-                </span>
-                <input
-                  type="range"
-                  min={1}
-                  max={2.2}
-                  step={0.01}
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="w-full range-accent"
-                />
-              </label>
-
-              <label className="block space-y-1">
-                <span className="text-xs uppercase tracking-[0.18em] text-content-dim">
-                  Horizontal
-                </span>
-                <input
-                  type="range"
-                  min={-50}
-                  max={50}
-                  step={1}
-                  value={offsetX}
-                  onChange={(e) => setOffsetX(Number(e.target.value))}
-                  className="w-full range-accent"
-                />
-              </label>
-
-              <label className="block space-y-1">
-                <span className="text-xs uppercase tracking-[0.18em] text-content-dim">
-                  Vertical
-                </span>
-                <input
-                  type="range"
-                  min={-50}
-                  max={50}
-                  step={1}
-                  value={offsetY}
-                  onChange={(e) => setOffsetY(Number(e.target.value))}
-                  className="w-full range-accent"
-                />
-              </label>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 pb-1">
-              <button
-                onClick={onSkipCrop}
-                className="h-11 rounded-xl surface-strong text-xs uppercase tracking-[0.2em]"
-              >
-                Use Original
-              </button>
-              <button
-                onClick={confirmCrop}
-                className="h-11 rounded-xl cta-live-icon text-xs uppercase tracking-[0.2em] font-semibold"
-              >
-                <span className="inline-flex items-center gap-1.5">
-                  <Scissors size={12} /> Crop
-                </span>
-              </button>
-            </div>
-
-            <button
-              onClick={confirmCrop}
-              className="w-full h-11 rounded-xl bg-surface-active text-content-active text-xs uppercase tracking-[0.2em] font-semibold"
-            >
-              <span className="inline-flex items-center gap-1.5">
-                <Check size={12} /> Save Avatar
-              </span>
-            </button>
-
-            <p className="text-xs text-content-dim">
-              Source: {imageSize.width} x {imageSize.height}
-            </p>
-
-            <canvas ref={canvasRef} className="hidden" />
             </motion.div>
           </>
         )}

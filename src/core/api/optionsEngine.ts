@@ -30,6 +30,13 @@ const BINARY_TOKENS = new Set([
   'sometimes',
 ]);
 
+const ONSET_QUESTION_PATTERN = /(when did|since when|how long|when .* start|started|start)/i;
+const COUNT_QUESTION_PATTERN = /(how many|number of|episodes|times|count|frequency)/i;
+const LATERALITY_QUESTION_PATTERN =
+  /(one side|both sides|which side|left side|right side|left or right|right or left|\bside\b)/i;
+const LATERALITY_HINT_PATTERN = /(left|right|both|side)/i;
+const SCALE_HINT_PATTERN = /(scale|rate|severity|intensity|score)/i;
+
 const slugify = (value: string): string =>
   value
     .toLowerCase()
@@ -61,6 +68,20 @@ const sanitizeOptions = (options: ResponseOptions['options']): ResponseOptions['
 const isBinaryLike = (options: ResponseOptions['options']): boolean => {
   if (options.length === 0 || options.length > 3) return false;
   return options.every((option) => BINARY_TOKENS.has(option.text.toLowerCase().trim()));
+};
+
+const inferContextHint = (
+  question: string,
+  mode: ResponseOptions['mode']
+): string => {
+  const normalized = question.toLowerCase();
+  if (isScaleIntentQuestion(normalized)) return 'Rate symptom severity right now.';
+  if (LATERALITY_QUESTION_PATTERN.test(normalized)) return 'Choose the affected side.';
+  if (COUNT_QUESTION_PATTERN.test(normalized)) return 'Choose the closest count.';
+  if (ONSET_QUESTION_PATTERN.test(normalized)) return 'Choose when symptoms began.';
+  if (isDirectYesNoQuestion(normalized)) return 'Yes, no, or not sure.';
+  if (mode === 'multiple') return 'Select all that apply, then continue.';
+  return 'Choose the closest option or type your own words.';
 };
 
 const inferVariant = (
@@ -176,13 +197,25 @@ const normalizeResponseOptions = (
   const uiVariant = inferVariant(mode, options, hintedVariant);
 
   const sanitizeContextHint = (hint: string | undefined): string => {
+    const inferred = inferContextHint(question, mode);
     const cleaned = (hint || '').replace(/\s+/g, ' ').trim();
-    if (!cleaned) return isDirectYesNoQuestion(question) ? 'Yes or No.' : 'Select response.';
+    if (!cleaned) return inferred;
     if (
       cleaned.length > 64 ||
       /(helps|distinguish|because|important|used to|clinical|diagnos)/i.test(cleaned)
     ) {
-      return isDirectYesNoQuestion(question) ? 'Yes or No.' : 'Select response.';
+      return inferred;
+    }
+
+    const normalizedQuestion = question.toLowerCase();
+    if (isScaleIntentQuestion(normalizedQuestion) && LATERALITY_HINT_PATTERN.test(cleaned)) {
+      return inferred;
+    }
+    if (LATERALITY_QUESTION_PATTERN.test(normalizedQuestion) && SCALE_HINT_PATTERN.test(cleaned)) {
+      return inferred;
+    }
+    if (COUNT_QUESTION_PATTERN.test(normalizedQuestion) && LATERALITY_HINT_PATTERN.test(cleaned)) {
+      return inferred;
     }
     return cleaned;
   };

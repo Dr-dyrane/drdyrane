@@ -121,6 +121,8 @@ CONVERSATION PROTOCOLS:
 8. Return only strict JSON.
 9. Initial epidemiology context is Nigeria unless the patient states another location.
 10. For fever-first presentations in Nigeria, consider malaria early in DDX and ask high-yield differentiating questions.
+11. In "statement", briefly mirror one specific patient detail so the patient feels heard.
+12. Prioritize questions that maximally reduce diagnostic uncertainty in one step.
 
 RESPONSE JSON:
 {
@@ -154,6 +156,10 @@ RULES:
 - Do NOT output generic progression options unless the question explicitly asks change over time.
 - Keep options short (2-5 words each) and patient-friendly.
 - If question is direct yes/no, return yes/no/not sure only.
+- If question asks severity/intensity/rating, return numeric or severity-scale options only.
+- If question asks laterality/side, return left/right/both style options.
+- Never return laterality options for severity questions (e.g., "how severe ... right now").
+- Set context_hint to a short phrase that matches the same intent as the question.
 
 RESPONSE JSON:
 {
@@ -844,4 +850,3 @@ export const runVision = async (body: VisionRequest): Promise<unknown> => {
 
   return normalizeVisionPayload(parseFirstJsonObject(raw));
 };
-
