@@ -1481,6 +1481,109 @@ const applyFeverOnlyGuardrail = (
   return [neutralLead, ...downgraded].sort((left, right) => right.score - left.score);
 };
 
+type QuestionIntent = 'most_limiting' | 'symptom_change' | 'pattern' | 'danger_signs';
+
+const INTENT_PATTERNS: Record<QuestionIntent, RegExp> = {
+  most_limiting: /\bmost limiting\b|\bstands?\s*out\b/i,
+  symptom_change: /\bchanged since\b|\bhow has\b|\bbetter|worse|improved\b/i,
+  pattern:
+    /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b|\bcyclic(al)?\b|\bcycle(s)?\b|\bnocturnal\b|\bevening chills?\b|\bmorning relief\b/i,
+  danger_signs:
+    /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b|\bchest pain\b/i,
+};
+
+const INTENT_SEQUENCE: Array<{ intent: QuestionIntent; question: string }> = [
+  { intent: 'most_limiting', question: 'Which one symptom is most limiting right now?' },
+  { intent: 'symptom_change', question: 'How has that symptom changed since it began?' },
+  { intent: 'pattern', question: 'What pattern do you notice most: day, night, intermittent, or constant?' },
+  {
+    intent: 'danger_signs',
+    question:
+      'Any danger signs now: breathlessness, confusion, chest pain, persistent vomiting, or bleeding?',
+  },
+];
+
+const NON_SUBSTANTIVE_RESPONSE_PATTERN = /^(ok|okay|alright|fine|hmm+|uh+h*|ah+h*|k|kk)$/i;
+const UNCERTAIN_RESPONSE_PATTERN = /\b(not sure|unsure|unknown|maybe|don'?t know|cannot tell|idk)\b/i;
+
+const detectQuestionIntent = (question: string): QuestionIntent | null => {
+  const normalized = sanitizeText(question);
+  if (!normalized) return null;
+  for (const [intent, pattern] of Object.entries(INTENT_PATTERNS)) {
+    if (pattern.test(normalized)) return intent as QuestionIntent;
+  }
+  return null;
+};
+
+const isSubstantivePatientReply = (text: string): boolean => {
+  const normalized = sanitizeText(text);
+  if (!normalized) return false;
+  if (UNCERTAIN_RESPONSE_PATTERN.test(normalized)) return false;
+  if (NON_SUBSTANTIVE_RESPONSE_PATTERN.test(normalized)) return false;
+  return /[a-z0-9]/i.test(normalized);
+};
+
+const hasAnsweredIntent = (
+  conversation: ConversationEntry[],
+  intent: QuestionIntent,
+  lookback = 24
+): boolean => {
+  const pattern = INTENT_PATTERNS[intent];
+  const window = (conversation || []).slice(-lookback);
+  for (let i = window.length - 1; i >= 0; i -= 1) {
+    const entry = window[i];
+    if (entry.role !== 'doctor') continue;
+    if (!pattern.test(sanitizeText(entry.content))) continue;
+
+    for (let j = i + 1; j < window.length; j += 1) {
+      const followup = window[j];
+      if (followup.role === 'doctor') break;
+      if (followup.role === 'patient' && isSubstantivePatientReply(followup.content)) {
+        return true;
+      }
+    }
+  }
+  return false;
+};
+
+const countRecentIntentAsks = (
+  conversation: ConversationEntry[],
+  intent: QuestionIntent,
+  lookback = 10
+): number => {
+  const pattern = INTENT_PATTERNS[intent];
+  return (conversation || [])
+    .filter((entry) => entry.role === 'doctor')
+    .slice(-lookback)
+    .reduce((count, entry) => (pattern.test(sanitizeText(entry.content)) ? count + 1 : count), 0);
+};
+
+const enforceQuestionProgression = (
+  question: string,
+  conversation: ConversationEntry[]
+): string => {
+  const normalized = sanitizeText(question);
+  if (!normalized) return normalized;
+
+  const intent = detectQuestionIntent(normalized);
+  if (!intent) return normalized;
+
+  const repeatedAsk = countRecentIntentAsks(conversation, intent, 8) >= 2;
+  const answeredAlready = hasAnsweredIntent(conversation, intent, 24);
+
+  if (!repeatedAsk && !answeredAlready) {
+    return normalized;
+  }
+
+  for (const step of INTENT_SEQUENCE) {
+    if (!hasAnsweredIntent(conversation, step.intent, 24)) {
+      return step.question;
+    }
+  }
+
+  return 'What other detail should I clarify before I summarize your working diagnosis?';
+};
+
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
   const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
   const corpus = buildConsultTextCorpus(body, payload);
@@ -1585,6 +1688,10 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
       : payload.question && !genericQuestionPattern.test(payload.question)
         ? payload.question
         : complaintRoute.starterQuestion;
+  const safeguardedQuestion = enforceQuestionProgression(
+    resolvedQuestion || 'What symptom is bothering you the most right now?',
+    body.state?.conversation || []
+  );
 
   return {
     ...payload,
@@ -1606,7 +1713,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
       must_not_miss_checkpoint: mergedCheckpoint,
     },
     question:
-      resolvedQuestion ||
+      safeguardedQuestion ||
       'What symptom is bothering you the most right now?',
   };
 };

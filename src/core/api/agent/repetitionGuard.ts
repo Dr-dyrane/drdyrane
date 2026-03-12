@@ -1,4 +1,5 @@
 import { ConversationMessage, AgentState } from '../../types/clinical';
+import { extractQuestionFromContent } from './questionFlow';
 
 const QUESTION_NORMALIZE_PATTERN = /[^a-z0-9]+/gi;
 const GENERIC_ASSOCIATED_SYMPTOM_PATTERN =
@@ -7,8 +8,10 @@ const NONE_STANDS_OUT_PATTERN = /\bnone stand out|none stands out|nothing stands
 const QUESTION_INTENT_PATTERNS = {
   most_limiting: /\bmost limiting\b|\bstands? out\b/i,
   symptom_change: /\bchanged since\b|\bhow has\b|\bbetter|worse|improved\b/i,
-  pattern: /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b/i,
-  danger_signs: /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b/i,
+  pattern:
+    /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b|\bcyclic(al)?\b|\bcycle(s)?\b|\bnocturnal\b|\bevening chills?\b|\bmorning relief\b/i,
+  danger_signs:
+    /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b|\bchest pain\b/i,
 } as const;
 const UNCERTAIN_RESPONSE_PATTERN =
   /\b(not sure|unsure|unknown|maybe|don'?t know|cannot tell|idk)\b/i;
@@ -82,7 +85,12 @@ export const getRecentDoctorQuestions = (
 ): string[] =>
   conversation
     .filter((message) => message.role === 'doctor')
-    .map((message) => message.metadata?.question || message.content || '')
+    .map((message) => {
+      const metadataQuestion = (message.metadata?.question || '').trim();
+      if (metadataQuestion) return metadataQuestion;
+      const extracted = extractQuestionFromContent(message.content || '').trim();
+      return extracted || message.content || '';
+    })
     .map((question) => question.trim())
     .filter(Boolean)
     .slice(-limit);

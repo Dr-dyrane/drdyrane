@@ -30,6 +30,11 @@ export const StepRenderer: React.FC = () => {
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
+  const latestStateRef = useRef(state);
+
+  useEffect(() => {
+    latestStateRef.current = state;
+  }, [state]);
 
   useEffect(() => {
     if (!loading) {
@@ -95,7 +100,11 @@ export const StepRenderer: React.FC = () => {
         if (preDelayMs > 0) {
           await new Promise((resolve) => window.setTimeout(resolve, preDelayMs));
         }
-        const result = await processAgentInteraction(input, state, isOptionSelection);
+        const result = await processAgentInteraction(
+          input,
+          latestStateRef.current,
+          isOptionSelection
+        );
         dispatch({
           type: 'SET_AGENT_RESPONSE',
           payload: result,
@@ -104,14 +113,14 @@ export const StepRenderer: React.FC = () => {
       } catch (error) {
         console.error('Interaction error:', error);
         signalFeedback('error', {
-          hapticsEnabled: state.settings.haptics_enabled,
-          audioEnabled: state.settings.audio_enabled,
+          hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
+          audioEnabled: latestStateRef.current.settings.audio_enabled,
         });
       } finally {
         setLoading(false);
       }
     },
-    [dispatch, state]
+    [dispatch]
   );
 
   const activeGateSegment = state.question_gate?.active

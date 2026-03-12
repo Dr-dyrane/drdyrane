@@ -68,9 +68,10 @@ const MOST_LIMITING_QUESTION_PATTERN = /\bmost limiting\b|\bstands?\s*out\b/i;
 const SYMPTOM_CHANGE_QUESTION_PATTERN = /\bchanged since\b|\bhow has\b|\bbetter|worse|improved\b/i;
 const CHECKPOINT_DANGER_SIGNAL_PATTERN =
   /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
-const PATTERN_QUESTION_PATTERN = /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b/i;
+const PATTERN_QUESTION_PATTERN =
+  /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b|\bcyclic(al)?\b|\bcycle(s)?\b|\bnocturnal\b|\bevening chills?\b|\bmorning relief\b/i;
 const DANGER_SIGNS_QUESTION_PATTERN =
-  /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b/i;
+  /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b|\bchest pain\b/i;
 const SYMPTOM_CLUSTER_PROMPT = 'Which symptom cluster stands out most right now?';
 const FEVER_PATTERN_DETAIL_PROMPT = 'Within fever pattern, which cue stands out most?';
 const HEAD_PAIN_DETAIL_PROMPT = 'Within head/pain pattern, which symptom stands out most?';
@@ -1380,7 +1381,46 @@ export class AgentCoordinator {
   }
 
   updateState(newState: Partial<ClinicalState>): void {
-    this.state = { ...this.state, ...newState };
+    const mergedConversation = Array.isArray(newState.conversation)
+      ? newState.conversation.length >= this.state.conversation.length
+        ? newState.conversation
+        : this.state.conversation
+      : this.state.conversation;
+
+    const incomingAgentState = newState.agent_state;
+    const mergedAgentState = incomingAgentState
+      ? {
+          ...this.state.agent_state,
+          ...incomingAgentState,
+          pending_actions: this.mergePendingActions(
+            this.state.agent_state.pending_actions,
+            incomingAgentState.pending_actions || []
+          ),
+          positive_findings: Array.from(
+            new Set([
+              ...(this.state.agent_state.positive_findings || []),
+              ...(incomingAgentState.positive_findings || []),
+            ])
+          ).slice(0, 24),
+          negative_findings: Array.from(
+            new Set([
+              ...(this.state.agent_state.negative_findings || []),
+              ...(incomingAgentState.negative_findings || []),
+            ])
+          ).slice(0, 24),
+          must_not_miss_checkpoint: this.ensureCheckpointState(
+            incomingAgentState.must_not_miss_checkpoint ||
+              this.state.agent_state.must_not_miss_checkpoint
+          ),
+        }
+      : this.state.agent_state;
+
+    this.state = {
+      ...this.state,
+      ...newState,
+      conversation: mergedConversation,
+      agent_state: mergedAgentState,
+    };
   }
 }
 

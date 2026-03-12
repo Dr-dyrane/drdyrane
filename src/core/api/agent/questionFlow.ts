@@ -72,12 +72,18 @@ export const sanitizeQuestion = (rawQuestion: string): string => {
 
   if (!singleQuestion) return '';
 
-  if (singleQuestion.endsWith('?')) return singleQuestion;
-  if (LEADING_QUESTION_PATTERN.test(singleQuestion)) {
-    return `${singleQuestion}?`;
+  const canonicalized = singleQuestion
+    .replace(/^is most limiting right now\??$/i, 'What symptom is most limiting right now?')
+    .replace(/^is most limiting\??$/i, 'What symptom is most limiting right now?')
+    .replace(/^is most limiting right now$/i, 'What symptom is most limiting right now?')
+    .trim();
+
+  if (canonicalized.endsWith('?')) return canonicalized;
+  if (LEADING_QUESTION_PATTERN.test(canonicalized)) {
+    return `${canonicalized}?`;
   }
 
-  return singleQuestion;
+  return canonicalized;
 };
 
 export const extractQuestionFromContent = (content: string): string => {
