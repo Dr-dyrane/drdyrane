@@ -8,6 +8,12 @@ const makeInitialState = () => ({
     focus_area: 'Initial assessment',
     pending_actions: ['Gather chief complaint'],
     last_decision: 'Starting intake',
+    positive_findings: [],
+    negative_findings: [],
+    must_not_miss_checkpoint: {
+      required: false,
+      status: 'idle',
+    },
   },
   ddx: [],
   urgency: 'low',

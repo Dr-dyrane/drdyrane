@@ -31,6 +31,7 @@ import {
   isLikelyRepeatedQuestion,
 } from './agent/repetitionGuard';
 import { buildAutoClerking } from './agent/clerkingAutoFill';
+import { deriveFindingMemory } from './agent/encounterMemory';
 
 const PROFILE_MEMORY_NOTIFICATION = {
   title: 'Profile Memory Updated',
@@ -60,6 +61,8 @@ const NON_COMPLAINT_OPENER_PATTERN = /^(hi|hello|hey|good (morning|afternoon|eve
 const YES_ANSWER_PATTERN = /\b(yes|yeah|yep|affirmative|correct|sure)\b/i;
 const NO_ANSWER_PATTERN = /\b(no|none|nothing else|nope)\b/i;
 const UNSURE_ANSWER_PATTERN = /\b(not sure|unsure|unknown|maybe)\b/i;
+const CHECKPOINT_DANGER_SIGNAL_PATTERN =
+  /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
 
 export class AgentCoordinator {
   private state: ClinicalState;
@@ -217,6 +220,232 @@ export class AgentCoordinator {
 
   private isNegativeOrUncertainAnswer(answer: string): boolean {
     return NO_ANSWER_PATTERN.test(answer) || UNSURE_ANSWER_PATTERN.test(answer);
+  }
+
+  private ensureCheckpointState(
+    checkpoint: ClinicalState['agent_state']['must_not_miss_checkpoint'] | undefined
+  ): ClinicalState['agent_state']['must_not_miss_checkpoint'] {
+    return {
+      required: Boolean(checkpoint?.required),
+      status: checkpoint?.status || 'idle',
+      last_question: checkpoint?.last_question,
+      last_response: checkpoint?.last_response,
+      updated_at: checkpoint?.updated_at,
+    };
+  }
+
+  private withDerivedFindingMemory(
+    baseAgentState: ClinicalState['agent_state'],
+    snapshot: ClinicalState
+  ): ClinicalState['agent_state'] {
+    const checkpoint = this.ensureCheckpointState(baseAgentState.must_not_miss_checkpoint);
+    const memorySnapshot: ClinicalState = {
+      ...snapshot,
+      agent_state: {
+        ...baseAgentState,
+        must_not_miss_checkpoint: checkpoint,
+      },
+    };
+    const findingMemory = deriveFindingMemory(memorySnapshot);
+
+    return {
+      ...baseAgentState,
+      positive_findings: findingMemory.positive,
+      negative_findings: findingMemory.negative,
+      must_not_miss_checkpoint: checkpoint,
+    };
+  }
+
+  private mergePendingActions(existing: string[], additions: string[]): string[] {
+    return Array.from(new Set([...existing, ...additions].filter(Boolean))).slice(0, 8);
+  }
+
+  private shouldEnforceSafetyCheckpoint(
+    status: ClinicalState['status'],
+    autoComplete: boolean,
+    checkpoint: ClinicalState['agent_state']['must_not_miss_checkpoint']
+  ): boolean {
+    if (status === 'emergency' || status === 'lens') return false;
+    if (!autoComplete && status !== 'complete') return false;
+    if (checkpoint.status === 'cleared' || checkpoint.status === 'escalate') return false;
+    return true;
+  }
+
+  private buildSafetyCheckpointQuestion(ddx: string[]): string {
+    const lead = (ddx[0] || '').replace(/\s*\(icd-10:\s*[a-z0-9.-]+\)\s*/gi, '').trim();
+    if (lead) {
+      return `Before I finalize ${lead}, any danger signs now: confusion, fainting, breathing trouble, chest pain, persistent vomiting, or bleeding?`;
+    }
+    return 'Before I finalize, any danger signs now: confusion, fainting, breathing trouble, chest pain, persistent vomiting, or bleeding?';
+  }
+
+  private classifySafetyCheckpointAnswer(answer: string): 'clear' | 'positive' | 'uncertain' {
+    if (!answer) return 'uncertain';
+    const normalized = answer.trim().toLowerCase();
+    if (CHECKPOINT_DANGER_SIGNAL_PATTERN.test(normalized)) return 'positive';
+    if (this.isAffirmativeAnswer(normalized)) return 'positive';
+    if (NO_ANSWER_PATTERN.test(normalized)) return 'clear';
+    return 'uncertain';
+  }
+
+  private async processSafetyCheckpointAnswer(
+    answerText: string,
+    gate: QuestionGateState,
+    nextAnswers: QuestionGateState['answers'],
+    patientMessage: ConversationMessage,
+    profileForTurn: ClinicalState['profile']
+  ): Promise<Partial<ClinicalState>> {
+    const safetyDecision = this.classifySafetyCheckpointAnswer(answerText);
+    const now = Date.now();
+    const checkpointQuestion = gate.source_question || this.buildSafetyCheckpointQuestion(this.state.ddx);
+
+    if (safetyDecision === 'positive') {
+      const escalationQuestion = 'Can you access emergency care right now?';
+      const doctorMessage = createDoctorMessage(
+        escalationQuestion,
+        'That could indicate a must-not-miss emergency. Please seek urgent in-person care immediately.'
+      );
+      const conversation = [...this.state.conversation, patientMessage, doctorMessage];
+      const nextAgentState = this.withDerivedFindingMemory(
+        {
+          ...this.state.agent_state,
+          pending_actions: this.mergePendingActions(this.state.agent_state.pending_actions, [
+            'Immediate emergency referral',
+            'Stabilize airway-breathing-circulation and urgent transfer',
+          ]),
+          last_decision: 'Must-not-miss checkpoint positive; escalated to emergency care',
+          must_not_miss_checkpoint: {
+            required: false,
+            status: 'escalate',
+            last_question: checkpointQuestion,
+            last_response: answerText,
+            updated_at: now,
+          },
+        },
+        {
+          ...this.state,
+          conversation,
+          profile: profileForTurn,
+        }
+      );
+      const nextState: Partial<ClinicalState> = {
+        status: 'emergency',
+        redFlag: true,
+        urgency: 'critical',
+        conversation,
+        profile: profileForTurn,
+        clerking: buildAutoClerking(this.state.clerking, this.state.soap, conversation, profileForTurn),
+        agent_state: nextAgentState,
+        thinking: 'Safety checkpoint flagged high-risk danger signs; emergency escalation advised.',
+        question_gate: null,
+        response_options: null,
+        selected_options: [],
+      };
+      this.state = { ...this.state, ...nextState };
+      return nextState;
+    }
+
+    if (safetyDecision === 'clear') {
+      const conversation = [...this.state.conversation, patientMessage];
+      const nextAgentState = this.withDerivedFindingMemory(
+        {
+          ...this.state.agent_state,
+          must_not_miss_checkpoint: {
+            required: false,
+            status: 'cleared',
+            last_question: checkpointQuestion,
+            last_response: answerText,
+            updated_at: now,
+          },
+          pending_actions: this.mergePendingActions(this.state.agent_state.pending_actions, [
+            'Must-not-miss danger signs reviewed and excluded',
+          ]),
+          last_decision: 'Safety checkpoint cleared; ready for final diagnosis output',
+        },
+        {
+          ...this.state,
+          conversation,
+          profile: profileForTurn,
+        }
+      );
+      const finalPlan = buildClinicalPlan({
+        ddx: this.state.ddx,
+        soap: this.state.soap,
+        urgency: this.state.urgency,
+        profile: profileForTurn,
+      });
+      const nextState: Partial<ClinicalState> = {
+        status: 'complete',
+        conversation,
+        profile: profileForTurn,
+        clerking: buildAutoClerking(this.state.clerking, this.state.soap, conversation, profileForTurn),
+        pillars: finalPlan,
+        agent_state: nextAgentState,
+        question_gate: null,
+        response_options: null,
+        selected_options: [],
+      };
+      this.state = { ...this.state, ...nextState };
+      return nextState;
+    }
+
+    const clarificationQuestion = this.buildSafetyCheckpointQuestion(this.state.ddx);
+    const clarificationDoctor = createDoctorMessage(
+      clarificationQuestion,
+      'I need one clear safety check before I finalize your plan.'
+    );
+    const clarificationGate: QuestionGateState = {
+      ...gate,
+      kind: 'safety_checkpoint',
+      source_question: clarificationQuestion,
+      current_index: 0,
+      answers: nextAnswers,
+      segments: [{ id: 'must_not_miss_excluded', prompt: clarificationQuestion }],
+    };
+    const responseOptions = await this.resolveQuestionOptions(
+      clarificationQuestion,
+      this.state.agent_state,
+      this.state.soap,
+      profileForTurn
+    );
+    const conversation = [...this.state.conversation, patientMessage, clarificationDoctor];
+    const nextAgentState = this.withDerivedFindingMemory(
+      {
+        ...this.state.agent_state,
+        pending_actions: this.mergePendingActions(this.state.agent_state.pending_actions, [
+          'Await clear must-not-miss checkpoint response',
+        ]),
+        last_decision: 'Safety checkpoint unclear; requesting explicit yes/no confirmation',
+        must_not_miss_checkpoint: {
+          required: true,
+          status: 'pending',
+          last_question: clarificationQuestion,
+          last_response: answerText,
+          updated_at: now,
+        },
+      },
+      {
+        ...this.state,
+        conversation,
+        profile: profileForTurn,
+      }
+    );
+    const nextState: Partial<ClinicalState> = {
+      status: 'active',
+      conversation,
+      profile: profileForTurn,
+      clerking: buildAutoClerking(this.state.clerking, this.state.soap, conversation, profileForTurn),
+      question_gate: clarificationGate,
+      response_options: {
+        ...responseOptions,
+        allow_custom_input: true,
+        context_hint: 'Safety check before final diagnosis.',
+      },
+      selected_options: [],
+      agent_state: nextAgentState,
+    };
+    this.state = { ...this.state, ...nextState };
+    return nextState;
   }
 
   private buildPresentingComplaintsSummary(
@@ -422,31 +651,132 @@ export class AgentCoordinator {
     const conversationResult = await callConversationEngine(input, stateForTurn);
 
     const nextConversation: ConversationMessage[] = [...stateForTurn.conversation, patientMessage];
+    const nextSoap = { ...stateForTurn.soap, ...conversationResult.soap_updates };
+    const incomingCheckpoint = this.ensureCheckpointState(
+      conversationResult.agent_state.must_not_miss_checkpoint ||
+        stateForTurn.agent_state.must_not_miss_checkpoint
+    );
+    const baseAgentState: ClinicalState['agent_state'] = {
+      ...stateForTurn.agent_state,
+      ...conversationResult.agent_state,
+      pending_actions: conversationResult.agent_state.pending_actions || stateForTurn.agent_state.pending_actions,
+      positive_findings:
+        conversationResult.agent_state.positive_findings || stateForTurn.agent_state.positive_findings,
+      negative_findings:
+        conversationResult.agent_state.negative_findings || stateForTurn.agent_state.negative_findings,
+      must_not_miss_checkpoint: incomingCheckpoint,
+    };
+
     let doctorMessage = buildDoctorMessageFromResult(conversationResult.message);
-    const question = this.ensureProgressiveQuestion(
+    const aiQuestion = this.ensureProgressiveQuestion(
       doctorMessage.metadata?.question || getFallbackQuestion(),
       stateForTurn.conversation,
       conversationResult.agent_state.phase
     );
-    doctorMessage = createDoctorMessage(
-      question,
-      conversationResult.message.metadata?.statement
+    doctorMessage = createDoctorMessage(aiQuestion, conversationResult.message.metadata?.statement);
+
+    const autoComplete = this.shouldAutoCompleteEncounter(
+      conversationResult.status,
+      conversationResult.ddx,
+      conversationResult.probability,
+      nextSoap,
+      nextConversation
     );
+    const requiresSafetyCheckpoint = this.shouldEnforceSafetyCheckpoint(
+      conversationResult.status,
+      autoComplete,
+      incomingCheckpoint
+    );
+
+    if (requiresSafetyCheckpoint && !conversationResult.lens_trigger) {
+      const safetyQuestion = this.buildSafetyCheckpointQuestion(conversationResult.ddx);
+      const safetyDoctorMessage = createDoctorMessage(
+        safetyQuestion,
+        'Before I finalize your diagnosis, I need one safety check.'
+      );
+      nextConversation.push(safetyDoctorMessage);
+
+      const checkpointAgentState = this.withDerivedFindingMemory(
+        {
+          ...baseAgentState,
+          pending_actions: this.mergePendingActions(baseAgentState.pending_actions, [
+            'Confirm must-not-miss danger signs still excluded',
+          ]),
+          last_decision: 'Final diagnosis held until must-not-miss safety checkpoint is cleared',
+          must_not_miss_checkpoint: {
+            required: true,
+            status: 'pending',
+            last_question: safetyQuestion,
+            last_response: incomingCheckpoint.last_response,
+            updated_at: Date.now(),
+          },
+        },
+        {
+          ...stateForTurn,
+          conversation: nextConversation,
+          soap: nextSoap,
+        }
+      );
+
+      const checkpointGate: QuestionGateState = {
+        active: true,
+        kind: 'safety_checkpoint',
+        source_question: safetyQuestion,
+        segments: [{ id: 'must_not_miss_excluded', prompt: safetyQuestion }],
+        current_index: 0,
+        answers: [],
+      };
+      const checkpointOptions = await this.resolveQuestionOptions(
+        safetyQuestion,
+        checkpointAgentState,
+        nextSoap,
+        stateForTurn.profile
+      );
+      const nextClerking = buildAutoClerking(
+        stateForTurn.clerking,
+        nextSoap,
+        nextConversation,
+        stateForTurn.profile
+      );
+      const checkpointState: Partial<ClinicalState> = {
+        conversation: nextConversation,
+        soap: nextSoap,
+        ddx: conversationResult.ddx,
+        profile: stateForTurn.profile,
+        clerking: nextClerking,
+        agent_state: checkpointAgentState,
+        urgency: conversationResult.urgency,
+        probability: conversationResult.probability,
+        thinking: 'Running mandatory must-not-miss safety exclusion before final output.',
+        status: 'active',
+        pillars: null,
+        question_gate: checkpointGate,
+        response_options: {
+          ...checkpointOptions,
+          allow_custom_input: true,
+          context_hint: 'Safety checkpoint before final diagnosis.',
+        },
+        selected_options: [],
+      };
+
+      this.state = { ...stateForTurn, ...checkpointState };
+      return checkpointState;
+    }
 
     let questionGate: QuestionGateState | null = null;
     let responseOptions: ResponseOptions | null = null;
 
     if (conversationResult.lens_trigger) {
       responseOptions = null;
-    } else if (conversationResult.needs_options || (conversationResult.status === 'active' && question)) {
+    } else if (conversationResult.needs_options || (conversationResult.status === 'active' && aiQuestion)) {
       responseOptions = await this.resolveQuestionOptions(
-        question,
-        conversationResult.agent_state,
-        { ...stateForTurn.soap, ...conversationResult.soap_updates },
+        aiQuestion,
+        baseAgentState,
+        nextSoap,
         stateForTurn.profile
       );
 
-      questionGate = this.buildStackedSymptomSurvey(question, responseOptions);
+      questionGate = this.buildStackedSymptomSurvey(aiQuestion, responseOptions);
       if (questionGate) {
         responseOptions = {
           ...responseOptions,
@@ -459,19 +789,30 @@ export class AgentCoordinator {
     }
 
     nextConversation.push(doctorMessage);
-    const nextSoap = { ...stateForTurn.soap, ...conversationResult.soap_updates };
+    const nextAgentState = this.withDerivedFindingMemory(
+      {
+        ...baseAgentState,
+        must_not_miss_checkpoint: autoComplete
+          ? {
+              required: false,
+              status: incomingCheckpoint.status === 'cleared' ? 'cleared' : incomingCheckpoint.status,
+              last_question: incomingCheckpoint.last_question,
+              last_response: incomingCheckpoint.last_response,
+              updated_at: Date.now(),
+            }
+          : incomingCheckpoint,
+      },
+      {
+        ...stateForTurn,
+        conversation: nextConversation,
+        soap: nextSoap,
+      }
+    );
     const nextClerking = buildAutoClerking(
       stateForTurn.clerking,
       nextSoap,
       nextConversation,
       stateForTurn.profile
-    );
-    const autoComplete = this.shouldAutoCompleteEncounter(
-      conversationResult.status,
-      conversationResult.ddx,
-      conversationResult.probability,
-      nextSoap,
-      nextConversation
     );
     const nextStatus: ClinicalState['status'] = conversationResult.lens_trigger
       ? 'lens'
@@ -493,7 +834,7 @@ export class AgentCoordinator {
       ddx: conversationResult.ddx,
       profile: stateForTurn.profile,
       clerking: nextClerking,
-      agent_state: conversationResult.agent_state,
+      agent_state: nextAgentState,
       urgency: conversationResult.urgency,
       probability: conversationResult.probability,
       thinking: conversationResult.thinking,
@@ -530,6 +871,16 @@ export class AgentCoordinator {
         response: answerText,
       },
     ];
+
+    if (gate.kind === 'safety_checkpoint') {
+      return this.processSafetyCheckpointAnswer(
+        answerText,
+        gate,
+        nextAnswers,
+        patientMessage,
+        profileForTurn
+      );
+    }
 
     if (gate.kind === 'presenting_complaints') {
       const normalizedAnswer = answerText.trim().toLowerCase();

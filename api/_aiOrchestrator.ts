@@ -54,6 +54,15 @@ type ConsultPayload = {
     focus_area?: string;
     pending_actions?: string[];
     last_decision?: string;
+    positive_findings?: string[];
+    negative_findings?: string[];
+    must_not_miss_checkpoint?: {
+      required?: boolean;
+      status?: 'idle' | 'pending' | 'cleared' | 'escalate';
+      last_question?: string;
+      last_response?: string;
+      updated_at?: number;
+    };
   };
   urgency?: 'low' | 'medium' | 'high' | 'critical';
   probability?: number;
@@ -130,6 +139,8 @@ CONVERSATION PROTOCOLS:
 17. Use both positive and negative evidence from history to raise or lower diagnostic likelihood.
 18. In internal reasoning, challenge anchor bias by checking at least one plausible alternative explanation.
 19. Recommend targeted confirmatory tests only after history has produced a focused working differential.
+20. Maintain explicit agent_state memory for both positive_findings and negative_findings.
+21. If final output is near, include must_not_miss_checkpoint status and the last safety question/response.
 
 RESPONSE JSON:
 {
@@ -142,7 +153,16 @@ RESPONSE JSON:
     "confidence": number,
     "focus_area": "string",
     "pending_actions": [],
-    "last_decision": "string"
+    "last_decision": "string",
+    "positive_findings": ["string"],
+    "negative_findings": ["string"],
+    "must_not_miss_checkpoint": {
+      "required": true,
+      "status": "idle|pending|cleared|escalate",
+      "last_question": "string",
+      "last_response": "string",
+      "updated_at": 0
+    }
   },
   "urgency": "low|medium|high|critical",
   "probability": number,
@@ -300,6 +320,16 @@ const sanitizeStatus = (value: unknown): ConsultPayload['status'] => {
   return 'active';
 };
 
+const sanitizeCheckpointStatus = (
+  value: unknown
+): NonNullable<NonNullable<ConsultPayload['agent_state']>['must_not_miss_checkpoint']>['status'] => {
+  const normalized = sanitizeText(value).toLowerCase();
+  if (normalized === 'pending') return 'pending';
+  if (normalized === 'cleared') return 'cleared';
+  if (normalized === 'escalate') return 'escalate';
+  return 'idle';
+};
+
 const sanitizeSoap = (value: unknown): ConsultPayload['soap_updates'] => {
   if (!value || typeof value !== 'object') {
     return { S: {}, O: {}, A: {}, P: {} };
@@ -318,6 +348,9 @@ const normalizeConsultPayload = (value: unknown): ConsultPayload => {
   const agentRaw = (source.agent_state && typeof source.agent_state === 'object'
     ? source.agent_state
     : {}) as Record<string, unknown>;
+  const checkpointRaw = (agentRaw.must_not_miss_checkpoint && typeof agentRaw.must_not_miss_checkpoint === 'object'
+    ? agentRaw.must_not_miss_checkpoint
+    : {}) as Record<string, unknown>;
 
   return {
     statement: sanitizeText(source.statement),
@@ -330,6 +363,18 @@ const normalizeConsultPayload = (value: unknown): ConsultPayload => {
       focus_area: sanitizeText(agentRaw.focus_area) || 'Clinical assessment',
       pending_actions: sanitizeList(agentRaw.pending_actions, 8),
       last_decision: sanitizeText(agentRaw.last_decision) || 'Continuing assessment',
+      positive_findings: sanitizeList(agentRaw.positive_findings, 24),
+      negative_findings: sanitizeList(agentRaw.negative_findings, 24),
+      must_not_miss_checkpoint: {
+        required: Boolean(checkpointRaw.required),
+        status: sanitizeCheckpointStatus(checkpointRaw.status),
+        last_question: sanitizeText(checkpointRaw.last_question) || undefined,
+        last_response: sanitizeText(checkpointRaw.last_response) || undefined,
+        updated_at:
+          typeof checkpointRaw.updated_at === 'number'
+            ? checkpointRaw.updated_at
+            : Number(checkpointRaw.updated_at) || undefined,
+      },
     },
     urgency: sanitizeUrgency(source.urgency),
     probability: clampPercent(source.probability),
@@ -399,6 +444,34 @@ const normalizeVisionPayload = (value: unknown): VisionPayload => {
 const mergeUnique = (left: string[], right: string[], maxItems: number): string[] =>
   [...new Set([...left, ...right])].filter(Boolean).slice(0, maxItems);
 
+const mergeCheckpointState = (
+  primary: NonNullable<ConsultPayload['agent_state']>['must_not_miss_checkpoint'],
+  secondary: NonNullable<ConsultPayload['agent_state']>['must_not_miss_checkpoint']
+): NonNullable<ConsultPayload['agent_state']>['must_not_miss_checkpoint'] => {
+  const left = primary || {};
+  const right = secondary || {};
+
+  let status: 'idle' | 'pending' | 'cleared' | 'escalate' = 'idle';
+  if (left.status === 'escalate' || right.status === 'escalate') {
+    status = 'escalate';
+  } else if (left.status === 'pending' || right.status === 'pending') {
+    status = 'pending';
+  } else if (left.status === 'cleared' || right.status === 'cleared') {
+    status = 'cleared';
+  }
+
+  return {
+    required: Boolean(left.required || right.required),
+    status,
+    last_question: left.last_question || right.last_question,
+    last_response: left.last_response || right.last_response,
+    updated_at:
+      (typeof left.updated_at === 'number' ? left.updated_at : Number(left.updated_at) || 0) ||
+      (typeof right.updated_at === 'number' ? right.updated_at : Number(right.updated_at) || 0) ||
+      undefined,
+  };
+};
+
 const mergeConsultPayloads = (primary: ConsultPayload, secondary: ConsultPayload): ConsultPayload => {
   const mergedUrgency =
     URGENCY_RANK[secondary.urgency || 'low'] > URGENCY_RANK[primary.urgency || 'low']
@@ -431,6 +504,20 @@ const mergeConsultPayloads = (primary: ConsultPayload, secondary: ConsultPayload
         8
       ),
       last_decision: primary.agent_state?.last_decision || secondary.agent_state?.last_decision || '',
+      positive_findings: mergeUnique(
+        primary.agent_state?.positive_findings || [],
+        secondary.agent_state?.positive_findings || [],
+        24
+      ),
+      negative_findings: mergeUnique(
+        primary.agent_state?.negative_findings || [],
+        secondary.agent_state?.negative_findings || [],
+        24
+      ),
+      must_not_miss_checkpoint: mergeCheckpointState(
+        primary.agent_state?.must_not_miss_checkpoint,
+        secondary.agent_state?.must_not_miss_checkpoint
+      ),
     },
     urgency: mergedUrgency || 'low',
     probability: clampPercent(((primary.probability || 0) + (secondary.probability || 0)) / 2),
@@ -1260,6 +1347,38 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
   } else if (lead.score >= 5 && URGENCY_RANK[nextUrgency] < URGENCY_RANK.medium) {
     nextUrgency = 'medium';
   }
+  const requestAgentState =
+    body.state?.agent_state && typeof body.state.agent_state === 'object'
+      ? (body.state.agent_state as Record<string, unknown>)
+      : {};
+  const mergedPositiveFindings = mergeUnique(
+    payload.agent_state?.positive_findings || [],
+    sanitizeList(requestAgentState.positive_findings, 24),
+    24
+  );
+  const mergedNegativeFindings = mergeUnique(
+    payload.agent_state?.negative_findings || [],
+    sanitizeList(requestAgentState.negative_findings, 24),
+    24
+  );
+  const checkpointFromRequest =
+    requestAgentState.must_not_miss_checkpoint &&
+    typeof requestAgentState.must_not_miss_checkpoint === 'object'
+      ? (requestAgentState.must_not_miss_checkpoint as Record<string, unknown>)
+      : {};
+  const mergedCheckpoint = mergeCheckpointState(
+    payload.agent_state?.must_not_miss_checkpoint,
+    {
+      required: Boolean(checkpointFromRequest.required),
+      status: sanitizeCheckpointStatus(checkpointFromRequest.status),
+      last_question: sanitizeText(checkpointFromRequest.last_question) || undefined,
+      last_response: sanitizeText(checkpointFromRequest.last_response) || undefined,
+      updated_at:
+        typeof checkpointFromRequest.updated_at === 'number'
+          ? checkpointFromRequest.updated_at
+          : Number(checkpointFromRequest.updated_at) || undefined,
+    }
+  );
 
   return {
     ...payload,
@@ -1276,6 +1395,9 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
       pending_actions: nextActions.slice(0, 8),
       last_decision:
         `Top-down orchestration prioritized ${stripIcd10Label(lead.diagnosis)} with evidence-weighted ranking`,
+      positive_findings: mergedPositiveFindings,
+      negative_findings: mergedNegativeFindings,
+      must_not_miss_checkpoint: mergedCheckpoint,
     },
     question:
       preferredQuestion ||
@@ -1544,6 +1666,9 @@ Differential (DDX): ${(body.state?.ddx || []).join(', ')}
 Urgency: ${body.state?.urgency || 'low'}
 Confidence: ${body.state?.probability || 0}%
 Recent Doctor Questions: ${JSON.stringify(recentDoctorQuestions)}
+Positive Findings Memory: ${JSON.stringify((body.state?.agent_state as Record<string, unknown>)?.positive_findings || [])}
+Negative Findings Memory: ${JSON.stringify((body.state?.agent_state as Record<string, unknown>)?.negative_findings || [])}
+Safety Checkpoint Memory: ${JSON.stringify((body.state?.agent_state as Record<string, unknown>)?.must_not_miss_checkpoint || {})}
 Clinical Memory Dossier: ${body.state?.memory_dossier || 'No structured dossier yet.'}
 Deployment Region: Nigeria (default context)
 

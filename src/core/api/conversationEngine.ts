@@ -106,6 +106,11 @@ export const callConversationEngine = async (
     }
 
     const aiResponse = await response.json();
+    const checkpointRaw =
+      aiResponse?.agent_state?.must_not_miss_checkpoint &&
+      typeof aiResponse.agent_state.must_not_miss_checkpoint === 'object'
+        ? aiResponse.agent_state.must_not_miss_checkpoint
+        : null;
     const normalizedAgentState: AgentState = {
       phase: aiResponse?.agent_state?.phase || state.agent_state.phase,
       confidence: normalizePercentage(aiResponse?.agent_state?.confidence, state.agent_state.confidence),
@@ -114,6 +119,26 @@ export const callConversationEngine = async (
         ? aiResponse.agent_state.pending_actions.slice(0, 8)
         : state.agent_state.pending_actions,
       last_decision: aiResponse?.agent_state?.last_decision || state.agent_state.last_decision,
+      positive_findings: Array.isArray(aiResponse?.agent_state?.positive_findings)
+        ? aiResponse.agent_state.positive_findings.slice(0, 24)
+        : state.agent_state.positive_findings || [],
+      negative_findings: Array.isArray(aiResponse?.agent_state?.negative_findings)
+        ? aiResponse.agent_state.negative_findings.slice(0, 24)
+        : state.agent_state.negative_findings || [],
+      must_not_miss_checkpoint: {
+        required: Boolean(checkpointRaw?.required ?? state.agent_state.must_not_miss_checkpoint?.required),
+        status:
+          checkpointRaw?.status ||
+          state.agent_state.must_not_miss_checkpoint?.status ||
+          'idle',
+        last_question:
+          checkpointRaw?.last_question || state.agent_state.must_not_miss_checkpoint?.last_question,
+        last_response:
+          checkpointRaw?.last_response || state.agent_state.must_not_miss_checkpoint?.last_response,
+        updated_at:
+          Number(checkpointRaw?.updated_at) ||
+          state.agent_state.must_not_miss_checkpoint?.updated_at,
+      },
     };
     const normalizedProbability = normalizePercentage(aiResponse?.probability, state.probability);
 

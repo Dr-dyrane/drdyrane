@@ -123,7 +123,7 @@ export interface GatedQuestionAnswer {
 export interface QuestionGateState {
   active: boolean;
   source_question: string;
-  kind?: 'stacked_symptom' | 'presenting_complaints';
+  kind?: 'stacked_symptom' | 'presenting_complaints' | 'safety_checkpoint';
   segments: GatedQuestionSegment[];
   current_index: number;
   answers: GatedQuestionAnswer[];
@@ -137,6 +137,15 @@ export interface AgentState {
   focus_area: string;
   pending_actions: string[];
   last_decision: string;
+  positive_findings: string[];
+  negative_findings: string[];
+  must_not_miss_checkpoint: {
+    required: boolean;
+    status: 'idle' | 'pending' | 'cleared' | 'escalate';
+    last_question?: string;
+    last_response?: string;
+    updated_at?: number;
+  };
 }
 
 export interface ConsultationSnapshot {

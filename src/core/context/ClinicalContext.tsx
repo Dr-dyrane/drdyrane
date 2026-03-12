@@ -66,6 +66,20 @@ const defaultClerking = (): ClerkingSchema => ({
   fh: '',
 });
 
+const defaultAgentState = (): ClinicalState['agent_state'] => ({
+  phase: 'intake',
+  confidence: 0,
+  focus_area: 'Initial assessment',
+  pending_actions: ['Gather chief complaint'],
+  last_decision: 'Starting patient intake',
+  positive_findings: [],
+  negative_findings: [],
+  must_not_miss_checkpoint: {
+    required: false,
+    status: 'idle',
+  },
+});
+
 const initialState: ClinicalState = {
   sessionId: crypto.randomUUID(),
   view: 'consult',
@@ -77,13 +91,7 @@ const initialState: ClinicalState = {
   pillars: null,
   currentQuestion: null,
   conversation: [],
-  agent_state: {
-    phase: 'intake',
-    confidence: 0,
-    focus_area: 'Initial assessment',
-    pending_actions: ['Gather chief complaint'],
-    last_decision: 'Starting patient intake'
-  },
+  agent_state: defaultAgentState(),
   response_options: null,
   selected_options: [],
   probability: 0,
@@ -439,7 +447,19 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (!parsed.ddx) parsed.ddx = [];
         if (parsed.probability === undefined) parsed.probability = 0;
         if (parsed.urgency === undefined) parsed.urgency = 'low';
-        if (!parsed.agent_state) parsed.agent_state = { ...initialState.agent_state };
+        if (!parsed.agent_state) parsed.agent_state = { ...defaultAgentState() };
+        if (!Array.isArray(parsed.agent_state.positive_findings)) {
+          parsed.agent_state.positive_findings = [];
+        }
+        if (!Array.isArray(parsed.agent_state.negative_findings)) {
+          parsed.agent_state.negative_findings = [];
+        }
+        if (!parsed.agent_state.must_not_miss_checkpoint) {
+          parsed.agent_state.must_not_miss_checkpoint = {
+            required: false,
+            status: 'idle',
+          };
+        }
         if (parsed.selected_options === undefined) parsed.selected_options = [];
         if (parsed.question_gate === undefined) parsed.question_gate = null;
         if (!parsed.profile) parsed.profile = defaultProfile();
@@ -478,7 +498,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             conversation: (record as { conversation?: ConversationMessage[] }).conversation || [],
             agent_state:
               (record as { agent_state?: ClinicalState['agent_state'] }).agent_state || {
-                ...initialState.agent_state,
+                ...defaultAgentState(),
               },
             probability: (record as { probability?: number }).probability ?? 0,
             urgency: (record as { urgency?: ClinicalState['urgency'] }).urgency || 'low',
@@ -487,6 +507,32 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ...defaultClerking(),
               hpc: legacyClerkingNotes.join('\n'),
             },
+          };
+          const snapshotAgentState = {
+            ...defaultAgentState(),
+            ...(snapshot.agent_state || {}),
+            positive_findings: Array.isArray(snapshot.agent_state?.positive_findings)
+              ? snapshot.agent_state.positive_findings
+              : [],
+            negative_findings: Array.isArray(snapshot.agent_state?.negative_findings)
+              ? snapshot.agent_state.negative_findings
+              : [],
+            must_not_miss_checkpoint: snapshot.agent_state?.must_not_miss_checkpoint
+              ? {
+                  required: Boolean(snapshot.agent_state.must_not_miss_checkpoint.required),
+                  status: snapshot.agent_state.must_not_miss_checkpoint.status || 'idle',
+                  last_question: snapshot.agent_state.must_not_miss_checkpoint.last_question,
+                  last_response: snapshot.agent_state.must_not_miss_checkpoint.last_response,
+                  updated_at: snapshot.agent_state.must_not_miss_checkpoint.updated_at,
+                }
+              : {
+                  required: false,
+                  status: 'idle' as const,
+                },
+          };
+          const normalizedSnapshot: ConsultationSnapshot = {
+            ...snapshot,
+            agent_state: snapshotAgentState,
           };
 
           return {
@@ -497,12 +543,12 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             diagnosis: record.diagnosis || 'Unlabeled Visit',
             complaint: record.complaint || '',
             notes: record.notes || '',
-            status: record.status || snapshot.status || 'complete',
-            soap: record.soap || snapshot.soap,
-            pillars: record.pillars || snapshot.pillars || undefined,
+            status: record.status || normalizedSnapshot.status || 'complete',
+            soap: record.soap || normalizedSnapshot.soap,
+            pillars: record.pillars || normalizedSnapshot.pillars || undefined,
             profile_snapshot: record.profile_snapshot || parsed.profile || defaultProfile(),
-            clerking: record.clerking || snapshot.clerking || defaultClerking(),
-            snapshot,
+            clerking: record.clerking || normalizedSnapshot.clerking || defaultClerking(),
+            snapshot: normalizedSnapshot,
           };
         });
 

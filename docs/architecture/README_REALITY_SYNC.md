@@ -11,14 +11,16 @@ Track where documented vision and implementation differ, and what has been align
 - Session persistence uses versioned storage key with legacy migration.
 - Bundled model questions are now gated locally and asked one segment at a time before the next model call.
 - Frontend prompt usage + short TTL caching are stored for prompt-cache control.
+- Agent state now stores explicit positive and negative findings memory across encounters.
+- A mandatory must-not-miss safety checkpoint now gates diagnosis finalization before `status=complete`.
 
 ## Remaining Gaps
-- AI calls are still direct from client; server proxy required for key/privacy hardening.
 - README references historical folder names and model strategy not fully matching runtime.
 - Duplicate legacy files still exist (`src/api/dr-dyrane.ts`, `src/services/triage.ts`).
+- Need wider automated regression scenarios for safety checkpoint outcomes (clear vs escalate vs uncertain loop).
 
 ## Recommended Next Pass
-1. Move all model calls behind `/api/consult` and `/api/options` server routes.
-2. Remove direct browser model headers and client API key usage.
-3. Deprecate/remove legacy duplicate modules.
-4. Rewrite root README to match `src/core/*` architecture and current UX flow.
+1. Add targeted e2e script coverage for must-not-miss checkpoint pathways.
+2. Deprecate/remove legacy duplicate modules.
+3. Rewrite root README to match `src/core/*` architecture and current UX flow.
+4. Add architecture notes for longitudinal local-memory retention and pruning strategy.
