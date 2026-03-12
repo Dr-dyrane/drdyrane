@@ -32,6 +32,13 @@ const scenario = [
   'No cough, no sore throat, and no burning urination',
 ];
 
+const hasSingleQuestion = (question) => {
+  const normalized = String(question || '').trim();
+  if (!normalized) return false;
+  const questionMarks = (normalized.match(/\?/g) || []).length;
+  return questionMarks === 1 && normalized.endsWith('?');
+};
+
 const mergeSoapUpdates = (state, soapUpdates) => {
   if (!soapUpdates) return;
   for (const key of ['S', 'O', 'A', 'P']) {
@@ -68,6 +75,13 @@ const run = async () => {
     finalResponse = await response.json();
     const ddx = Array.isArray(finalResponse.ddx) ? finalResponse.ddx : [];
     console.log(`Turn ${turn + 1}:`, ddx[0] || 'No DDX');
+
+    if (!hasSingleQuestion(finalResponse.question)) {
+      console.error('Single-question policy failed.');
+      console.error('Turn:', turn + 1);
+      console.error('Question:', finalResponse.question);
+      process.exit(1);
+    }
 
     updateConversation(state, patientInput, finalResponse);
     mergeSoapUpdates(state, finalResponse.soap_updates);

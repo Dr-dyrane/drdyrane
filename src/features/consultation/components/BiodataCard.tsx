@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowRight, SkipForward, X } from 'lucide-react';
+import { SkipForward, X } from 'lucide-react';
 import { ClinicalState } from '../../../core/types/clinical';
 
 type BiodataStep = 'name' | 'age' | 'sex' | null;
@@ -62,6 +62,9 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               <input
                 value={value}
                 onChange={(event) => onValueChange(event.target.value)}
+                onBlur={() => {
+                  if (canSubmit) onSubmit();
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && canSubmit) {
                     event.preventDefault();
@@ -78,15 +81,10 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               >
                 <SkipForward size={14} />
               </button>
-              <button
-                onClick={onSubmit}
-                disabled={!canSubmit}
-                className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45 interactive-tap"
-                aria-label="Continue to next step"
-              >
-                <ArrowRight size={14} />
-              </button>
             </div>
+            <p className="text-[11px] text-content-dim">
+              Auto-saves when you press Enter or move to the next field.
+            </p>
           </div>
         )}
 
@@ -96,6 +94,9 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               <input
                 value={value}
                 onChange={(event) => onValueChange(event.target.value)}
+                onBlur={() => {
+                  if (canSubmit) onSubmit();
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' && canSubmit) {
                     event.preventDefault();
@@ -115,15 +116,10 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               >
                 <SkipForward size={14} />
               </button>
-              <button
-                onClick={onSubmit}
-                disabled={!canSubmit}
-                className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45 interactive-tap"
-                aria-label="Continue to next step"
-              >
-                <ArrowRight size={14} />
-              </button>
             </div>
+            <p className="text-[11px] text-content-dim">
+              Auto-saves when you press Enter or move to the next field.
+            </p>
           </div>
         )}
 
