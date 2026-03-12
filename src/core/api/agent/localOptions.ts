@@ -8,7 +8,7 @@ import {
 const STRUCTURED_QUESTION_PATTERNS: RegExp[] = [
   /(when did|since when|how long|when .* start|started|start)/,
   /(highest.*(temperature|temp)|temperature|temp|how high|measured|reading|degrees|thermometer)/,
-  /(how many|number of|episodes?|times|count|frequency)/,
+  /(how many|number of|count|frequency|times?\s+(?:in|per|over|within)|episodes?\s+(?:in|per|over|within))/,
   /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/,
   /(one side|both sides|which side|left side|right side|left or right|right or left|unilateral|bilateral)/,
   /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/,
@@ -41,7 +41,8 @@ export const buildLocalOptions = (
   const onsetPattern = /(when did|since when|how long|when .* start|started|start)/;
   const tempPattern =
     /(highest.*(temperature|temp)|temperature|temp|how high|measured|reading|degrees|thermometer)/;
-  const countPattern = /(how many|number of|episodes?|times|count|frequency)/;
+  const countPattern =
+    /(how many|number of|count|frequency|times?\s+(?:in|per|over|within)|episodes?\s+(?:in|per|over|within))/;
   const gastroPattern = /(vomit|vomiting|throwing up|nausea|diarrhea|diarrhoea|loose stool|stool|bowel)/;
   const hydrationPattern =
     /(keep fluids down|keep liquid down|hold down fluids|able to drink|drinking fluids|hydration|dehydrat|oral intake|sips)/;

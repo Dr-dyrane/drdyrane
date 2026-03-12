@@ -52,7 +52,11 @@ export const isOptionSetRelevant = (question: string, options: ResponseOptions):
     return texts.some((text) => TEMPERATURE_PATTERN.test(text));
   }
 
-  if (/(how many|number of|episodes|times|count|frequency)/i.test(q)) {
+  if (
+    /(how many|number of|count|frequency|times?\s+(?:in|per|over|within)|episodes?\s+(?:in|per|over|within))/i.test(
+      q
+    )
+  ) {
     return texts.some((text) => EPISODE_PATTERN.test(text));
   }
 

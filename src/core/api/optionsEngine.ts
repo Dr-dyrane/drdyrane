@@ -31,7 +31,8 @@ const BINARY_TOKENS = new Set([
 ]);
 
 const ONSET_QUESTION_PATTERN = /(when did|since when|how long|when .* start|started|start)/i;
-const COUNT_QUESTION_PATTERN = /(how many|number of|episodes|times|count|frequency)/i;
+const COUNT_QUESTION_PATTERN =
+  /(how many|number of|count|frequency|times?\s+(?:in|per|over|within)|episodes?\s+(?:in|per|over|within))/i;
 const LATERALITY_QUESTION_PATTERN =
   /(one side|both sides|which side|left side|right side|left or right|right or left|\bside\b)/i;
 const LATERALITY_HINT_PATTERN = /(left|right|both|side)/i;
