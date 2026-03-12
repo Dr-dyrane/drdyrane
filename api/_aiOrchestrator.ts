@@ -1903,7 +1903,7 @@ const executeConsultWithProvider = async (
   provider: LlmProvider,
   body: ConsultRequest
 ): Promise<ConsultPayload> => {
-  const conversationContext = (body.state?.conversation || []).slice(-24).map((entry) => ({
+  const conversationContext = (body.state?.conversation || []).slice(-80).map((entry) => ({
     role: entry.role === 'doctor' ? 'assistant' : 'user',
     content: entry.content,
   })) as Array<{ role: 'assistant' | 'user'; content: string }>;

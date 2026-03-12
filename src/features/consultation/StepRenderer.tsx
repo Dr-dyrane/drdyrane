@@ -232,9 +232,7 @@ export const StepRenderer: React.FC = () => {
   const currentMessage =
     state.conversation.length > 0 ? state.conversation[state.conversation.length - 1] : null;
   const activeDoctorMessageId = currentMessage?.role === 'doctor' ? currentMessage.id : null;
-  const conversationTimeline = state.conversation
-    .filter((entry) => entry.role !== 'system')
-    .slice(-10);
+  const conversationTimeline = state.conversation.filter((entry) => entry.role !== 'system');
   const transcriptMessages = conversationTimeline.filter((entry) => entry.id !== activeDoctorMessageId);
   const resolvedTheme = resolveTheme(state.theme);
   const doctorAvatarSrc = resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png';

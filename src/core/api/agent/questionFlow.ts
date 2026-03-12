@@ -20,7 +20,10 @@ const extractFocusedQuestion = (question: string): string => {
   if (clauseStartMatch.length > 0) {
     const lastClause = clauseStartMatch[clauseStartMatch.length - 1];
     const keyword = lastClause[1];
-    const keywordIndex = normalized.toLowerCase().lastIndexOf(keyword.toLowerCase());
+    const clauseStartIndex = lastClause.index ?? 0;
+    const fullMatch = lastClause[0] || '';
+    const keywordOffset = fullMatch.toLowerCase().lastIndexOf(keyword.toLowerCase());
+    const keywordIndex = clauseStartIndex + Math.max(0, keywordOffset);
     if (keywordIndex >= 0) {
       return normalized.slice(keywordIndex).trim();
     }

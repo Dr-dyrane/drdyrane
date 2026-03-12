@@ -88,7 +88,7 @@ export const callConversationEngine = async (
             medications: state.profile.medications ?? null,
           },
           memory_dossier: memoryDossier,
-          conversation: state.conversation.slice(-24).map((msg) => ({
+          conversation: state.conversation.slice(-80).map((msg) => ({
             role: msg.role,
             content: msg.content,
           })),

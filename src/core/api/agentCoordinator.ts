@@ -1093,7 +1093,7 @@ export class AgentCoordinator {
     phase: ClinicalState['agent_state']['phase']
   ): string {
     const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
-    const recentQuestions = getRecentDoctorQuestions(conversation, 3);
+    const recentQuestions = getRecentDoctorQuestions(conversation, 8);
     const shouldFallback =
       isLikelyRepeatedQuestion(sanitized, recentQuestions) ||
       isLikelyAnsweredTopicQuestion(sanitized, conversation) ||
@@ -1132,7 +1132,7 @@ export class AgentCoordinator {
       return 'What is the one symptom worrying you most right now?';
     }
 
-    const recentQuestions = getRecentDoctorQuestions(conversation, 3);
+    const recentQuestions = getRecentDoctorQuestions(conversation, 8);
     return getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
   }
 
@@ -1205,7 +1205,7 @@ export class AgentCoordinator {
     return getPhaseFallbackQuestion(
       phase,
       this.state.conversation.length,
-      getRecentDoctorQuestions(this.state.conversation, 3)
+      getRecentDoctorQuestions(this.state.conversation, 8)
     );
   }
 

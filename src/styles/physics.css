@@ -675,8 +675,7 @@ select {
 }
 
 .consult-chat-log {
-  max-height: 36vh;
-  overflow-y: auto;
+  overflow: visible;
   padding-right: 0.1rem;
 }
 

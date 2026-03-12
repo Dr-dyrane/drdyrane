@@ -176,7 +176,7 @@ export const isRecentlyAnsweredQuestionIntent = (
 ): boolean => {
   const intent = detectQuestionIntent(candidateQuestion);
   if (!intent) return false;
-  const lookback = conversation.slice(-10);
+  const lookback = conversation.slice(-16);
 
   for (let i = lookback.length - 1; i >= 0; i -= 1) {
     const entry = lookback[i];

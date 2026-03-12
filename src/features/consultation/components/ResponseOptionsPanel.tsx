@@ -15,12 +15,11 @@ interface ResponseOptionsPanelProps {
 
 const getGridByVariant = (
   variant: ResponseOptions['ui_variant'],
-  count: number,
-  compact: boolean
+  count: number
 ): string => {
   if (variant === 'binary' || variant === 'segmented') return count >= 3 ? 'grid-cols-3' : 'grid-cols-2';
-  if (variant === 'grid') return compact ? 'grid-cols-2' : count > 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1';
-  if (variant === 'chips') return 'grid-cols-2';
+  if (variant === 'grid') return 'grid-cols-2';
+  if (variant === 'stack' || variant === 'ladder' || variant === 'chips') return 'grid-cols-2';
   return 'grid-cols-1';
 };
 
@@ -32,7 +31,7 @@ const isSeverityOptionSet = (options: ResponseOptions['options']): boolean => {
 const getVariant = (responseOptions: ResponseOptions): NonNullable<ResponseOptions['ui_variant']> => {
   if (responseOptions.ui_variant) return responseOptions.ui_variant;
   if (responseOptions.options.length <= 3 && responseOptions.mode === 'single') return 'segmented';
-  if (responseOptions.options.length >= 6) return 'grid';
+  if (responseOptions.options.length >= 4) return 'grid';
   if (isSeverityOptionSet(responseOptions.options)) return 'ladder';
   return 'stack';
 };
@@ -72,7 +71,7 @@ const getSelectedSingleOption = (
 const SPRING_CONFIG = { type: 'spring' as const, stiffness: 320, damping: 28 };
 const HOVER_MOTION = { scale: 1.015, y: -1.5 };
 const TAP_MOTION = { scale: 0.97, y: 0 };
-const COMPACT_PAGE_SIZE = 4;
+const OPTIONS_PAGE_SIZE = 4;
 
 const getHintToneClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
   if (variant === 'chips' || variant === 'grid') return 'option-hint-energetic';
@@ -159,17 +158,16 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
     : 0;
   const sliderValue = Math.max(1, selectedScaleIndex + 1);
   const shouldPaginateOptions =
-    compact &&
     !isScale &&
     !isSegmentedLike &&
-    responseOptions.options.length > COMPACT_PAGE_SIZE;
+    responseOptions.options.length > OPTIONS_PAGE_SIZE;
   const optionPages = shouldPaginateOptions
     ? Array.from(
-        { length: Math.ceil(responseOptions.options.length / COMPACT_PAGE_SIZE) },
+        { length: Math.ceil(responseOptions.options.length / OPTIONS_PAGE_SIZE) },
         (_, pageIndex) =>
           responseOptions.options.slice(
-            pageIndex * COMPACT_PAGE_SIZE,
-            (pageIndex + 1) * COMPACT_PAGE_SIZE
+            pageIndex * OPTIONS_PAGE_SIZE,
+            (pageIndex + 1) * OPTIONS_PAGE_SIZE
           )
       )
     : [responseOptions.options];
@@ -278,12 +276,11 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           }}
           className={`${
             isSegmentedLike
-              ? `surface-raised segment-live-shell option-shell-live rounded-[20px] p-2 grid gap-1.5 ${getGridByVariant(
+                ? `surface-raised segment-live-shell option-shell-live rounded-[20px] p-2 grid gap-1.5 ${getGridByVariant(
                   variant,
-                  responseOptions.options.length,
-                  compact
+                  responseOptions.options.length
                 )}`
-              : `grid gap-3 ${getGridByVariant(variant, responseOptions.options.length, compact)}`
+              : `grid gap-3 ${getGridByVariant(variant, responseOptions.options.length)}`
           }`}
         >
           {visibleOptions.map((option, index) => {
@@ -293,7 +290,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
             const isLadder = variant === 'ladder';
             const selectionOrder = selectedOptionIds.indexOf(option.id) + 1;
             const visualIndex =
-              shouldPaginateOptions ? activePage * COMPACT_PAGE_SIZE + index : index;
+              shouldPaginateOptions ? activePage * OPTIONS_PAGE_SIZE + index : index;
 
             return (
               <motion.button
