@@ -15,7 +15,6 @@ import {
 import { buildLocalOptions, isStructuredLocalQuestion } from './agent/localOptions';
 import { isOptionSetRelevant } from './agent/optionQuality';
 import {
-  extractBundledSegments,
   getFallbackQuestion,
   sanitizeQuestion,
 } from './agent/questionFlow';
@@ -188,32 +187,12 @@ export class AgentCoordinator {
       question,
       conversationResult.message.metadata?.statement
     );
-    const segments = conversationResult.lens_trigger ? [] : extractBundledSegments(question);
 
-    let questionGate: QuestionGateState | null = null;
+    const questionGate: QuestionGateState | null = null;
     let responseOptions: ResponseOptions | null = null;
 
     if (conversationResult.lens_trigger) {
       responseOptions = null;
-    } else if (segments.length > 1) {
-      const firstSegment = segments[0];
-      doctorMessage = createDoctorMessage(
-        firstSegment.prompt,
-        conversationResult.message.metadata?.statement
-      );
-      questionGate = {
-        active: true,
-        source_question: question,
-        segments,
-        current_index: 0,
-        answers: [],
-      };
-      responseOptions = await this.resolveQuestionOptions(
-        firstSegment.prompt,
-        conversationResult.agent_state,
-        { ...stateForTurn.soap, ...conversationResult.soap_updates },
-        stateForTurn.profile
-      );
     } else if (conversationResult.needs_options || (conversationResult.status === 'active' && question)) {
       responseOptions = await this.resolveQuestionOptions(
         question,

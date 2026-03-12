@@ -462,15 +462,193 @@ type Icd10Rule = {
 
 type AgentPhase = NonNullable<NonNullable<ConsultPayload['agent_state']>['phase']>;
 
+type EvidencePattern = {
+  pattern: RegExp;
+  weight: number;
+};
+
+type SuppressionPattern = {
+  pattern: RegExp;
+  penalty: number;
+};
+
+type DiseaseProfile = {
+  id: string;
+  label: string;
+  icd10: string;
+  source: 'who_priority' | 'medscape_core';
+  minScore: number;
+  emergency?: boolean;
+  requiredAny?: RegExp[];
+  support: EvidencePattern[];
+  suppress?: SuppressionPattern[];
+  followUpQuestion: string;
+  pendingActions: string[];
+};
+
+type RankedDisease = {
+  profile: DiseaseProfile;
+  score: number;
+};
+
 const ICD10_RULES: Icd10Rule[] = [
   { pattern: /\bmalaria\b/i, code: 'B54' },
   { pattern: /\bdengue\b/i, code: 'A97.9' },
   { pattern: /\btyphoid\b/i, code: 'A01.0' },
+  { pattern: /\binfluenza\b|\bflu\b/i, code: 'J11.1' },
+  { pattern: /\bpneumonia\b/i, code: 'J18.9' },
+  { pattern: /\bmeningitis\b/i, code: 'G03.9' },
+  { pattern: /\bsepsis\b/i, code: 'A41.9' },
+  { pattern: /\bgastroenteritis\b|\bacute gastroenteritis\b/i, code: 'A09' },
   { pattern: /\bviral (infection|syndrome)\b/i, code: 'B34.9' },
   { pattern: /\bacute viral infection\b/i, code: 'B34.9' },
+  { pattern: /\bviral upper respiratory infection\b|\burti\b/i, code: 'J06.9' },
   { pattern: /\burinary tract infection\b|\buti\b/i, code: 'N39.0' },
   { pattern: /\bbacterial infection\b/i, code: 'A49.9' },
-  { pattern: /\bsepsis\b/i, code: 'A41.9' },
+];
+
+const FEVER_DISEASE_PROFILES: DiseaseProfile[] = [
+  {
+    id: 'meningitis',
+    label: 'Meningitis',
+    icd10: 'G03.9',
+    source: 'who_priority',
+    emergency: true,
+    minScore: 3.2,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\bneck stiffness|stiff neck|photophobia\b/i, weight: 2.5 },
+      { pattern: /\bconfusion|altered mental status|disoriented\b/i, weight: 2.3 },
+      { pattern: /\bseizure|fits\b/i, weight: 2.4 },
+      { pattern: /\bsevere headache\b/i, weight: 1.6 },
+    ],
+    followUpQuestion:
+      'Do you have neck stiffness, confusion, or severe persistent headache right now?',
+    pendingActions: ['Urgent neurologic assessment', 'Immediate referral and emergency workup'],
+  },
+  {
+    id: 'sepsis',
+    label: 'Sepsis',
+    icd10: 'A41.9',
+    source: 'who_priority',
+    emergency: true,
+    minScore: 3.2,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\blow blood pressure|hypotension|faint|collapse\b/i, weight: 2.5 },
+      { pattern: /\bconfusion|lethargy|drowsy\b/i, weight: 2.1 },
+      { pattern: /\bfast breathing|breathless|tachypnea\b/i, weight: 1.8 },
+      { pattern: /\bfast heart|palpitation|tachycardia\b/i, weight: 1.5 },
+    ],
+    followUpQuestion:
+      'Any confusion, very fast breathing, fainting, or low blood pressure symptoms now?',
+    pendingActions: ['Sepsis screen and vitals', 'Urgent facility escalation if unstable'],
+  },
+  {
+    id: 'malaria',
+    label: 'Malaria',
+    icd10: 'B54',
+    source: 'who_priority',
+    minScore: 3,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\bchills?|rigors?\b/i, weight: 2.2 },
+      { pattern: /\bheadache|behind (my )?eyes?|retro[-\s]?orbital\b/i, weight: 1.7 },
+      { pattern: /\bbody aches?|myalgia|muscle pain\b/i, weight: 1.2 },
+      { pattern: /\bnausea|vomit(ing)?\b/i, weight: 1.1 },
+      { pattern: /\bweak(ness)?|fatigue\b/i, weight: 0.9 },
+      { pattern: /\bmosquito(es)? bite(s)?|travel\b/i, weight: 1 },
+    ],
+    followUpQuestion:
+      'Can you access a malaria rapid test or blood smear today, and do you have any danger signs?',
+    pendingActions: ['Confirm with malaria RDT or blood smear', 'Screen for severe malaria danger signs'],
+  },
+  {
+    id: 'dengue',
+    label: 'Dengue Fever',
+    icd10: 'A97.9',
+    source: 'who_priority',
+    minScore: 2.8,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\bbehind (my )?eyes?|retro[-\s]?orbital\b/i, weight: 2.1 },
+      { pattern: /\brash\b/i, weight: 1.8 },
+      { pattern: /\bbleeding|gum bleed|nose bleed\b/i, weight: 2.2 },
+      { pattern: /\bbody aches?|myalgia|bone pain\b/i, weight: 1.3 },
+      { pattern: /\bnausea|vomit(ing)?\b/i, weight: 1 },
+    ],
+    followUpQuestion:
+      'Any rash, bleeding, or severe abdominal pain that could suggest dengue warning signs?',
+    pendingActions: ['Assess dengue warning signs', 'Plan CBC/platelet monitoring'],
+  },
+  {
+    id: 'typhoid',
+    label: 'Typhoid Fever',
+    icd10: 'A01.0',
+    source: 'medscape_core',
+    minScore: 2.4,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\babdominal pain|stomach pain\b/i, weight: 1.4 },
+      { pattern: /\bdiarrhea|constipation\b/i, weight: 1.2 },
+      { pattern: /\bpoor appetite|loss of appetite\b/i, weight: 0.8 },
+      { pattern: /\bnausea|vomit(ing)?\b/i, weight: 0.8 },
+    ],
+    followUpQuestion: 'Any abdominal pain, bowel habit change, or contaminated food/water exposure?',
+    pendingActions: ['Consider blood/stool culture workup', 'Review enteric fever risk exposure'],
+  },
+  {
+    id: 'pneumonia',
+    label: 'Pneumonia',
+    icd10: 'J18.9',
+    source: 'medscape_core',
+    minScore: 2.5,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\bcough\b/i, weight: 1.7 },
+      { pattern: /\bshortness of breath|breathless\b/i, weight: 1.8 },
+      { pattern: /\bchest pain\b/i, weight: 1.4 },
+    ],
+    suppress: [{ pattern: /\bno cough\b/i, penalty: 1.8 }],
+    followUpQuestion: 'Do you have cough, chest pain, or shortness of breath?',
+    pendingActions: ['Evaluate respiratory findings', 'Assess oxygenation and chest exam'],
+  },
+  {
+    id: 'uti',
+    label: 'Urinary Tract Infection',
+    icd10: 'N39.0',
+    source: 'medscape_core',
+    minScore: 2.3,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\bburning urination|dysuria\b/i, weight: 2 },
+      { pattern: /\bfrequency|urgency\b/i, weight: 1.4 },
+      { pattern: /\bflank pain|loin pain\b/i, weight: 1.5 },
+    ],
+    suppress: [{ pattern: /\bno burning urination\b/i, penalty: 2 }],
+    followUpQuestion: 'Any burning urination, urinary frequency, or flank pain?',
+    pendingActions: ['Urinalysis and urine culture pathway', 'Assess for upper UTI features'],
+  },
+  {
+    id: 'influenza',
+    label: 'Influenza',
+    icd10: 'J11.1',
+    source: 'medscape_core',
+    minScore: 2.2,
+    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
+    support: [
+      { pattern: /\bcough\b/i, weight: 1.5 },
+      { pattern: /\bsore throat\b/i, weight: 1.4 },
+      { pattern: /\brunny nose|nasal congestion\b/i, weight: 1.3 },
+      { pattern: /\bbody aches?|myalgia\b/i, weight: 1 },
+    ],
+    suppress: [
+      { pattern: /\bno cough\b/i, penalty: 1.4 },
+      { pattern: /\bno sore throat\b/i, penalty: 1.1 },
+    ],
+    followUpQuestion: 'Any cough, sore throat, or runny nose consistent with influenza-like illness?',
+    pendingActions: ['Assess influenza-like illness criteria', 'Supportive care and risk review'],
+  },
 ];
 
 const stripIcd10Label = (diagnosis: string): string =>
@@ -517,17 +695,72 @@ const buildConsultTextCorpus = (body: ConsultRequest, payload: ConsultPayload): 
   return `${body.patientInput || ''} ${patientNarrative} ${soapSnapshot}`.toLowerCase();
 };
 
-const scoreMalariaLikelihood = (corpus: string): number => {
-  let score = 0;
-  if (/\bfever|pyrexia|temperature\b/i.test(corpus)) score += 2;
-  if (/\bchills?|rigors?\b/i.test(corpus)) score += 2;
-  if (/\bheadache|behind (my )?eyes?|retro[-\s]?orbital\b/i.test(corpus)) score += 2;
-  if (/\bbody aches?|myalgia|muscle pain\b/i.test(corpus)) score += 1;
-  if (/\bnausea|vomit(ing)?\b/i.test(corpus)) score += 1;
-  if (/\bweak(ness)?|fatigue\b/i.test(corpus)) score += 1;
-  if (/\bmosquito(es)? bite(s)?|travel\b/i.test(corpus)) score += 1;
-  if (/\bno cough|no sore throat|no burning urination\b/i.test(corpus)) score += 1;
-  return score;
+const hasFeverSignal = (corpus: string): boolean =>
+  /\bfever|pyrexia|temperature|febrile\b/i.test(corpus);
+
+const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
+  if (!hasFeverSignal(corpus)) return 0;
+  if (profile.requiredAny && !profile.requiredAny.some((pattern) => pattern.test(corpus))) {
+    return 0;
+  }
+
+  let score = profile.source === 'who_priority' ? 0.6 : 0.3;
+  for (const item of profile.support) {
+    if (item.pattern.test(corpus)) {
+      score += item.weight;
+    }
+  }
+  for (const item of profile.suppress || []) {
+    if (item.pattern.test(corpus)) {
+      score -= item.penalty;
+    }
+  }
+
+  return Math.max(0, Math.round(score * 10) / 10);
+};
+
+const rankTopDownFeverDifferentials = (corpus: string): RankedDisease[] => {
+  if (!hasFeverSignal(corpus)) return [];
+
+  return FEVER_DISEASE_PROFILES.map((profile) => ({
+    profile,
+    score: scoreDisease(profile, corpus),
+  }))
+    .filter((entry) => entry.score >= entry.profile.minScore)
+    .sort((left, right) => {
+      if (left.profile.emergency && !right.profile.emergency) return -1;
+      if (!left.profile.emergency && right.profile.emergency) return 1;
+      return right.score - left.score;
+    });
+};
+
+const diseaseToDx = (entry: RankedDisease): string =>
+  `${entry.profile.label} (ICD-10: ${entry.profile.icd10})`;
+
+const scoreToProbabilityFloor = (entry: RankedDisease): number => {
+  if (entry.profile.emergency) return Math.max(84, Math.min(96, Math.round(entry.score * 12)));
+  if (entry.score >= 7) return 82;
+  if (entry.score >= 5.5) return 74;
+  if (entry.score >= 4.5) return 68;
+  return 58;
+};
+
+const shouldOverrideQuestion = (
+  question: string | undefined,
+  lead: RankedDisease,
+  corpus: string
+): boolean => {
+  const normalized = sanitizeText(question).toLowerCase();
+  if (!normalized) return true;
+  if (/(anything else|tell me more|more details|any other symptom)/i.test(normalized)) return true;
+
+  if (lead.profile.id === 'malaria') {
+    const mentionsTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(normalized);
+    const alreadyDiscussedTest = /\b(rdt|rapid test|blood smear|thick|thin film)\b/i.test(corpus);
+    if (!mentionsTest && !alreadyDiscussedTest) return true;
+  }
+
+  return false;
 };
 
 const atLeastDifferential = (phase: string | undefined): AgentPhase => {
@@ -541,41 +774,45 @@ const atLeastDifferential = (phase: string | undefined): AgentPhase => {
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
   const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
   const corpus = buildConsultTextCorpus(body, payload);
-  const malariaScore = scoreMalariaLikelihood(corpus);
-  const malariaLikely = malariaScore >= 5;
+  const ranked = rankTopDownFeverDifferentials(corpus);
 
-  if (!malariaLikely) {
+  if (ranked.length === 0) {
     return {
       ...payload,
       ddx: withCodedDdx,
     };
   }
 
-  const prioritizedMalaria = 'Malaria (ICD-10: B54)';
-  const nonMalaria = withCodedDdx.filter((entry) => !/\bmalaria\b/i.test(entry));
-  const probabilityFloor = malariaScore >= 7 ? 78 : malariaScore >= 6 ? 68 : 58;
+  const topDownDdx = ranked.map((entry) => diseaseToDx(entry));
+  const mergedDdx = dedupeDxList([...topDownDdx, ...withCodedDdx]).slice(0, 8);
+  const lead = ranked[0];
+  const probabilityFloor = scoreToProbabilityFloor(lead);
+  const preferredQuestion = shouldOverrideQuestion(payload.question, lead, corpus)
+    ? lead.profile.followUpQuestion
+    : payload.question;
   const nextActions = dedupeDxList([
     ...(payload.agent_state?.pending_actions || []),
-    'Confirm with malaria RDT or blood smear',
-    'Screen for severe malaria danger signs',
+    ...lead.profile.pendingActions,
+    'Apply WHO/Medscape aligned differential confirmation steps',
   ]);
+  const nextPhase = lead.profile.emergency
+    ? payload.agent_state?.phase || 'assessment'
+    : atLeastDifferential(payload.agent_state?.phase);
 
   return {
     ...payload,
-    ddx: [prioritizedMalaria, ...nonMalaria],
+    ddx: mergedDdx,
     probability: Math.max(clampPercent(payload.probability), probabilityFloor),
     agent_state: {
-      phase: atLeastDifferential(payload.agent_state?.phase),
+      phase: nextPhase,
       confidence: Math.max(clampPercent(payload.agent_state?.confidence), probabilityFloor),
       focus_area:
-        payload.agent_state?.focus_area || 'Malaria-focused fever differentiation and severity triage',
+        payload.agent_state?.focus_area || `${lead.profile.label} focused top-down differentiation`,
       pending_actions: nextActions.slice(0, 8),
       last_decision:
-        'Prioritized malaria due to high-yield fever pattern in endemic context',
+        `Top-down differential ranking prioritized ${lead.profile.label} using ${lead.profile.source} evidence profile`,
     },
-    question:
-      payload.question ||
-      'Have you had mosquito exposure recently, and can you access a malaria rapid test today?',
+    question: preferredQuestion,
   };
 };
 

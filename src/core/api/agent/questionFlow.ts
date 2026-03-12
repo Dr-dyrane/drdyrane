@@ -5,10 +5,6 @@ const LEADING_QUESTION_PATTERN =
   /^(who|what|when|where|why|how|is|are|do|did|have|has|can|could|would|will|should)\b/i;
 const QUESTION_START_PATTERN =
   /\b(who|what|when|where|why|how|is|are|do|did|have|has|can|could|would|will|should)\b/i;
-const CONNECTOR_SPLIT_PATTERN =
-  /\s*(?:,|;)?\s+(?:and|also|plus)\s+(?=(?:are|is|do|did|have|has|can|could|would|will|should|what|when|where|which|why|how)\b)/gi;
-const COMMA_SPLIT_PATTERN =
-  /\s*,\s+(?=(?:are|is|do|did|have|has|can|could|would|will|should|what|when|where|which|why|how)\b)/gi;
 
 export const getFallbackQuestion = (): string => FALLBACK_QUESTION;
 
@@ -56,12 +52,19 @@ export const sanitizeQuestion = (rawQuestion: string): string => {
   const focused = extractFocusedQuestion(withoutUiArtifacts);
   if (!focused) return '';
 
-  if (focused.endsWith('?')) return focused;
-  if (LEADING_QUESTION_PATTERN.test(focused)) {
-    return `${focused}?`;
+  // Product rule: always deliver exactly one direct question at a time.
+  const singleQuestion =
+    focused.match(/[^?]+\?/)?.[0]?.trim() ||
+    focused.split('?')[0].trim();
+
+  if (!singleQuestion) return '';
+
+  if (singleQuestion.endsWith('?')) return singleQuestion;
+  if (LEADING_QUESTION_PATTERN.test(singleQuestion)) {
+    return `${singleQuestion}?`;
   }
 
-  return focused;
+  return singleQuestion;
 };
 
 export const extractQuestionFromContent = (content: string): string => {
@@ -74,39 +77,6 @@ export const extractQuestionFromContent = (content: string): string => {
 };
 
 export const extractBundledSegments = (question: string): GatedQuestionSegment[] => {
-  const cleaned = sanitizeQuestion(question);
-  if (!cleaned) return [];
-
-  const sentenceSegments = cleaned.match(/[^?]+\?/g)?.map((item) => item.trim()) || [];
-
-  let rawSegments =
-    sentenceSegments.length > 1
-      ? sentenceSegments
-      : cleaned
-          .split(CONNECTOR_SPLIT_PATTERN)
-          .map((item) => item.trim())
-          .filter(Boolean);
-
-  if (rawSegments.length <= 1 && cleaned.length > 135) {
-    rawSegments = cleaned
-      .split(COMMA_SPLIT_PATTERN)
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-
-  const normalizedSegments = rawSegments
-    .map((item) => sanitizeQuestion(item))
-    .filter((item): item is string => Boolean(item))
-    .map((item) => (item.endsWith('?') ? item : `${item}?`));
-
-  const dedup = normalizedSegments
-    .map((item, idx) => ({ id: `segment-${idx + 1}`, prompt: item }))
-    .filter(
-      (segment, index, all) =>
-        all.findIndex((other) => other.prompt.toLowerCase() === segment.prompt.toLowerCase()) ===
-        index
-    );
-
-  if (dedup.length <= 1) return [];
-  return dedup.slice(0, 4);
+  void question;
+  return [];
 };

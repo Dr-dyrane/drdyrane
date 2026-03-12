@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { ArrowDownToLine, SkipForward, X } from 'lucide-react';
+import { ArrowRight, SkipForward, X } from 'lucide-react';
 import { ClinicalState } from '../../../core/types/clinical';
 
 type BiodataStep = 'name' | 'age' | 'sex' | null;
@@ -62,6 +62,12 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               <input
                 value={value}
                 onChange={(event) => onValueChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && canSubmit) {
+                    event.preventDefault();
+                    onSubmit();
+                  }
+                }}
                 className="flex-1 h-11 px-3 rounded-xl surface-strong text-sm focus-glow"
                 placeholder="Your name"
               />
@@ -76,9 +82,9 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
                 onClick={onSubmit}
                 disabled={!canSubmit}
                 className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45 interactive-tap"
-                aria-label="Save name"
+                aria-label="Continue to next step"
               >
-                <ArrowDownToLine size={14} />
+                <ArrowRight size={14} />
               </button>
             </div>
           </div>
@@ -90,6 +96,12 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
               <input
                 value={value}
                 onChange={(event) => onValueChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && canSubmit) {
+                    event.preventDefault();
+                    onSubmit();
+                  }
+                }}
                 type="number"
                 min={0}
                 max={125}
@@ -107,9 +119,9 @@ export const BiodataCard: React.FC<BiodataCardProps> = ({
                 onClick={onSubmit}
                 disabled={!canSubmit}
                 className="h-11 w-11 rounded-xl cta-live-icon flex items-center justify-center disabled:opacity-45 interactive-tap"
-                aria-label="Save age"
+                aria-label="Continue to next step"
               >
-                <ArrowDownToLine size={14} />
+                <ArrowRight size={14} />
               </button>
             </div>
           </div>
