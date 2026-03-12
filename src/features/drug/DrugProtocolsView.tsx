@@ -384,7 +384,7 @@ export const DrugProtocolsView: React.FC = () => {
             />
           </div>
           {quickPickProtocols.length > 0 && (
-            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
               {quickPickProtocols.map((entry) => (
                 <button
                   key={`quick-${entry.value}`}
@@ -392,9 +392,10 @@ export const DrugProtocolsView: React.FC = () => {
                     setQuery('');
                     openProtocol(entry);
                   }}
-                  className="h-9 px-3 rounded-full surface-strong text-xs font-medium text-content-primary interactive-tap"
+                  className="h-9 px-3.5 rounded-full surface-strong text-xs font-medium text-content-primary interactive-tap shrink-0"
+                  title={entry.label}
                 >
-                  {entry.label}
+                  <span className="block max-w-[10.5rem] truncate whitespace-nowrap">{entry.label}</span>
                 </button>
               ))}
             </div>
