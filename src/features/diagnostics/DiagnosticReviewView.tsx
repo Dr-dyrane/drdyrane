@@ -647,6 +647,38 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
             </button>
           </div>
 
+          <div className="surface-strong rounded-[18px] p-1 grid grid-cols-3 gap-1.5">
+            {(
+              [
+                { id: 'general', label: 'General' },
+                { id: 'lab', label: 'Lab' },
+                { id: 'radiology', label: 'Radiology' },
+              ] as const
+            ).map((option) => {
+              const selected = scanLens === option.id;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => setScanLens(option.id)}
+                  className={`relative h-9 rounded-xl text-[11px] font-semibold uppercase tracking-wide interactive-tap ${
+                    selected ? 'text-content-active' : 'text-content-secondary'
+                  }`}
+                >
+                  {selected ? (
+                    <motion.span
+                      layoutId="scan-lens-pill"
+                      className="absolute inset-0 rounded-xl bg-surface-active selected-elevation"
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  ) : (
+                    <span className="absolute inset-0 rounded-xl surface-chip" />
+                  )}
+                  <span className="relative z-10">{option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
           {imageDataUrl && (
             <div className="surface-strong rounded-[20px] p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">

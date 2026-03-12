@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ChevronLeft, Timer, X } from 'lucide-react';
+import { ArrowUp, ChevronLeft, ImagePlus, Timer, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
 import { resolveProfileAvatarWithFallback } from '../../core/storage/avatarStore';
 import { resolveTheme } from '../../core/theme/resolveTheme';
 import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
+import { analyzeClinicalImage } from '../../core/api/visionEngine';
 import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
@@ -14,6 +15,7 @@ import {
 } from '../../core/notifications/onboardingNotification';
 import { Orb } from './Orb';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
+import { DiagnosticReviewRecord } from '../../core/types/clinical';
 
 const LOADING_PHASES = [
   'Analyzing history',
@@ -21,16 +23,26 @@ const LOADING_PHASES = [
   'Selecting next question',
 ];
 
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('Unable to read image file.'));
+    reader.readAsDataURL(file);
+  });
+
 export const StepRenderer: React.FC = () => {
   const { state, dispatch } = useClinical();
   const [val, setVal] = useState('');
   const [loading, setLoading] = useState(false);
+  const [mediaProcessing, setMediaProcessing] = useState(false);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
   const latestStateRef = useRef(state);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     latestStateRef.current = state;
@@ -163,7 +175,7 @@ export const StepRenderer: React.FC = () => {
       return;
     }
     const trimmed = val.trim();
-    if (!trimmed || loading) return;
+    if (!trimmed || loading || mediaProcessing) return;
 
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
@@ -173,6 +185,148 @@ export const StepRenderer: React.FC = () => {
     setVal('');
   };
 
+  const buildMediaHandoff = useCallback((fileName: string, analysis: Awaited<ReturnType<typeof analyzeClinicalImage>>) => {
+    const spotDiagnosis = analysis.spot_diagnosis?.label
+      ? `Spot diagnosis: ${analysis.spot_diagnosis.label}${
+          analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
+        }.`
+      : 'Spot diagnosis not established from image alone.';
+    const differentialText =
+      analysis.differentials.length > 0
+        ? `Differentials: ${analysis.differentials
+            .map(
+              (entry) =>
+                `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''} [${entry.likelihood}]`
+            )
+            .join('; ')}.`
+        : 'No ranked differentials available.';
+    const treatmentText =
+      analysis.treatment_summary ||
+      (analysis.treatment_lines.length > 0
+        ? `Treatment lines: ${analysis.treatment_lines.join('; ')}.`
+        : 'Treatment pathway pending.');
+    const investigationText =
+      analysis.investigations.length > 0
+        ? `Investigations: ${analysis.investigations.join('; ')}.`
+        : '';
+    const counselingText =
+      analysis.counseling.length > 0
+        ? `Counseling: ${analysis.counseling.join('; ')}.`
+        : '';
+
+    return `Consult media intake (${fileName}): ${analysis.summary}. Findings: ${
+      analysis.findings.length > 0 ? analysis.findings.join('; ') : 'No dominant visual findings.'
+    }. ${
+      analysis.red_flags.length > 0
+        ? `Red flags: ${analysis.red_flags.join('; ')}.`
+        : 'No immediate visual red flags.'
+    } ${spotDiagnosis} ${differentialText} ${treatmentText} ${investigationText} ${counselingText} Recommendation: ${
+      analysis.recommendation
+    }. Confidence: ${analysis.confidence}%.`;
+  }, []);
+
+  const handleMediaSelected = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file) return;
+      if (!isProfileOnboardingComplete(state.profile)) {
+        promptOnboardingFromNotifications();
+        return;
+      }
+      if (!file.type.startsWith('image/')) {
+        dispatch({
+          type: 'ADD_NOTIFICATION',
+          payload: {
+            title: 'Unsupported Media',
+            body: 'Consult intake media currently supports image upload only.',
+          },
+        });
+        signalFeedback('error', {
+          hapticsEnabled: state.settings.haptics_enabled,
+          audioEnabled: state.settings.audio_enabled,
+        });
+        return;
+      }
+      if (loading || mediaProcessing) return;
+
+      setMediaProcessing(true);
+      try {
+        const imageDataUrl = await readFileAsDataUrl(file);
+        const analysis = await analyzeClinicalImage({
+          imageDataUrl,
+          clinicalContext:
+            state.thinking ||
+            state.agent_state.focus_area ||
+            'Consult room intake media review',
+          lensPrompt:
+            'Review this intake image for key findings, spot diagnosis, ranked differentials, treatment suggestions, and urgency signals.',
+        });
+
+        const now = Date.now();
+        const reviewRecord: DiagnosticReviewRecord = {
+          id: `scan-${now}-${Math.random().toString(36).slice(2, 8)}`,
+          kind: 'scan',
+          lens: 'general',
+          image_data_url: imageDataUrl,
+          image_name: file.name,
+          context_note: 'Captured from consultation media intake.',
+          analysis,
+          created_at: now,
+          updated_at: now,
+        };
+        dispatch({ type: 'UPSERT_DIAGNOSTIC_REVIEW', payload: reviewRecord });
+
+        const handoff = buildMediaHandoff(file.name, analysis);
+        await runInteraction(handoff, false, handoff);
+        signalFeedback('submit', {
+          hapticsEnabled: state.settings.haptics_enabled,
+          audioEnabled: state.settings.audio_enabled,
+        });
+      } catch (error) {
+        console.error('Consult media intake failed:', error);
+        dispatch({
+          type: 'ADD_NOTIFICATION',
+          payload: {
+            title: 'Media Intake Failed',
+            body:
+              error instanceof Error
+                ? error.message
+                : 'Unable to process media intake right now.',
+          },
+        });
+        signalFeedback('error', {
+          hapticsEnabled: state.settings.haptics_enabled,
+          audioEnabled: state.settings.audio_enabled,
+        });
+      } finally {
+        setMediaProcessing(false);
+      }
+    },
+    [
+      buildMediaHandoff,
+      dispatch,
+      loading,
+      mediaProcessing,
+      promptOnboardingFromNotifications,
+      runInteraction,
+      state.agent_state.focus_area,
+      state.profile,
+      state.settings.audio_enabled,
+      state.settings.haptics_enabled,
+      state.thinking,
+    ]
+  );
+
+  const openMediaPicker = useCallback(() => {
+    if (!isProfileOnboardingComplete(state.profile)) {
+      promptOnboardingFromNotifications();
+      return;
+    }
+    if (loading || mediaProcessing) return;
+    mediaInputRef.current?.click();
+  }, [loading, mediaProcessing, promptOnboardingFromNotifications, state.profile]);
+
   const handleOptionSelect = async (
     optionId: string,
     event?: React.MouseEvent<HTMLButtonElement>
@@ -181,7 +335,7 @@ export const StepRenderer: React.FC = () => {
       promptOnboardingFromNotifications();
       return;
     }
-    if (!state.response_options || loading) return;
+    if (!state.response_options || loading || mediaProcessing) return;
 
     const { mode, ui_variant: variant } = state.response_options;
     const rect = event?.currentTarget?.getBoundingClientRect();
@@ -224,7 +378,7 @@ export const StepRenderer: React.FC = () => {
       promptOnboardingFromNotifications();
       return;
     }
-    if (selectedOptionIds.length === 0 || loading) return;
+    if (selectedOptionIds.length === 0 || loading || mediaProcessing) return;
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -238,7 +392,7 @@ export const StepRenderer: React.FC = () => {
       promptOnboardingFromNotifications();
       return;
     }
-    if (selectedOptionIds.length === 0 || loading) return;
+    if (selectedOptionIds.length === 0 || loading || mediaProcessing) return;
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -269,11 +423,20 @@ export const StepRenderer: React.FC = () => {
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
   const onboardingComplete = isProfileOnboardingComplete(state.profile);
   const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
+  const isBusy = loading || mediaProcessing;
 
   if (state.status === 'complete') return null;
 
   return (
     <div className="flex-1 flex flex-col justify-start min-h-0 px-2 consult-room-shell">
+      <input
+        ref={mediaInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(event) => void handleMediaSelected(event)}
+      />
+
       <div className="flex items-center justify-between px-1 z-20 pt-1 consult-room-actions">
         <div className="w-10">
           {canGoBack && (
@@ -302,10 +465,10 @@ export const StepRenderer: React.FC = () => {
       {isIntakeView && (
         <div className="consult-room-stage">
           <div className="consult-room-presence">
-            <Orb loading={loading} prominence="hero" />
+            <Orb loading={isBusy} prominence="hero" />
           </div>
           <AnimatePresence mode="wait">
-            {loading && (
+            {isBusy && (
               <motion.span
                 key={LOADING_PHASES[loadingPhaseIndex]}
                 initial={{ opacity: 0, y: 4 }}
@@ -350,7 +513,7 @@ export const StepRenderer: React.FC = () => {
                     value={val}
                     onChange={(e) => setVal(e.target.value)}
                     placeholder="Describe your main concern..."
-                    disabled={loading || !onboardingComplete}
+                    disabled={isBusy || !onboardingComplete}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -360,22 +523,33 @@ export const StepRenderer: React.FC = () => {
                     className="w-full surface-strong p-3 rounded-2xl text-[15px] text-left text-content-primary placeholder-content-dim transition-all resize-none focus-glow"
                   />
 
-                  <AnimatePresence>
-                    {val.trim() && !loading && onboardingComplete && (
-                      <motion.button
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: 10 }}
-                        whileHover={{ scale: 1.01, y: -2 }}
-                        whileTap={{ scale: 0.98 }}
-                        type="submit"
-                        aria-label="Send first message"
-                        className="absolute right-3 bottom-3 h-11 w-11 flex items-center justify-center cta-live-icon rounded-2xl focus-glow"
-                      >
-                        <ArrowUp size={16} />
-                      </motion.button>
-                    )}
-                  </AnimatePresence>
+                  <div className="pt-2 flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={openMediaPicker}
+                      disabled={isBusy || !onboardingComplete}
+                      className="h-10 px-3 rounded-xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap disabled:opacity-55"
+                    >
+                      <ImagePlus size={14} />
+                      Media
+                    </button>
+                    <AnimatePresence>
+                      {val.trim() && !isBusy && onboardingComplete && (
+                        <motion.button
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 10 }}
+                          whileHover={{ scale: 1.01, y: -2 }}
+                          whileTap={{ scale: 0.98 }}
+                          type="submit"
+                          aria-label="Send first message"
+                          className="h-10 w-10 flex items-center justify-center cta-live-icon rounded-xl focus-glow"
+                        >
+                          <ArrowUp size={16} />
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </form>
             </div>
@@ -497,11 +671,21 @@ export const StepRenderer: React.FC = () => {
 
                 {showInput && (
                   <div className="pt-1 flex items-center gap-3 rounded-[24px] surface-raised p-3 shadow-glass consult-free-input">
+                    <button
+                      onClick={() => openMediaPicker()}
+                      disabled={isBusy}
+                      className="h-11 px-3 rounded-xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap disabled:opacity-55"
+                      aria-label="Attach media"
+                    >
+                      <ImagePlus size={14} />
+                      Media
+                    </button>
                     <textarea
                       rows={1}
                       value={val}
                       onChange={(e) => setVal(e.target.value)}
                       placeholder="Type your response..."
+                      disabled={isBusy}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -510,7 +694,7 @@ export const StepRenderer: React.FC = () => {
                       }}
                       className="flex-1 surface-strong p-3 rounded-xl text-sm text-content-primary placeholder-content-dim transition-all resize-none no-scrollbar text-left focus-glow"
                     />
-                    {val.trim() && !loading && (
+                    {val.trim() && !isBusy && (
                       <button
                         onClick={() => void handleInitialInput()}
                         className="h-11 w-11 flex items-center justify-center cta-live-icon rounded-xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95"
