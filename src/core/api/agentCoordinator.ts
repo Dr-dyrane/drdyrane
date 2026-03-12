@@ -372,11 +372,33 @@ export class AgentCoordinator {
     const normalized = question.toLowerCase();
     const knownAge = this.state.profile.age;
     const onsetPattern = /(when did|since when|how long|when .* start|started|start)/;
-    const tempPattern = /(temperature|temp|fever|highest.*measure|how high)/;
+    const tempPattern =
+      /(highest.*(temperature|temp)|temperature|temp|how high|measured|reading|degrees|thermometer)/;
     const countPattern = /(how many|number of|episodes?|times|count|frequency)/;
     const gastroPattern = /(vomit|vomiting|throwing up|nausea|diarrhea|diarrhoea|loose stool|stool|bowel)/;
     const hydrationPattern =
       /(keep fluids down|keep liquid down|hold down fluids|able to drink|drinking fluids|hydration|dehydrat|oral intake|sips)/;
+    const symptomInventoryPattern =
+      /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/;
+
+    if (symptomInventoryPattern.test(normalized)) {
+      return {
+        mode: 'multiple',
+        ui_variant: 'chips',
+        options: [
+          { id: 'symptom-chills', text: 'Chills', category: 'associated_symptom', priority: 10 },
+          { id: 'symptom-headache', text: 'Headache', category: 'associated_symptom', priority: 9 },
+          { id: 'symptom-body-aches', text: 'Body aches', category: 'associated_symptom', priority: 8 },
+          { id: 'symptom-fatigue', text: 'Fatigue', category: 'associated_symptom', priority: 7 },
+          { id: 'symptom-nausea', text: 'Nausea', category: 'associated_symptom', priority: 6 },
+          { id: 'symptom-vomiting', text: 'Vomiting', category: 'associated_symptom', priority: 5 },
+          { id: 'symptom-diarrhea', text: 'Diarrhea', category: 'associated_symptom', priority: 4 },
+          { id: 'symptom-cough', text: 'Cough', category: 'associated_symptom', priority: 3 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Select all symptoms that apply, then continue.',
+      };
+    }
 
     if (onsetPattern.test(normalized)) {
       return {
