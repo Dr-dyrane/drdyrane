@@ -530,6 +530,10 @@ const ICD10_RULES: Icd10Rule[] = [
   { pattern: /\bmalaria\b/i, code: 'B54' },
   { pattern: /\bdengue\b/i, code: 'A97.9' },
   { pattern: /\btyphoid\b/i, code: 'A01.0' },
+  {
+    pattern: /\bundifferentiated febrile illness\b|\bfever, unspecified\b|\bacute febrile illness\b/i,
+    code: 'R50.9',
+  },
   { pattern: /\binfluenza\b|\bflu\b/i, code: 'J11.1' },
   { pattern: /\bpneumonia\b/i, code: 'J18.9' },
   { pattern: /\bmeningitis\b/i, code: 'G03.9' },
@@ -748,7 +752,9 @@ const FEATURE_CUES: FeatureCue[] = [
   },
   {
     id: 'confusion_or_neuro',
-    positive: [/\bconfusion|disoriented|seizure|fits|weakness|speech difficulty|facial droop\b/i],
+    positive: [
+      /\bconfusion|disoriented|seizure|fits|focal weakness|one[-\s]?sided weakness|unilateral weakness|speech difficulty|facial droop\b/i,
+    ],
     question: 'Any confusion, seizures, focal weakness, or speech difficulty?',
   },
 ];
@@ -818,6 +824,19 @@ const DIAGNOSIS_HINTS: DiagnosisHint[] = [
     followUpQuestion: 'Did shortness of breath start suddenly, and is there pleuritic chest pain?',
     pendingActions: ['Urgent thromboembolism risk assessment', 'Escalate for acute cardiorespiratory signs'],
   },
+];
+
+const FEVER_ONLY_LEAD_DIAGNOSIS = 'Undifferentiated febrile illness (ICD-10: R50.9)';
+const FEVER_ONLY_FOLLOW_UP_QUESTION = 'Are the fever episodes associated with chills or rigors?';
+const FEVER_ONLY_PENDING_ACTION = 'Use high-yield symptom clarifiers before locking a specific pathogen';
+const FEVER_PATHOGEN_PATTERNS: RegExp[] = [
+  /\bmalaria\b/i,
+  /\bdengue\b/i,
+  /\btyphoid\b/i,
+  /\bpneumonia\b/i,
+  /\binfluenza\b|\bviral upper respiratory infection\b|\burti\b/i,
+  /\burinary tract infection\b|\buti\b|pyelonephritis/i,
+  /\bgastroenteritis\b/i,
 ];
 
 const stripIcd10Label = (diagnosis: string): string =>
@@ -916,14 +935,24 @@ const scoreLlmDiagnosis = (
   const hint = findDiagnosisHint(diagnosis);
   const prior = Math.max(0.9, 3.2 - rankIndex * 0.38);
   let score = prior;
+  const supportStates = (hint?.supports || []).map((featureId) => ({
+    featureId,
+    state: evidence[featureId] || 'unknown',
+  }));
+  const nonFeverSupports = supportStates.filter(({ featureId }) => featureId !== 'fever');
+  const hasNonFeverSupport = nonFeverSupports.some(({ state }) => state === 'present');
 
   if (hint) {
-    for (const featureId of hint.supports) {
-      const state = evidence[featureId] || 'unknown';
+    for (const { state } of supportStates) {
       if (state === 'present') score += 0.85;
       else if (state === 'absent') score -= 0.55;
-      else score += 0.06;
     }
+
+    // Prevent early fixation on pathogen-specific diagnoses when only fever is known.
+    if (nonFeverSupports.length > 0 && !hasNonFeverSupport) {
+      score -= 1.35;
+    }
+
     for (const featureId of hint.contradicts || []) {
       if ((evidence[featureId] || 'unknown') === 'present') {
         score -= 0.9;
@@ -1092,13 +1121,57 @@ const atLeastDifferential = (phase: string | undefined): AgentPhase => {
   return 'differential';
 };
 
+const presentFeatureIds = (evidence: Record<string, EvidenceState>): string[] =>
+  FEATURE_CUES.map((cue) => cue.id).filter((featureId) => evidence[featureId] === 'present');
+
+const isFeverOnlyPresentation = (evidence: Record<string, EvidenceState>): boolean => {
+  const present = presentFeatureIds(evidence);
+  return present.length === 1 && present[0] === 'fever';
+};
+
+const isSpecificFebrileDiagnosis = (diagnosis: string): boolean =>
+  FEVER_PATHOGEN_PATTERNS.some((pattern) => pattern.test(diagnosis));
+
+const applyFeverOnlyGuardrail = (
+  candidates: OrchestratedCandidate[],
+  evidence: Record<string, EvidenceState>
+): OrchestratedCandidate[] => {
+  if (!isFeverOnlyPresentation(evidence)) return candidates;
+
+  const downgraded = candidates.map((candidate) => {
+    if (!isSpecificFebrileDiagnosis(candidate.diagnosis)) return candidate;
+    return {
+      ...candidate,
+      score: Math.min(candidate.score, 2.7),
+    };
+  });
+
+  const neutralLead: OrchestratedCandidate = {
+    diagnosis: FEVER_ONLY_LEAD_DIAGNOSIS,
+    score: Math.max(3.1, (downgraded[0]?.score || 2.6) + 0.45),
+    emergency: false,
+    followUpQuestion: FEVER_ONLY_FOLLOW_UP_QUESTION,
+    pendingActions: [FEVER_ONLY_PENDING_ACTION],
+    source: 'profile',
+  };
+
+  return [neutralLead, ...downgraded].sort((left, right) => {
+    if (left.emergency && !right.emergency) return -1;
+    if (!left.emergency && right.emergency) return 1;
+    return right.score - left.score;
+  });
+};
+
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
   const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
   const corpus = buildConsultTextCorpus(body, payload);
   const evidence = buildFeatureEvidence(corpus);
   const rankedProfiles = rankTopDownProfiles(corpus);
   const rankedFromLlm = rankLlmDiagnoses(withCodedDdx, evidence);
-  const orchestrated = mergeOrchestratedCandidates(rankedProfiles, rankedFromLlm);
+  const orchestrated = applyFeverOnlyGuardrail(
+    mergeOrchestratedCandidates(rankedProfiles, rankedFromLlm),
+    evidence
+  );
 
   if (orchestrated.length === 0) {
     return {
@@ -1113,10 +1186,15 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     ...orchestrated.map((entry) => entry.diagnosis),
     ...withCodedDdx,
   ]).slice(0, 8);
-  const probabilityFloor = scoreToProbabilityFloor(lead, secondScore);
-  const preferredQuestion = shouldOverrideQuestion(payload.question, lead, corpus, secondScore)
-    ? lead.followUpQuestion
-    : payload.question;
+  const feverOnlyPresentation = isFeverOnlyPresentation(evidence);
+  const probabilityFloor = feverOnlyPresentation
+    ? Math.min(scoreToProbabilityFloor(lead, secondScore), 62)
+    : scoreToProbabilityFloor(lead, secondScore);
+  const preferredQuestion = feverOnlyPresentation
+    ? lead.followUpQuestion || payload.question
+    : shouldOverrideQuestion(payload.question, lead, corpus, secondScore)
+      ? lead.followUpQuestion
+      : payload.question;
   const nextActions = dedupeDxList([
     ...(payload.agent_state?.pending_actions || []),
     ...lead.pendingActions,
@@ -1126,6 +1204,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     (body.state?.conversation || []).filter((entry) => entry.role === 'patient').length +
     (sanitizeText(body.patientInput) ? 1 : 0);
   const decisiveLead =
+    !feverOnlyPresentation &&
     lead.score >= 6.8 &&
     lead.score - secondScore >= 1.4 &&
     patientTurns >= 3;
