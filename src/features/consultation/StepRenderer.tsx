@@ -318,7 +318,6 @@ export const StepRenderer: React.FC = () => {
                 animate={{ opacity: 1, y: 0 }}
                 className="w-full surface-raised rounded-[24px] px-4 py-4 shadow-glass mb-3"
               >
-                <p className="text-[11px] text-content-dim mb-1">Dr. Dyrane</p>
                 <p className="text-[0.98rem] text-content-primary leading-relaxed">
                   {state.conversation.length > 0
                     ? 'Anything else you noticed before this started?'
@@ -443,7 +442,7 @@ export const StepRenderer: React.FC = () => {
                 </motion.div>
               )}
 
-              {!loading && (currentMessage || state.status === 'active') && (
+              {!loading && currentMessage?.role === 'doctor' && (
                 <div className="pt-2 space-y-3">
                   {(gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
                     <div className="flex items-center justify-center gap-2 flex-wrap">

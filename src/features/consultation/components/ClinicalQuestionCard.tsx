@@ -31,7 +31,6 @@ export const ClinicalQuestionCard: React.FC<ClinicalQuestionCardProps> = ({
       transition={{ duration: 0.45, ease: 'easeOut' }}
       className="surface-raised rounded-[24px] px-4 py-4 shadow-glass min-h-[128px] sm:min-h-[140px] flex flex-col justify-center"
     >
-      <p className="text-[11px] text-content-dim mb-1">Dr. Dyrane</p>
       {statement && (
         <p className="text-xs tracking-wide text-accent-soft font-medium text-left mb-2">
           {statement}

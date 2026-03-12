@@ -193,10 +193,6 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
-      {compact && (
-        <p className="text-[11px] text-content-dim px-1">Quick replies</p>
-      )}
-
       {isScale ? (
         <motion.div
           layout

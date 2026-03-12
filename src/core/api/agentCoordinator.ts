@@ -60,9 +60,9 @@ const SYMPTOM_SURVEY_SIGNAL_PATTERN =
 const DURATION_PHRASE_PATTERN =
   /\b(for\s+\d+\s*(?:hours?|hrs?|days?|weeks?|w(?:eeks?)?|months?|mos?|years?|yrs?)|since\s+[^,.;!?]+|today|yesterday|last night|this morning|this evening)\b/i;
 const NON_COMPLAINT_OPENER_PATTERN = /^(hi|hello|hey|good (morning|afternoon|evening)|thanks?)\b/i;
-const YES_ANSWER_PATTERN = /\b(yes|yeah|yep|affirmative|correct|sure)\b/i;
+const YES_ANSWER_PATTERN = /\b(yes|yeah|yep|affirmative|correct|absolutely|certainly)\b/i;
 const NO_ANSWER_PATTERN = /\b(no|none|nothing else|nope)\b/i;
-const UNSURE_ANSWER_PATTERN = /\b(not sure|unsure|unknown|maybe)\b/i;
+const UNSURE_ANSWER_PATTERN = /\b(not sure|unsure|unknown|maybe|don'?t know|cannot tell|idk)\b/i;
 const CHECKPOINT_DANGER_SIGNAL_PATTERN =
   /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
 const SYMPTOM_CLUSTER_PROMPT = 'Which symptom cluster stands out most right now?';
@@ -199,10 +199,33 @@ export class AgentCoordinator {
   }
 
   private shouldStartPresentingComplaintGate(input: string, stateForTurn: ClinicalState): boolean {
-    if (stateForTurn.status !== 'idle' && stateForTurn.status !== 'intake') return false;
-    if (stateForTurn.conversation.length > 0) return false;
-    if (NON_COMPLAINT_OPENER_PATTERN.test(input) && input.trim().split(/\s+/).length <= 4) return false;
+    const hasCapturedComplaint = this.hasCapturedPresentingComplaint(stateForTurn);
+    if (hasCapturedComplaint) return false;
+
+    const statusEligible =
+      stateForTurn.status === 'idle' ||
+      stateForTurn.status === 'intake' ||
+      (stateForTurn.status === 'active' && !hasCapturedComplaint);
+    if (!statusEligible) return false;
+
+    if (this.isGreetingOnlyMessage(input)) return false;
     return true;
+  }
+
+  private isGreetingOnlyMessage(text: string): boolean {
+    const normalized = text.trim();
+    if (!normalized) return true;
+    return NON_COMPLAINT_OPENER_PATTERN.test(normalized) && normalized.split(/\s+/).length <= 6;
+  }
+
+  private hasCapturedPresentingComplaint(stateForTurn: ClinicalState): boolean {
+    const patientMessages = stateForTurn.conversation.filter((entry) => entry.role === 'patient');
+    const hasClinicalPatientInput = patientMessages.some(
+      (entry) => !this.isGreetingOnlyMessage(entry.content || '')
+    );
+    if (hasClinicalPatientInput) return true;
+    if (stateForTurn.ddx.length > 0) return true;
+    return Object.keys(stateForTurn.soap?.S || {}).length > 0;
   }
 
   private extractDurationPhrase(text: string): string | null {
@@ -223,6 +246,7 @@ export class AgentCoordinator {
   }
 
   private isAffirmativeAnswer(answer: string): boolean {
+    if (UNSURE_ANSWER_PATTERN.test(answer)) return false;
     return YES_ANSWER_PATTERN.test(answer) && !NO_ANSWER_PATTERN.test(answer);
   }
 
@@ -290,9 +314,10 @@ export class AgentCoordinator {
   private classifySafetyCheckpointAnswer(answer: string): 'clear' | 'positive' | 'uncertain' {
     if (!answer) return 'uncertain';
     const normalized = answer.trim().toLowerCase();
+    if (UNSURE_ANSWER_PATTERN.test(normalized)) return 'uncertain';
     if (CHECKPOINT_DANGER_SIGNAL_PATTERN.test(normalized)) return 'positive';
-    if (this.isAffirmativeAnswer(normalized)) return 'positive';
     if (NO_ANSWER_PATTERN.test(normalized)) return 'clear';
+    if (this.isAffirmativeAnswer(normalized)) return 'positive';
     return 'uncertain';
   }
 

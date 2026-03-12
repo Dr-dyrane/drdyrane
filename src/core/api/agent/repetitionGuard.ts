@@ -10,6 +10,9 @@ const QUESTION_INTENT_PATTERNS = {
   pattern: /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b/i,
   danger_signs: /\bdanger signs?\b|\bbreathlessness\b|\bconfusion\b|\bpersistent vomiting\b|\bbleeding\b/i,
 } as const;
+const UNCERTAIN_RESPONSE_PATTERN =
+  /\b(not sure|unsure|unknown|maybe|don'?t know|cannot tell|idk)\b/i;
+const NON_SUBSTANTIVE_RESPONSE_PATTERN = /^(ok|okay|k|kk|hmm+|uh+h*|ah+h*|alright|fine)$/i;
 const TOPIC_DEFINITIONS: Array<{ topic: string; questionPattern: RegExp; patientPattern: RegExp }> = [
   {
     topic: 'fever',
@@ -159,6 +162,14 @@ const detectQuestionIntent = (
   return null;
 };
 
+const isSubstantivePatientResponse = (response: string): boolean => {
+  const normalized = response.trim();
+  if (!normalized) return false;
+  if (UNCERTAIN_RESPONSE_PATTERN.test(normalized)) return false;
+  if (NON_SUBSTANTIVE_RESPONSE_PATTERN.test(normalized)) return false;
+  return /[a-z0-9]/i.test(normalized);
+};
+
 export const isRecentlyAnsweredQuestionIntent = (
   candidateQuestion: string,
   conversation: ConversationMessage[]
@@ -176,7 +187,10 @@ export const isRecentlyAnsweredQuestionIntent = (
     for (let j = i + 1; j < lookback.length; j += 1) {
       const followup = lookback[j];
       if (followup.role === 'doctor') break;
-      if (followup.role === 'patient' && (followup.content || '').trim().length > 0) {
+      if (
+        followup.role === 'patient' &&
+        isSubstantivePatientResponse(followup.content || '')
+      ) {
         return true;
       }
     }
