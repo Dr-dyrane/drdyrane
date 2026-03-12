@@ -2,6 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { AppView } from '../../core/types/clinical';
 import {
+  Camera,
   ClipboardList,
   FlaskConical,
   History,
@@ -11,8 +12,11 @@ import {
   Printer,
   RotateCcw,
   ScanLine,
+  SendHorizontal,
   Stethoscope,
+  Upload,
   X,
+  Calculator,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { signalFeedback } from '../../core/services/feedback';
@@ -20,6 +24,7 @@ import { playCelebrationBurst } from '../../core/services/celebration';
 import { ClinicalProcessModal } from '../../features/consultation/ClinicalProcessModal';
 
 type ActionIcon = React.ComponentType<{ size?: string | number }>;
+type DiagnosticKind = 'lab' | 'radiology';
 
 interface NavAction {
   key: string;
@@ -30,11 +35,43 @@ interface NavAction {
 }
 
 interface PrimaryAction {
-  label: string;
   icon: ActionIcon;
   onClick: () => void;
+  label: string;
   disabled?: boolean;
 }
+
+interface SmartTab {
+  id: AppView;
+  label: string;
+  icon: ActionIcon;
+}
+
+const TAB_REGISTRY: Record<AppView, SmartTab> = {
+  consult: { id: 'consult', label: 'Consult', icon: Stethoscope },
+  history: { id: 'history', label: 'History', icon: History },
+  drug: { id: 'drug', label: 'Rx', icon: Pill },
+  lab: { id: 'lab', label: 'Lab', icon: FlaskConical },
+  radiology: { id: 'radiology', label: 'Radio', icon: ScanLine },
+  about: { id: 'about', label: 'System', icon: LineChart },
+};
+
+const getSmartTabs = (view: AppView): SmartTab[] => {
+  switch (view) {
+    case 'consult':
+      return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
+    case 'history':
+      return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
+    case 'drug':
+      return [TAB_REGISTRY.history, TAB_REGISTRY.drug, TAB_REGISTRY.lab];
+    case 'lab':
+      return [TAB_REGISTRY.drug, TAB_REGISTRY.lab, TAB_REGISTRY.radiology];
+    case 'radiology':
+      return [TAB_REGISTRY.lab, TAB_REGISTRY.radiology, TAB_REGISTRY.consult];
+    default:
+      return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
+  }
+};
 
 export const BottomNav: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -49,6 +86,10 @@ export const BottomNav: React.FC = () => {
       }),
     [state.settings.audio_enabled, state.settings.haptics_enabled]
   );
+
+  const emitEvent = useCallback((name: string, detail?: Record<string, unknown>) => {
+    window.dispatchEvent(new CustomEvent(name, { detail }));
+  }, []);
 
   const setView = useCallback(
     (view: AppView) => {
@@ -115,23 +156,11 @@ export const BottomNav: React.FC = () => {
     state.view,
   ]);
 
-  const navItems = [
-    { id: 'consult' as AppView, icon: Stethoscope, label: 'Consult' },
-    { id: 'history' as AppView, icon: History, label: 'History' },
-    { id: 'drug' as AppView, icon: Pill, label: 'Rx' },
-    { id: 'lab' as AppView, icon: FlaskConical, label: 'Lab' },
-    { id: 'radiology' as AppView, icon: ScanLine, label: 'Radio' },
-  ];
-
   const hasArchives = state.archives.length > 0;
   const hasCompletedEncounter = state.status === 'complete' && Boolean(state.pillars);
   const hasHistoryRecord = state.view === 'history' && hasArchives;
   const canExportPdf = hasCompletedEncounter || hasHistoryRecord;
-
-  const openRecord = useCallback(() => {
-    dispatch({ type: 'TOGGLE_HX' });
-    feedback('select');
-  }, [dispatch, feedback]);
+  const smartTabs = useMemo(() => getSmartTabs(state.view), [state.view]);
 
   const openProcess = useCallback(() => {
     setProcessOpen(true);
@@ -155,145 +184,95 @@ export const BottomNav: React.FC = () => {
     feedback('submit');
   }, [dispatch, feedback]);
 
+  const triggerDiagnostic = useCallback(
+    (action: 'open-upload' | 'open-scanner' | 'run-review' | 'send-consult', kind: DiagnosticKind) => {
+      emitEvent(`drdyrane:diagnostic:${action}`, { kind });
+      feedback(action === 'send-consult' ? 'submit' : 'select');
+    },
+    [emitEvent, feedback]
+  );
+
   const actionItems = useMemo<NavAction[]>(() => {
     switch (state.view) {
       case 'consult':
         return [
-          { key: 'record', label: 'Record', icon: ClipboardList, onClick: openRecord },
+          { key: 'record', label: 'Record', icon: ClipboardList, onClick: () => dispatch({ type: 'TOGGLE_HX' }) },
           { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !hasCompletedEncounter },
-          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
-          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
-          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
-          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       case 'history':
         return [
           { key: 'revisit', label: 'Revisit', icon: RotateCcw, onClick: revisitLatest, disabled: !hasArchives },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !hasArchives },
-          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
-          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
-          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
-          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       case 'drug':
         return [
-          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
-          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
-          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
-          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
-          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
+          { key: 'volume', label: 'Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator') },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       case 'lab':
         return [
-          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
-          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
-          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
-          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
-          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
-          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
+          { key: 'upload', label: 'Upload', icon: Upload, onClick: () => triggerDiagnostic('open-upload', 'lab') },
+          { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'lab') },
+          { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review', 'lab') },
+          { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult', 'lab') },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       case 'radiology':
         return [
-          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
-          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
-          { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
-          { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
-          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
-          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
+          { key: 'upload', label: 'Upload', icon: Upload, onClick: () => triggerDiagnostic('open-upload', 'radiology') },
+          { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'radiology') },
+          { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review', 'radiology') },
+          { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult', 'radiology') },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       default:
         return [
           { key: 'consult', label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') },
           { key: 'history', label: 'History', icon: History, onClick: () => openView('history') },
-          { key: 'pharmacy', label: 'Pharmacy', icon: Pill, onClick: () => openView('drug') },
-          { key: 'lab', label: 'Labs', icon: FlaskConical, onClick: () => openView('lab') },
-          { key: 'radiology', label: 'Radiology', icon: ScanLine, onClick: () => openView('radiology') },
-          { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
     }
   }, [
     canExportPdf,
+    dispatch,
+    emitEvent,
     exportPdf,
     hasArchives,
     hasCompletedEncounter,
     openProcess,
-    openRecord,
     openView,
     resetVisit,
     revisitLatest,
     state.view,
+    triggerDiagnostic,
   ]);
 
   const primaryAction = useMemo<PrimaryAction>(() => {
     switch (state.view) {
       case 'consult':
         if (hasCompletedEncounter) {
-          return {
-            label: 'Export PDF',
-            icon: Printer,
-            onClick: exportPdf,
-            disabled: false,
-          };
+          return { label: 'Export PDF', icon: Printer, onClick: exportPdf };
         }
-        return {
-          label: 'Process',
-          icon: LineChart,
-          onClick: openProcess,
-          disabled: false,
-        };
+        return { label: 'Clinical Process', icon: LineChart, onClick: openProcess };
       case 'history':
         if (hasArchives) {
-          return {
-            label: 'Revisit',
-            icon: RotateCcw,
-            onClick: revisitLatest,
-            disabled: false,
-          };
+          return { label: 'Revisit Last', icon: RotateCcw, onClick: revisitLatest };
         }
-        return {
-          label: 'New Consult',
-          icon: Stethoscope,
-          onClick: () => openView('consult', 'submit'),
-          disabled: false,
-        };
+        return { label: 'Start Consult', icon: Stethoscope, onClick: () => openView('consult', 'submit') };
       case 'drug':
-        return {
-          label: 'Open Labs',
-          icon: FlaskConical,
-          onClick: () => openView('lab'),
-          disabled: false,
-        };
+        return { label: 'Open Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator') };
       case 'lab':
-        return {
-          label: 'Radiology',
-          icon: ScanLine,
-          onClick: () => openView('radiology'),
-          disabled: false,
-        };
+        return { label: 'Scan Lab', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'lab') };
       case 'radiology':
-        return {
-          label: 'Consult',
-          icon: Stethoscope,
-          onClick: () => openView('consult'),
-          disabled: false,
-        };
+        return { label: 'Scan Imaging', icon: Camera, onClick: () => triggerDiagnostic('open-scanner', 'radiology') };
       default:
-        return {
-          label: 'Consult',
-          icon: Stethoscope,
-          onClick: () => openView('consult'),
-          disabled: false,
-        };
+        return { label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') };
     }
-  }, [exportPdf, hasArchives, hasCompletedEncounter, openProcess, openView, revisitLatest, state.view]);
+  }, [emitEvent, exportPdf, hasArchives, hasCompletedEncounter, openProcess, openView, revisitLatest, state.view, triggerDiagnostic]);
 
   const triggerPrimaryAction = () => {
     if (menuOpen) {
@@ -308,71 +287,77 @@ export const BottomNav: React.FC = () => {
     primaryAction.onClick();
   };
 
-  const triggerAction = (run: () => void, disabled?: boolean) => {
-    if (disabled) return;
+  const triggerAction = (action: NavAction) => {
+    if (action.disabled) return;
     playCelebrationBurst({
       reducedMotion: state.settings.reduced_motion,
       intensity: 'soft',
     });
-    run();
+    action.onClick();
     setMenuOpen(false);
   };
 
   const PrimaryIcon = primaryAction.icon;
-  const showPrimaryLabel = !menuOpen;
 
   return (
     <>
       <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] pointer-events-none">
-        <div className="relative pointer-events-auto">
-          <div className="ios-tabbar-surface rounded-[30px] px-1.5 pt-2 pb-1.5 shadow-float">
-            <div className="grid grid-cols-5 gap-1">
-              {navItems.map((item) => {
-                const isActive = state.view === item.id;
-                const Icon = item.icon;
-                return (
-                  <motion.button
-                    key={item.id}
-                    onClick={() => openView(item.id)}
-                    whileTap={{ scale: 0.96 }}
-                    className={`h-[54px] rounded-[16px] inline-flex flex-col items-center justify-center gap-0.5 text-[10px] font-semibold tracking-tight interactive-tap tap-compact transition-all ${
-                      isActive
-                        ? 'bg-surface-active text-content-active selected-elevation'
-                        : 'text-content-dim hover:text-content-secondary'
-                    }`}
-                    aria-label={`Open ${item.label}`}
-                  >
-                    <Icon size={17} className={isActive ? 'text-content-active' : ''} />
-                    <span className="leading-none">{item.label}</span>
-                  </motion.button>
-                );
-              })}
-            </div>
-          </div>
+        <div className="relative flex items-end justify-between gap-2 pointer-events-auto">
+          <motion.div
+            layout
+            className="ios-tabbar-surface rounded-full h-14 px-2 inline-flex items-center gap-1 shadow-float min-w-0"
+          >
+            {smartTabs.map((tab) => {
+              const isActive = state.view === tab.id;
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => openView(tab.id)}
+                  className={`relative h-10 rounded-full inline-flex items-center gap-1.5 transition-all interactive-tap tap-compact ${
+                    isActive ? 'px-3.5 bg-surface-active text-content-active selected-elevation' : 'px-2.5 text-content-dim'
+                  }`}
+                  aria-label={`Open ${tab.label}`}
+                >
+                  <Icon size={16} />
+                  <AnimatePresence mode="wait">
+                    {isActive && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="overflow-hidden whitespace-nowrap text-[11px] font-semibold"
+                      >
+                        {tab.label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </button>
+              );
+            })}
+          </motion.div>
 
-          <div className="absolute -top-[3.15rem] right-0 flex items-center gap-2 pointer-events-auto">
+          <div className="relative shrink-0">
             <motion.button
               whileTap={{ scale: 0.95 }}
+              onClick={triggerPrimaryAction}
+              className="h-14 w-14 rounded-full cta-live inline-flex items-center justify-center shadow-float interactive-tap"
+              aria-label={menuOpen ? 'Close actions' : primaryAction.label}
+            >
+              {menuOpen ? <X size={19} /> : <PrimaryIcon size={19} />}
+            </motion.button>
+
+            <motion.button
+              whileTap={{ scale: 0.94 }}
               onClick={() => {
                 feedback('select');
                 setMenuOpen((prev) => !prev);
               }}
-              className="h-11 w-11 rounded-full surface-raised text-content-dim shadow-glass flex items-center justify-center interactive-tap"
+              className="absolute -top-1 -left-1 h-8 w-8 rounded-full ios-tabbar-surface shadow-glass text-content-dim inline-flex items-center justify-center interactive-tap tap-compact"
               aria-label="Open contextual actions"
             >
-              {menuOpen ? <X size={15} /> : <MoreHorizontal size={15} />}
-            </motion.button>
-
-            <motion.button
-              whileTap={{ scale: 0.96 }}
-              onClick={triggerPrimaryAction}
-              className={`h-11 rounded-2xl cta-live inline-flex items-center justify-center gap-1.5 text-xs font-semibold ${
-                showPrimaryLabel ? 'px-4' : 'w-11'
-              }`}
-              aria-label={menuOpen ? 'Close actions' : primaryAction.label}
-            >
-              {menuOpen ? <X size={16} /> : <PrimaryIcon size={16} />}
-              {showPrimaryLabel && <span className="max-w-[102px] truncate">{primaryAction.label}</span>}
+              {menuOpen ? <X size={13} /> : <MoreHorizontal size={13} />}
             </motion.button>
           </div>
 
@@ -382,22 +367,22 @@ export const BottomNav: React.FC = () => {
                 initial={{ opacity: 0, y: 10, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 8, scale: 0.98 }}
-                className="absolute bottom-[5.7rem] right-0 w-[292px] ios-sheet-surface rounded-[24px] p-3 shadow-float"
+                className="absolute bottom-[4.95rem] right-0 w-[236px] ios-sheet-surface rounded-[24px] p-3 shadow-float"
               >
-                <div className="grid grid-cols-3 gap-2">
-                  {actionItems.map((item) => {
-                    const Icon = item.icon;
+                <div className="grid grid-cols-2 gap-2">
+                  {actionItems.map((action) => {
+                    const Icon = action.icon;
                     return (
                       <button
-                        key={item.key}
-                        onClick={() => triggerAction(item.onClick, item.disabled)}
-                        disabled={item.disabled}
-                        className="h-[72px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
+                        key={action.key}
+                        onClick={() => triggerAction(action)}
+                        disabled={action.disabled}
+                        className="h-[70px] rounded-2xl surface-strong option-live option-tone-cyan text-content-primary disabled:opacity-45 flex flex-col items-center justify-center gap-1.5 focus-glow interactive-tap"
                       >
-                        <span className="h-8 w-8 rounded-xl surface-chip flex items-center justify-center">
+                        <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
                           <Icon size={14} />
                         </span>
-                        <span className="text-[10px] font-medium leading-none">{item.label}</span>
+                        <span className="text-[10px] font-medium leading-none">{action.label}</span>
                       </button>
                     );
                   })}

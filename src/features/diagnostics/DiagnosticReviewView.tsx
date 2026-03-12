@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Camera,
@@ -84,11 +84,14 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   const [scannerOpen, setScannerOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
 
-  const feedback = (kindValue: Parameters<typeof signalFeedback>[0] = 'select') =>
-    signalFeedback(kindValue, {
-      hapticsEnabled: state.settings.haptics_enabled,
-      audioEnabled: state.settings.audio_enabled,
-    });
+  const feedback = useCallback(
+    (kindValue: Parameters<typeof signalFeedback>[0] = 'select') =>
+      signalFeedback(kindValue, {
+        hapticsEnabled: state.settings.haptics_enabled,
+        audioEnabled: state.settings.audio_enabled,
+      }),
+    [state.settings.audio_enabled, state.settings.haptics_enabled]
+  );
 
   const stopCameraStream = () => {
     if (streamRef.current) {
@@ -141,10 +144,10 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     };
   }, [scannerOpen]);
 
-  const openFilePicker = () => {
+  const openFilePicker = useCallback(() => {
     setError('');
     fileInputRef.current?.click();
-  };
+  }, []);
 
   const onFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -197,7 +200,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     feedback('submit');
   };
 
-  const runAnalysis = async () => {
+  const runAnalysis = useCallback(async () => {
     if (!imageDataUrl) {
       setError('Upload or scan an image first.');
       return;
@@ -220,7 +223,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     } finally {
       setAnalyzing(false);
     }
-  };
+  }, [config.contextHint, config.lensPrompt, contextNote, feedback, imageDataUrl]);
 
   const handoffSummary = useMemo(() => {
     const lines: string[] = [`${config.pageLabel} review handoff:`];
@@ -247,7 +250,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     return lines.join(' ');
   }, [analysis, config.pageLabel, contextNote]);
 
-  const pushToConsultation = async () => {
+  const pushToConsultation = useCallback(async () => {
     if (!analysis && !contextNote.trim()) {
       setError('Run AI review or add a note before sending to consultation.');
       return;
@@ -272,7 +275,49 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     } finally {
       setPushing(false);
     }
-  };
+  }, [analysis, contextNote, dispatch, feedback, handoffSummary, state]);
+
+  useEffect(() => {
+    const matchesKind = (event: Event): boolean => {
+      const detail = (event as CustomEvent<{ kind?: DiagnosticReviewKind }>).detail;
+      if (!detail?.kind) return true;
+      return detail.kind === kind;
+    };
+
+    const handleUpload = (event: Event) => {
+      if (!matchesKind(event)) return;
+      openFilePicker();
+    };
+
+    const handleScanner = (event: Event) => {
+      if (!matchesKind(event)) return;
+      setError('');
+      setScannerOpen(true);
+      feedback('select');
+    };
+
+    const handleReview = (event: Event) => {
+      if (!matchesKind(event)) return;
+      void runAnalysis();
+    };
+
+    const handleSend = (event: Event) => {
+      if (!matchesKind(event)) return;
+      void pushToConsultation();
+    };
+
+    window.addEventListener('drdyrane:diagnostic:open-upload', handleUpload);
+    window.addEventListener('drdyrane:diagnostic:open-scanner', handleScanner);
+    window.addEventListener('drdyrane:diagnostic:run-review', handleReview);
+    window.addEventListener('drdyrane:diagnostic:send-consult', handleSend);
+
+    return () => {
+      window.removeEventListener('drdyrane:diagnostic:open-upload', handleUpload);
+      window.removeEventListener('drdyrane:diagnostic:open-scanner', handleScanner);
+      window.removeEventListener('drdyrane:diagnostic:run-review', handleReview);
+      window.removeEventListener('drdyrane:diagnostic:send-consult', handleSend);
+    };
+  }, [feedback, kind, openFilePicker, pushToConsultation, runAnalysis]);
 
   return (
     <>

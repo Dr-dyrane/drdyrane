@@ -6,9 +6,7 @@ import {
   ChevronRight,
   Clock3,
   Copy,
-  FlaskConical,
   Printer,
-  ScanLine,
   Search,
   X,
 } from 'lucide-react';
@@ -179,6 +177,16 @@ export const DrugProtocolsView: React.FC = () => {
     setCalcAgeInput(profileAge);
   }, [state.profile.age, state.profile.weight_kg]);
 
+  useEffect(() => {
+    const openCalculator = () => {
+      setCalculatorOpen(true);
+    };
+    window.addEventListener('drdyrane:drug:open-calculator', openCalculator);
+    return () => {
+      window.removeEventListener('drdyrane:drug:open-calculator', openCalculator);
+    };
+  }, []);
+
   const filteredProtocols = useMemo(() => {
     const normalizedQuery = normalize(query);
     if (!normalizedQuery) return protocols;
@@ -320,6 +328,11 @@ export const DrugProtocolsView: React.FC = () => {
     }
   };
 
+  const openCalculatorSheet = () => {
+    setCalculatorOpen(true);
+    feedback('select');
+  };
+
   return (
     <>
       <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
@@ -332,52 +345,17 @@ export const DrugProtocolsView: React.FC = () => {
           <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">Treatment</h1>
         </div>
 
-        <section className="surface-raised rounded-[24px] p-3 space-y-2">
-          <p className="text-xs text-content-dim uppercase tracking-wide px-1">Actions</p>
-          <div className="grid grid-cols-3 gap-2">
+        <section className="surface-raised rounded-[24px] p-4 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs text-content-dim uppercase tracking-wide">Find Protocol</label>
             <button
-              onClick={() => {
-                setCalculatorOpen(true);
-                feedback('select');
-              }}
-              className="h-[70px] rounded-2xl surface-strong text-content-primary inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap"
+              onClick={openCalculatorSheet}
+              className="h-9 px-3 rounded-full surface-strong text-[11px] font-semibold text-content-primary inline-flex items-center gap-1.5 interactive-tap tap-compact"
             >
-              <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
-                <Calculator size={14} />
-              </span>
+              <Calculator size={13} />
               Volume
             </button>
-
-            <button
-              onClick={() => {
-                feedback('select');
-                dispatch({ type: 'SET_VIEW', payload: 'lab' });
-              }}
-              className="h-[70px] rounded-2xl surface-strong text-content-primary inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap"
-            >
-              <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
-                <FlaskConical size={14} />
-              </span>
-              Labs
-            </button>
-
-            <button
-              onClick={() => {
-                feedback('select');
-                dispatch({ type: 'SET_VIEW', payload: 'radiology' });
-              }}
-              className="h-[70px] rounded-2xl surface-strong text-content-primary inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap"
-            >
-              <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
-                <ScanLine size={14} />
-              </span>
-              Radiology
-            </button>
           </div>
-        </section>
-
-        <section className="surface-raised rounded-[24px] p-4 space-y-3">
-          <label className="text-xs text-content-dim uppercase tracking-wide">Find Protocol</label>
           <div className="h-11 rounded-2xl surface-strong px-3 inline-flex items-center gap-2 w-full">
             <Search size={15} className="text-content-dim" />
             <input
@@ -388,7 +366,7 @@ export const DrugProtocolsView: React.FC = () => {
             />
           </div>
           {quickPickProtocols.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
               {quickPickProtocols.map((entry) => (
                 <button
                   key={`quick-${entry.value}`}
@@ -418,7 +396,7 @@ export const DrugProtocolsView: React.FC = () => {
           )}
 
           {!loading && !error && filteredProtocols.length > 0 && (
-            <div className="max-h-[42vh] overflow-y-auto no-scrollbar space-y-2 pr-1">
+            <div className="max-h-[54vh] overflow-y-auto no-scrollbar space-y-2 pr-1">
               {filteredProtocols.map((entry) => (
                 <button
                   key={entry.value}
