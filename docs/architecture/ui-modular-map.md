@@ -29,6 +29,9 @@
 - `components/layout/*`: frame shell, depth layer, global navigation
 
 ## Current Design Rules
+- Intake enforces SOAP-ready presenting-complaint capture:
+  - Primary complaint duration first.
+  - Then ask for additional complaints and capture duration for each before differential history.
 - One-question clinical stage in consult mode.
 - One primary action cluster per step (answer options + optional freeform clarifier).
 - Internal reasoning not rendered on patient surface.

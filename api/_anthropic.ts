@@ -927,6 +927,14 @@ const dedupeActions = (actions: string[]): string[] =>
 const findDiagnosisHint = (diagnosis: string): DiagnosisHint | undefined =>
   DIAGNOSIS_HINTS.find((hint) => hint.pattern.test(diagnosis));
 
+const applyEmergencySpecificPenalty = (
+  diagnosis: string,
+  evidence: Record<string, EvidenceState>
+): number => {
+  if (!/\bmeningitis\b/i.test(diagnosis)) return 0;
+  return evidence.confusion_or_neuro === 'present' ? 0 : 1.6;
+};
+
 const scoreLlmDiagnosis = (
   diagnosis: string,
   rankIndex: number,
@@ -958,6 +966,8 @@ const scoreLlmDiagnosis = (
         score -= 0.9;
       }
     }
+
+    score -= applyEmergencySpecificPenalty(diagnosis, evidence);
   }
 
   const unknownSupportedFeature = hint?.supports.find((featureId) => evidence[featureId] === 'unknown');

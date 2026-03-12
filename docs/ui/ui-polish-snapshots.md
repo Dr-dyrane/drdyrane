@@ -9,6 +9,7 @@
 - Visual hierarchy locked to: `Question -> Options -> Optional free text`.
 - Clarifier progress stays above the question only.
 - Added explicit section labels (`Question`, `Choose Response`) for scanning.
+- First-turn flow now captures presenting complaint durations before broader history.
 
 ## 3. Option Interaction Surface
 - Motion behavior normalized (same hover/tap spring rhythm across variants).

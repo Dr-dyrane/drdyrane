@@ -111,6 +111,7 @@ export interface GatedQuestionSegment {
   id: string;
   prompt: string;
   timeout_seconds?: number;
+  input_mode?: 'options' | 'freeform';
 }
 
 export interface GatedQuestionAnswer {
@@ -122,9 +123,12 @@ export interface GatedQuestionAnswer {
 export interface QuestionGateState {
   active: boolean;
   source_question: string;
+  kind?: 'stacked_symptom' | 'presenting_complaints';
   segments: GatedQuestionSegment[];
   current_index: number;
   answers: GatedQuestionAnswer[];
+  additional_count?: number;
+  max_additional?: number;
 }
 
 export interface AgentState {
