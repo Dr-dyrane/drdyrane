@@ -35,7 +35,7 @@ export const Header: React.FC = () => {
 
         <div className="flex-1 min-w-0 h-12 surface-raised rounded-2xl px-4 flex flex-col justify-center pointer-events-auto">
           <p className="text-[11px] text-content-dim leading-none">{todayLabel}</p>
-          <p className="text-sm font-semibold text-content-primary leading-tight truncate">Dr Dyrane Clinical</p>
+          <p className="text-sm font-semibold text-content-primary leading-tight truncate">Dr Dyrane Consulting Room</p>
         </div>
 
         <button

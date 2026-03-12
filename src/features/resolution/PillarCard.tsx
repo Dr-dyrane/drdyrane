@@ -51,7 +51,7 @@ export const PillarCard: React.FC = () => {
               </div>
               <h3 className="text-xs font-semibold text-content-dim tracking-wide">{pillar.title}</h3>
             </div>
-            <p className="text-base leading-relaxed text-content-secondary pr-2">
+            <p className="text-base leading-relaxed text-content-secondary pr-2 whitespace-pre-line">
               {pillar.content}
             </p>
           </motion.div>

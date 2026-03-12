@@ -24,6 +24,7 @@ import {
   getProfileDelta,
   mergeProfile,
 } from './agent/profileMemory';
+import { buildClinicalPlan } from './agent/clinicalPlan';
 import {
   getPhaseFallbackQuestion,
   getRecentDoctorQuestions,
@@ -230,6 +231,26 @@ export class AgentCoordinator {
       nextConversation,
       stateForTurn.profile
     );
+    const autoComplete = this.shouldAutoCompleteEncounter(
+      conversationResult.status,
+      conversationResult.ddx,
+      conversationResult.probability,
+      nextSoap,
+      nextConversation
+    );
+    const nextStatus: ClinicalState['status'] = conversationResult.lens_trigger
+      ? 'lens'
+      : autoComplete
+        ? 'complete'
+        : conversationResult.status;
+    const nextPillars = autoComplete
+      ? buildClinicalPlan({
+          ddx: conversationResult.ddx,
+          soap: nextSoap,
+          urgency: conversationResult.urgency,
+          profile: stateForTurn.profile,
+        })
+      : stateForTurn.pillars;
 
     const newState: Partial<ClinicalState> = {
       conversation: nextConversation,
@@ -241,9 +262,10 @@ export class AgentCoordinator {
       urgency: conversationResult.urgency,
       probability: conversationResult.probability,
       thinking: conversationResult.thinking,
-      status: conversationResult.lens_trigger ? 'lens' : conversationResult.status,
-      question_gate: questionGate,
-      response_options: responseOptions,
+      status: nextStatus,
+      pillars: nextPillars,
+      question_gate: autoComplete ? null : questionGate,
+      response_options: autoComplete ? null : responseOptions,
       selected_options: [],
     };
 
@@ -392,6 +414,35 @@ export class AgentCoordinator {
 
   private getRecoveryQuestion(phase: ClinicalState['agent_state']['phase']): string {
     return getPhaseFallbackQuestion(phase, this.state.conversation.length);
+  }
+
+  private shouldAutoCompleteEncounter(
+    status: ClinicalState['status'],
+    ddx: string[],
+    probability: number,
+    soap: ClinicalState['soap'],
+    conversation: ClinicalState['conversation']
+  ): boolean {
+    if (status === 'complete') return true;
+    if (status === 'emergency' || status === 'lens') return false;
+
+    const patientTurns = conversation.filter((entry) => entry.role === 'patient').length;
+    if (patientTurns < 2) return false;
+
+    const leadDx = (ddx[0] || '').toLowerCase();
+    const isMalariaLead = leadDx.includes('malaria');
+    if (!isMalariaLead) return false;
+
+    const subjective = JSON.stringify(soap.S || {}).toLowerCase();
+    const hasFever = /fever|pyrexia|temperature/.test(subjective);
+    const supportSignals = [
+      /chills?|rigors?/.test(subjective),
+      /headache|retro[-\s]?orbital|behind (my )?eyes?/.test(subjective),
+      /body aches?|myalgia|weak(ness)?/.test(subjective),
+      /nausea|vomit/.test(subjective),
+    ].filter(Boolean).length;
+
+    return hasFever && supportSignals >= 2 && probability >= 72;
   }
 
   getState(): ClinicalState {

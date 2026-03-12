@@ -123,6 +123,7 @@ CONVERSATION PROTOCOLS:
 10. For fever-first presentations in Nigeria, consider malaria early in DDX and ask high-yield differentiating questions.
 11. In "statement", briefly mirror one specific patient detail so the patient feels heard.
 12. Prioritize questions that maximally reduce diagnostic uncertainty in one step.
+13. Format each DDX item as "Condition (ICD-10: CODE)" when possible.
 
 RESPONSE JSON:
 {
@@ -451,6 +452,130 @@ const mergeOptionsPayloads = (primary: OptionsPayload, secondary: OptionsPayload
     options: [...dedupedMap.values()].slice(0, 12),
     context_hint: primary.context_hint || secondary.context_hint,
     allow_custom_input: primary.allow_custom_input !== false || secondary.allow_custom_input !== false,
+  };
+};
+
+type Icd10Rule = {
+  pattern: RegExp;
+  code: string;
+};
+
+type AgentPhase = NonNullable<NonNullable<ConsultPayload['agent_state']>['phase']>;
+
+const ICD10_RULES: Icd10Rule[] = [
+  { pattern: /\bmalaria\b/i, code: 'B54' },
+  { pattern: /\bdengue\b/i, code: 'A97.9' },
+  { pattern: /\btyphoid\b/i, code: 'A01.0' },
+  { pattern: /\bviral (infection|syndrome)\b/i, code: 'B34.9' },
+  { pattern: /\bacute viral infection\b/i, code: 'B34.9' },
+  { pattern: /\burinary tract infection\b|\buti\b/i, code: 'N39.0' },
+  { pattern: /\bbacterial infection\b/i, code: 'A49.9' },
+  { pattern: /\bsepsis\b/i, code: 'A41.9' },
+];
+
+const stripIcd10Label = (diagnosis: string): string =>
+  diagnosis.replace(/\s*\(ICD-10:\s*[A-Z0-9.]+\)\s*/gi, '').trim();
+
+const normalizeDxKey = (diagnosis: string): string =>
+  stripIcd10Label(diagnosis)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+
+const applyIcd10Label = (diagnosis: string): string => {
+  const value = sanitizeText(diagnosis);
+  if (!value) return '';
+  if (/\(ICD-10:\s*[A-Z0-9.]+\)/i.test(value)) return value;
+  const rule = ICD10_RULES.find((candidate) => candidate.pattern.test(value));
+  if (!rule) return value;
+  return `${value} (ICD-10: ${rule.code})`;
+};
+
+const dedupeDxList = (diagnoses: string[]): string[] => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const diagnosis of diagnoses) {
+    const normalized = normalizeDxKey(diagnosis);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(diagnosis);
+  }
+  return result;
+};
+
+const buildConsultTextCorpus = (body: ConsultRequest, payload: ConsultPayload): string => {
+  const patientNarrative = (body.state?.conversation || [])
+    .filter((entry) => entry.role === 'patient')
+    .map((entry) => entry.content)
+    .join(' ');
+
+  const soapSnapshot = JSON.stringify({
+    ...(body.state?.soap?.S || {}),
+    ...(payload.soap_updates?.S || {}),
+  });
+
+  return `${body.patientInput || ''} ${patientNarrative} ${soapSnapshot}`.toLowerCase();
+};
+
+const scoreMalariaLikelihood = (corpus: string): number => {
+  let score = 0;
+  if (/\bfever|pyrexia|temperature\b/i.test(corpus)) score += 2;
+  if (/\bchills?|rigors?\b/i.test(corpus)) score += 2;
+  if (/\bheadache|behind (my )?eyes?|retro[-\s]?orbital\b/i.test(corpus)) score += 2;
+  if (/\bbody aches?|myalgia|muscle pain\b/i.test(corpus)) score += 1;
+  if (/\bnausea|vomit(ing)?\b/i.test(corpus)) score += 1;
+  if (/\bweak(ness)?|fatigue\b/i.test(corpus)) score += 1;
+  if (/\bmosquito(es)? bite(s)?|travel\b/i.test(corpus)) score += 1;
+  if (/\bno cough|no sore throat|no burning urination\b/i.test(corpus)) score += 1;
+  return score;
+};
+
+const atLeastDifferential = (phase: string | undefined): AgentPhase => {
+  const normalized = sanitizeText(phase).toLowerCase();
+  if (normalized === 'resolution' || normalized === 'followup' || normalized === 'differential') {
+    return normalized as AgentPhase;
+  }
+  return 'differential';
+};
+
+const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
+  const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
+  const corpus = buildConsultTextCorpus(body, payload);
+  const malariaScore = scoreMalariaLikelihood(corpus);
+  const malariaLikely = malariaScore >= 5;
+
+  if (!malariaLikely) {
+    return {
+      ...payload,
+      ddx: withCodedDdx,
+    };
+  }
+
+  const prioritizedMalaria = 'Malaria (ICD-10: B54)';
+  const nonMalaria = withCodedDdx.filter((entry) => !/\bmalaria\b/i.test(entry));
+  const probabilityFloor = malariaScore >= 7 ? 78 : malariaScore >= 6 ? 68 : 58;
+  const nextActions = dedupeDxList([
+    ...(payload.agent_state?.pending_actions || []),
+    'Confirm with malaria RDT or blood smear',
+    'Screen for severe malaria danger signs',
+  ]);
+
+  return {
+    ...payload,
+    ddx: [prioritizedMalaria, ...nonMalaria],
+    probability: Math.max(clampPercent(payload.probability), probabilityFloor),
+    agent_state: {
+      phase: atLeastDifferential(payload.agent_state?.phase),
+      confidence: Math.max(clampPercent(payload.agent_state?.confidence), probabilityFloor),
+      focus_area:
+        payload.agent_state?.focus_area || 'Malaria-focused fever differentiation and severity triage',
+      pending_actions: nextActions.slice(0, 8),
+      last_decision:
+        'Prioritized malaria due to high-yield fever pattern in endemic context',
+    },
+    question:
+      payload.question ||
+      'Have you had mosquito exposure recently, and can you access a malaria rapid test today?',
   };
 };
 
@@ -788,13 +913,13 @@ export const runConsult = async (body: ConsultRequest): Promise<unknown> => {
   const primaryProvider = selectPrimaryProviderForConsult(body);
   const providerOrder = resolveProviderOrder(primaryProvider);
   const collaborationEnabled = normalizeBooleanEnv(process.env.LLM_COLLABORATION, true);
-
-  return runCollaborative(
+  const response = await runCollaborative(
     providerOrder,
     collaborationEnabled,
     (provider) => executeConsultWithProvider(provider, body),
     mergeConsultPayloads
   );
+  return applyClinicalHeuristics(body, response);
 };
 
 export const runOptions = async (body: OptionsRequest): Promise<unknown> => {

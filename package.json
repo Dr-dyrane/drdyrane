@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "audit:contrast": "node scripts/contrast-audit.mjs"
+    "audit:contrast": "node scripts/contrast-audit.mjs",
+    "e2e:malaria": "node scripts/e2e-malaria.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",

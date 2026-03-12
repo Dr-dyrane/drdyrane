@@ -329,6 +329,27 @@ export const StepRenderer: React.FC = () => {
             className="flex-1 flex flex-col items-center justify-start pt-6 px-2"
           >
             <div className="max-w-2xl w-full flex flex-col items-center">
+              <motion.div
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="w-full surface-raised rounded-[26px] p-4 mb-4 shadow-glass"
+              >
+                <p className="text-[11px] text-content-dim tracking-wide uppercase">Consulting Room</p>
+                <p className="text-sm text-content-secondary leading-relaxed mt-2">
+                  Speak naturally. I will triage, investigate, and move you to a focused management and pharmacy-ready plan.
+                </p>
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                  {['History', 'Investigation', 'Management'].map((item) => (
+                    <span
+                      key={item}
+                      className="h-8 rounded-xl surface-strong text-[11px] font-semibold text-content-secondary inline-flex items-center justify-center"
+                    >
+                      {item}
+                    </span>
+                  ))}
+                </div>
+              </motion.div>
+
               <motion.h1
                 initial={{ opacity: 0, scale: 0.98 }}
                 animate={{ opacity: 1, scale: 1 }}
