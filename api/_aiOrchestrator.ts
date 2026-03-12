@@ -701,6 +701,8 @@ const mergeCheckpointState = (
 };
 
 const mergeConsultPayloads = (primary: ConsultPayload, secondary: ConsultPayload): ConsultPayload => {
+  const genericQuestionPattern =
+    /(what symptom is bothering you the most right now|what changed most since symptoms began|what one detail should i clarify before i summarize your working diagnosis)/i;
   const mergedUrgency =
     URGENCY_RANK[secondary.urgency || 'low'] > URGENCY_RANK[primary.urgency || 'low']
       ? secondary.urgency
@@ -711,20 +713,41 @@ const mergeConsultPayloads = (primary: ConsultPayload, secondary: ConsultPayload
       ? secondary.status
       : primary.status;
 
+  const primaryProbability = clampPercent(primary.probability);
+  const secondaryProbability = clampPercent(secondary.probability);
+  const mergedProbability = Math.max(primaryProbability, secondaryProbability);
+  const primaryConfidence = clampPercent(primary.agent_state?.confidence);
+  const secondaryConfidence = clampPercent(secondary.agent_state?.confidence);
+  const mergedConfidence = Math.max(primaryConfidence, secondaryConfidence);
+  const primaryQuestion = sanitizeText(primary.question);
+  const secondaryQuestion = sanitizeText(secondary.question);
+  const question =
+    !primaryQuestion
+      ? secondaryQuestion
+      : !secondaryQuestion
+        ? primaryQuestion
+        : genericQuestionPattern.test(primaryQuestion) && !genericQuestionPattern.test(secondaryQuestion)
+          ? secondaryQuestion
+          : URGENCY_RANK[secondary.urgency || 'low'] > URGENCY_RANK[primary.urgency || 'low']
+            ? secondaryQuestion
+            : primaryQuestion;
+  const statement =
+    sanitizeText(primary.statement).length >= sanitizeText(secondary.statement).length
+      ? primary.statement
+      : secondary.statement;
+
   return {
     ...primary,
     soap_updates: {
-      S: { ...(secondary.soap_updates?.S || {}), ...(primary.soap_updates?.S || {}) },
-      O: { ...(secondary.soap_updates?.O || {}), ...(primary.soap_updates?.O || {}) },
-      A: { ...(secondary.soap_updates?.A || {}), ...(primary.soap_updates?.A || {}) },
-      P: { ...(secondary.soap_updates?.P || {}), ...(primary.soap_updates?.P || {}) },
+      S: { ...(primary.soap_updates?.S || {}), ...(secondary.soap_updates?.S || {}) },
+      O: { ...(primary.soap_updates?.O || {}), ...(secondary.soap_updates?.O || {}) },
+      A: { ...(primary.soap_updates?.A || {}), ...(secondary.soap_updates?.A || {}) },
+      P: { ...(primary.soap_updates?.P || {}), ...(secondary.soap_updates?.P || {}) },
     },
     ddx: mergeUnique(primary.ddx || [], secondary.ddx || [], 8),
     agent_state: {
       phase: primary.agent_state?.phase || secondary.agent_state?.phase || 'assessment',
-      confidence: clampPercent(
-        ((primary.agent_state?.confidence || 0) + (secondary.agent_state?.confidence || 0)) / 2
-      ),
+      confidence: mergedConfidence,
       focus_area: primary.agent_state?.focus_area || secondary.agent_state?.focus_area || '',
       pending_actions: mergeUnique(
         primary.agent_state?.pending_actions || [],
@@ -748,13 +771,13 @@ const mergeConsultPayloads = (primary: ConsultPayload, secondary: ConsultPayload
       ),
     },
     urgency: mergedUrgency || 'low',
-    probability: clampPercent(((primary.probability || 0) + (secondary.probability || 0)) / 2),
+    probability: mergedProbability,
     thinking: primary.thinking || secondary.thinking || '',
     needs_options: Boolean(primary.needs_options || secondary.needs_options),
     lens_trigger: primary.lens_trigger || secondary.lens_trigger || null,
     status: mergedStatus || 'active',
-    statement: primary.statement || secondary.statement || '',
-    question: primary.question || secondary.question || '',
+    statement: statement || '',
+    question: question || '',
   };
 };
 
@@ -1775,10 +1798,11 @@ const enforceQuestionProgression = (
   const intent = detectQuestionIntent(normalized);
   if (!intent) return normalized;
 
-  const repeatedAsk = countRecentIntentAsks(conversation, intent, 10) >= 1;
+  const recentIntentAsks = countRecentIntentAsks(conversation, intent, 10);
+  const repeatedAsk = recentIntentAsks >= 2;
   const answeredAlready = hasAnsweredIntent(conversation, intent, 48);
 
-  if (!repeatedAsk && !answeredAlready) {
+  if (!answeredAlready && !repeatedAsk) {
     return normalized;
   }
 
@@ -1790,7 +1814,7 @@ const enforceQuestionProgression = (
     }
   }
 
-  return 'What one missing detail should I clarify before I summarize your working diagnosis?';
+  return normalized;
 };
 
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
@@ -1822,6 +1846,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
   const probabilityFloor = feverOnlyPresentation
     ? Math.min(scoreToProbabilityFloor(lead, secondScore), 62)
     : scoreToProbabilityFloor(lead, secondScore);
+  const escalationFloor = lead.emergency ? Math.max(probabilityFloor, 78) : probabilityFloor;
   const preferredQuestion = feverOnlyPresentation
     ? lead.followUpQuestion || payload.question
     : shouldOverrideQuestion(payload.question, lead, corpus, secondScore)
@@ -1910,11 +1935,11 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     ...payload,
     statement: ensureEmpathicStatement(payload.statement, body),
     ddx: mergedDdx,
-    probability: Math.max(clampPercent(payload.probability), probabilityFloor),
+    probability: Math.max(clampPercent(payload.probability), escalationFloor),
     urgency: nextUrgency,
     agent_state: {
       phase: nextPhase,
-      confidence: Math.max(clampPercent(payload.agent_state?.confidence), probabilityFloor),
+      confidence: Math.max(clampPercent(payload.agent_state?.confidence), escalationFloor),
       focus_area:
         payload.agent_state?.focus_area ||
         `${complaintRoute.label}: ${stripIcd10Label(lead.diagnosis)} focused top-down differential narrowing`,
@@ -1960,6 +1985,41 @@ const extractOpenAiText = (content: unknown): string => {
   return '';
 };
 
+const extractAnthropicText = (content: unknown): string => {
+  if (!Array.isArray(content)) return '';
+  return content
+    .map((item) => {
+      if (!item || typeof item !== 'object') return '';
+      const node = item as Record<string, unknown>;
+      if (sanitizeText(node.type).toLowerCase() !== 'text') return '';
+      return sanitizeText(node.text);
+    })
+    .filter(Boolean)
+    .join(' ');
+};
+
+const parseImageDataUrl = (imageDataUrl: string): { mediaType: string; base64Data: string } => {
+  const normalized = sanitizeText(imageDataUrl);
+  const prefix = 'data:';
+  const marker = ';base64,';
+  if (!normalized.startsWith(prefix)) {
+    throw new Error('Vision API expects a base64 data URL image payload.');
+  }
+  const markerIndex = normalized.indexOf(marker);
+  if (markerIndex <= prefix.length) {
+    throw new Error('Invalid image data URL: missing media type or base64 marker.');
+  }
+  const mediaType = normalized.slice(prefix.length, markerIndex).toLowerCase();
+  const base64Data = normalized.slice(markerIndex + marker.length).replace(/\s+/g, '');
+  if (!mediaType.startsWith('image/')) {
+    throw new Error('Invalid image data URL: media type must be image/*.');
+  }
+  if (!base64Data) {
+    throw new Error('Invalid image data URL: base64 image payload is empty.');
+  }
+  return { mediaType, base64Data };
+};
+
 const callAnthropic = async (input: {
   systemPrompt: string;
   messages: Array<{ role: 'user' | 'assistant'; content: string }>;
@@ -2003,11 +2063,96 @@ const callAnthropic = async (input: {
 
       if (response.ok) {
         const data = (await response.json()) as { content?: Array<{ text?: string }> };
-        return data?.content?.[0]?.text || '';
+        return extractAnthropicText(data?.content);
       }
 
       const body = await response.text();
       lastErrorMessage = `Anthropic request failed (${response.status}) [model:${model}]: ${body}`;
+      const hasAnotherCandidate = index < models.length - 1;
+      if (hasAnotherCandidate && shouldRetryWithNextModel('anthropic', response.status, body)) {
+        continue;
+      }
+      throw new Error(lastErrorMessage);
+    } catch (error) {
+      const hasAnotherCandidate = index < models.length - 1;
+      lastErrorMessage = error instanceof Error ? error.message : lastErrorMessage;
+      if (!hasAnotherCandidate) {
+        throw new Error(lastErrorMessage);
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw new Error(lastErrorMessage);
+};
+
+const callAnthropicVision = async (input: {
+  systemPrompt: string;
+  userText: string;
+  imageDataUrl: string;
+  maxTokens: number;
+  temperature?: number;
+}): Promise<string> => {
+  const apiKey = getApiKey('anthropic');
+  if (!apiKey) {
+    throw new Error(
+      'Missing Anthropic key on server. Configure ANTHROPIC_API_KEY.'
+    );
+  }
+
+  const models = getModelCandidates('anthropic', 'vision');
+  if (models.length === 0) {
+    throw new Error('No Anthropic model configured. Set ANTHROPIC_MODEL or CLAUDE_MODEL.');
+  }
+
+  const { mediaType, base64Data } = parseImageDataUrl(input.imageDataUrl);
+  let lastErrorMessage = 'Unknown Anthropic vision failure.';
+
+  for (let index = 0; index < models.length; index += 1) {
+    const model = models[index];
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20_000);
+    try {
+      const response = await fetch(ANTHROPIC_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: input.maxTokens,
+          temperature: input.temperature ?? 0.2,
+          system: [{ type: 'text', text: input.systemPrompt }],
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: input.userText },
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: mediaType,
+                    data: base64Data,
+                  },
+                },
+              ],
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
+
+      if (response.ok) {
+        const data = (await response.json()) as { content?: Array<Record<string, unknown>> };
+        return extractAnthropicText(data?.content);
+      }
+
+      const body = await response.text();
+      lastErrorMessage = `Anthropic vision request failed (${response.status}) [model:${model}]: ${body}`;
       const hasAnotherCandidate = index < models.length - 1;
       if (hasAnotherCandidate && shouldRetryWithNextModel('anthropic', response.status, body)) {
         continue;
@@ -2131,6 +2276,15 @@ const selectPrimaryProviderForOptions = (body: OptionsRequest): LlmProvider => {
   return 'openai';
 };
 
+const selectPrimaryProviderForVision = (body: VisionRequest): LlmProvider => {
+  const forced = normalizeProvider(process.env.LLM_VISION_PROVIDER || process.env.LLM_PROVIDER);
+  if (forced) return forced;
+
+  const corpus = `${sanitizeText(body.clinicalContext)} ${sanitizeText(body.lensPrompt)}`.toLowerCase();
+  if (/(differential|icd-?10|must-not-miss|critical|triage)/i.test(corpus)) return 'anthropic';
+  return 'openai';
+};
+
 const shouldForceCollaborativeConsult = (body: ConsultRequest): boolean => {
   const urgency = sanitizeText(body.state?.urgency).toLowerCase();
   if (urgency === 'critical' || urgency === 'high') return true;
@@ -2149,6 +2303,33 @@ const shouldForceCollaborativeConsult = (body: ConsultRequest): boolean => {
 const resolveProviderOrder = (primary: LlmProvider): LlmProvider[] =>
   primary === 'anthropic' ? ['anthropic', 'openai'] : ['openai', 'anthropic'];
 
+const getProviderFailureMessage = (provider: LlmProvider, reason: unknown): string => {
+  const message =
+    reason instanceof Error
+      ? reason.message
+      : typeof reason === 'string'
+        ? reason
+        : 'Unknown provider failure.';
+  return `[${provider}] ${message}`;
+};
+
+const runWithProviderFailover = async <T>(
+  providers: LlmProvider[],
+  invoke: (provider: LlmProvider) => Promise<T>
+): Promise<T> => {
+  const failures: string[] = [];
+
+  for (const provider of providers) {
+    try {
+      return await invoke(provider);
+    } catch (error) {
+      failures.push(getProviderFailureMessage(provider, error));
+    }
+  }
+
+  throw new Error(failures.join(' | '));
+};
+
 const runCollaborative = async <T>(
   providers: LlmProvider[],
   collaborationEnabled: boolean,
@@ -2161,7 +2342,7 @@ const runCollaborative = async <T>(
   }
 
   if (!collaborationEnabled || available.length < 2) {
-    return invoke(available[0]);
+    return runWithProviderFailover(available, invoke);
   }
 
   const [primaryProvider, secondaryProvider] = available;
@@ -2183,13 +2364,13 @@ const runCollaborative = async <T>(
   }
 
   const primaryReason =
-    primaryResult.status === 'rejected' && primaryResult.reason instanceof Error
-      ? primaryResult.reason.message
-      : 'Primary provider failed.';
+    primaryResult.status === 'rejected'
+      ? getProviderFailureMessage(primaryProvider, primaryResult.reason)
+      : `[${primaryProvider}] Primary provider failed.`;
   const secondaryReason =
-    secondaryResult.status === 'rejected' && secondaryResult.reason instanceof Error
-      ? secondaryResult.reason.message
-      : 'Secondary provider failed.';
+    secondaryResult.status === 'rejected'
+      ? getProviderFailureMessage(secondaryProvider, secondaryResult.reason)
+      : `[${secondaryProvider}] Secondary provider failed.`;
   throw new Error(`${primaryReason} | ${secondaryReason}`);
 };
 
@@ -2279,6 +2460,101 @@ Return only valid JSON.`;
   return normalizeOptionsPayload(parseFirstJsonObject(raw));
 };
 
+const executeVisionBaseWithProvider = async (
+  provider: LlmProvider,
+  imageDataUrl: string,
+  contextPrompt: string,
+  lensPrompt: string
+): Promise<VisionPayload> => {
+  const raw =
+    provider === 'anthropic'
+      ? await callAnthropicVision({
+          maxTokens: 420,
+          systemPrompt: VISION_SYSTEM_PROMPT,
+          userText: `Clinical context: ${contextPrompt}\nTask: ${lensPrompt}\nReturn strict JSON.`,
+          imageDataUrl,
+        })
+      : await callOpenAI({
+          mode: 'vision',
+          maxTokens: 420,
+          forceJson: false,
+          messages: [
+            { role: 'system', content: VISION_SYSTEM_PROMPT },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: `Clinical context: ${contextPrompt}\nTask: ${lensPrompt}\nReturn strict JSON.`,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: imageDataUrl,
+                    detail: 'high',
+                  },
+                },
+              ],
+            },
+          ],
+        });
+
+  return ensureVisionBasePayload(normalizeVisionPayload(parseFirstJsonObject(raw)));
+};
+
+const executeVisionEnrichmentWithProvider = async (
+  provider: LlmProvider,
+  imageDataUrl: string,
+  contextPrompt: string,
+  lensPrompt: string,
+  basePayload: VisionPayload
+): Promise<VisionPayload> => {
+  const baseSummary = sanitizeText(basePayload.summary) || 'none';
+  const baseFindings = (basePayload.findings || []).join('; ') || 'none';
+  const baseRedFlags = (basePayload.red_flags || []).join('; ') || 'none';
+  const userText = `Clinical context: ${contextPrompt}
+Task: ${lensPrompt}
+Base summary: ${baseSummary}
+Base findings: ${baseFindings}
+Base red flags: ${baseRedFlags}
+Return only strict JSON for enrichment fields.`;
+
+  const raw =
+    provider === 'anthropic'
+      ? await callAnthropicVision({
+          maxTokens: 420,
+          systemPrompt: VISION_ENRICHMENT_PROMPT,
+          userText,
+          imageDataUrl,
+        })
+      : await callOpenAI({
+          mode: 'vision',
+          maxTokens: 420,
+          forceJson: true,
+          messages: [
+            { role: 'system', content: VISION_ENRICHMENT_PROMPT },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: userText,
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: imageDataUrl,
+                    detail: 'high',
+                  },
+                },
+              ],
+            },
+          ],
+        });
+
+  return normalizeVisionPayload(parseFirstJsonObject(raw));
+};
+
 export const runConsult = async (body: ConsultRequest): Promise<unknown> => {
   const primaryProvider = selectPrimaryProviderForConsult(body);
   const providerOrder = resolveProviderOrder(primaryProvider);
@@ -2309,44 +2585,17 @@ export const runOptions = async (body: OptionsRequest): Promise<unknown> => {
 
 export const runVision = async (body: VisionRequest): Promise<unknown> => {
   const imageDataUrl = sanitizeText(body.imageDataUrl);
-  if (!imageDataUrl.startsWith('data:image/')) {
-    throw new Error('Vision API expects a base64 data URL image payload.');
-  }
-
-  if (!hasProviderKey('openai')) {
-    throw new Error('Missing OpenAI key for vision analysis. Set OPENAI_API_KEY.');
-  }
+  parseImageDataUrl(imageDataUrl);
 
   const contextPrompt = sanitizeText(body.clinicalContext) || 'No extra clinical context provided.';
   const lensPrompt = sanitizeText(body.lensPrompt) || 'Analyze clinically relevant visual cues.';
-
-  const raw = await callOpenAI({
-    mode: 'vision',
-    maxTokens: 420,
-    forceJson: false,
-    messages: [
-      { role: 'system', content: VISION_SYSTEM_PROMPT },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'text',
-            text: `Clinical context: ${contextPrompt}\nTask: ${lensPrompt}\nReturn strict JSON.`,
-          },
-          {
-            type: 'image_url',
-            image_url: {
-              url: imageDataUrl,
-              detail: 'high',
-            },
-          },
-        ],
-      },
-    ],
-  });
-
-  const basePayload = ensureVisionBasePayload(
-    normalizeVisionPayload(parseFirstJsonObject(raw))
+  const providerOrder = resolveProviderOrder(selectPrimaryProviderForVision(body));
+  const availableProviders = providerOrder.filter((provider) => hasProviderKey(provider));
+  if (availableProviders.length === 0) {
+    throw new Error('No vision provider API key configured. Add OPENAI_API_KEY or ANTHROPIC_API_KEY.');
+  }
+  const basePayload = await runWithProviderFailover(availableProviders, (provider) =>
+    executeVisionBaseWithProvider(provider, imageDataUrl, contextPrompt, lensPrompt)
   );
 
   if (!normalizeBooleanEnv(process.env.VISION_ENRICHMENT, true)) {
@@ -2354,37 +2603,15 @@ export const runVision = async (body: VisionRequest): Promise<unknown> => {
   }
 
   try {
-    const enrichmentRaw = await callOpenAI({
-      mode: 'vision',
-      maxTokens: 420,
-      forceJson: true,
-      messages: [
-        { role: 'system', content: VISION_ENRICHMENT_PROMPT },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'text',
-              text: `Clinical context: ${contextPrompt}
-Task: ${lensPrompt}
-Base summary: ${basePayload.summary || 'none'}
-Base findings: ${(basePayload.findings || []).join('; ') || 'none'}
-Base red flags: ${(basePayload.red_flags || []).join('; ') || 'none'}
-Return only strict JSON for enrichment fields.`,
-            },
-            {
-              type: 'image_url',
-              image_url: {
-                url: imageDataUrl,
-                detail: 'high',
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    const enrichmentPayload = normalizeVisionPayload(parseFirstJsonObject(enrichmentRaw));
+    const enrichmentPayload = await runWithProviderFailover(availableProviders, (provider) =>
+      executeVisionEnrichmentWithProvider(
+        provider,
+        imageDataUrl,
+        contextPrompt,
+        lensPrompt,
+        basePayload
+      )
+    );
     return applyVisionMinimumEnrichment(mergeVisionPayload(basePayload, enrichmentPayload));
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);

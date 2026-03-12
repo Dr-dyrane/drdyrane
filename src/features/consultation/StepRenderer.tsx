@@ -160,7 +160,6 @@ export const StepRenderer: React.FC = () => {
     e?.preventDefault();
     if (!isProfileOnboardingComplete(state.profile)) {
       promptOnboardingFromNotifications();
-      return;
     }
     const trimmed = val.trim();
     if (!trimmed || loading) return;
@@ -267,7 +266,6 @@ export const StepRenderer: React.FC = () => {
     : null;
   const isClarifierMode = Boolean(state.question_gate?.active);
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
-  const onboardingComplete = isProfileOnboardingComplete(state.profile);
   const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
 
   if (state.status === 'complete') return null;
@@ -350,7 +348,7 @@ export const StepRenderer: React.FC = () => {
                     value={val}
                     onChange={(e) => setVal(e.target.value)}
                     placeholder="Describe your main concern..."
-                    disabled={loading || !onboardingComplete}
+                    disabled={loading}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
@@ -361,7 +359,7 @@ export const StepRenderer: React.FC = () => {
                   />
 
                   <AnimatePresence>
-                    {val.trim() && !loading && onboardingComplete && (
+                    {val.trim() && !loading && (
                       <motion.button
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}

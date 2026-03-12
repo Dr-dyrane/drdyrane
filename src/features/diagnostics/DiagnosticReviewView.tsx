@@ -411,49 +411,30 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   ]);
 
   const handoffSummary = useMemo(() => {
-    const lines: string[] = [`${config.pageLabel} review handoff:`];
+    const lines: string[] = [`${config.pageLabel} quick handoff:`];
     if (analysis) {
-      lines.push(`Summary: ${analysis.summary}`);
+      lines.push(`Observation: ${analysis.summary}`);
       if (analysis.findings.length > 0) {
-        lines.push(`Findings: ${analysis.findings.join('; ')}`);
+        lines.push(`Key findings: ${analysis.findings.slice(0, 3).join('; ')}`);
       }
       if (analysis.red_flags.length > 0) {
-        lines.push(`Red flags: ${analysis.red_flags.join('; ')}`);
+        lines.push(`Safety: red flags present (${analysis.red_flags.slice(0, 2).join('; ')})`);
+      } else {
+        lines.push('Safety: no immediate red flags extracted.');
       }
       if (analysis.spot_diagnosis?.label) {
         lines.push(
-          `Spot diagnosis: ${analysis.spot_diagnosis.label}${
+          `Most likely: ${analysis.spot_diagnosis.label}${
             analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
           }`
         );
       }
-      if (analysis.differentials && analysis.differentials.length > 0) {
-        lines.push(
-          `Differentials: ${analysis.differentials
-            .map((item) =>
-              `${item.label}${item.icd10 ? ` (ICD-10: ${item.icd10})` : ''} [${item.likelihood}]`
-            )
-            .join('; ')}`
-        );
-      }
-      if (analysis.treatment_summary) {
-        lines.push(`Treatment intent: ${analysis.treatment_summary}`);
-      }
-      if (analysis.treatment_lines && analysis.treatment_lines.length > 0) {
-        lines.push(`Treatment lines: ${analysis.treatment_lines.join('; ')}`);
-      }
-      if (analysis.investigations && analysis.investigations.length > 0) {
-        lines.push(`Investigations: ${analysis.investigations.join('; ')}`);
-      }
-      if (analysis.counseling && analysis.counseling.length > 0) {
-        lines.push(`Counseling: ${analysis.counseling.join('; ')}`);
-      }
-      lines.push(`Recommendation: ${analysis.recommendation}`);
+      lines.push(`Plan signal: ${analysis.recommendation}`);
       lines.push(`Confidence: ${confidenceDisplay}%`);
     }
 
     if (contextNote.trim()) {
-      lines.push(`Additional note: ${contextNote.trim()}`);
+      lines.push(`Patient note: ${contextNote.trim()}`);
     }
 
     if (!analysis && !contextNote.trim()) {

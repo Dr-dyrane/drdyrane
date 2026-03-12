@@ -737,7 +737,24 @@ export class AgentCoordinator {
     const conversationResult = await callConversationEngine(input, stateForTurn);
 
     const nextConversation: ConversationMessage[] = [...stateForTurn.conversation, patientMessage];
-    const nextSoap = { ...stateForTurn.soap, ...conversationResult.soap_updates };
+    const nextSoap = {
+      S: {
+        ...(stateForTurn.soap.S || {}),
+        ...(conversationResult.soap_updates?.S || {}),
+      },
+      O: {
+        ...(stateForTurn.soap.O || {}),
+        ...(conversationResult.soap_updates?.O || {}),
+      },
+      A: {
+        ...(stateForTurn.soap.A || {}),
+        ...(conversationResult.soap_updates?.A || {}),
+      },
+      P: {
+        ...(stateForTurn.soap.P || {}),
+        ...(conversationResult.soap_updates?.P || {}),
+      },
+    };
     const incomingCheckpoint = this.ensureCheckpointState(
       conversationResult.agent_state.must_not_miss_checkpoint ||
         stateForTurn.agent_state.must_not_miss_checkpoint
@@ -1622,6 +1639,7 @@ export class AgentCoordinator {
 }
 
 let agentCoordinator: AgentCoordinator | null = null;
+let interactionQueue: Promise<void> = Promise.resolve();
 
 export const getAgentCoordinator = (state: ClinicalState): AgentCoordinator => {
   if (!agentCoordinator || agentCoordinator.getState().sessionId !== state.sessionId) {
@@ -1635,12 +1653,21 @@ export const processAgentInteraction = async (
   state: ClinicalState,
   isOptionSelection: boolean = false
 ): Promise<Partial<ClinicalState>> => {
-  const coordinator = getAgentCoordinator(state);
-  coordinator.updateState(state);
+  const run = async (): Promise<Partial<ClinicalState>> => {
+    const coordinator = getAgentCoordinator(state);
+    coordinator.updateState(state);
 
-  if (isOptionSelection) {
-    return coordinator.processOptionSelection(Array.isArray(input) ? input : [input]);
-  }
+    if (isOptionSelection) {
+      return coordinator.processOptionSelection(Array.isArray(input) ? input : [input]);
+    }
 
-  return coordinator.processPatientInput(input as string);
+    return coordinator.processPatientInput(input as string);
+  };
+
+  const next = interactionQueue.then(run, run);
+  interactionQueue = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
 };

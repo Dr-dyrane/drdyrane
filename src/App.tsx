@@ -174,7 +174,7 @@ const MainApp: React.FC = () => {
           />
           <ConsultOnboardingModal
             isOpen={state.active_sheet === 'onboarding'}
-            forceRequired={!onboardingComplete && state.status === 'idle' && state.conversation.length === 0}
+            forceRequired={false}
             onClose={() => dispatch({ type: 'CLOSE_SHEETS' })}
           />
         </Suspense>

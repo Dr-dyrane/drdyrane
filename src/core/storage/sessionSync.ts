@@ -35,11 +35,26 @@ let initialized = false;
 const createWorker = (): Worker =>
   new Worker(new URL('../workers/sessionSync.worker.ts', import.meta.url), { type: 'module' });
 
+const compactConversation = (conversation: ClinicalState['conversation']): ClinicalState['conversation'] => {
+  const all = Array.isArray(conversation) ? conversation : [];
+  if (all.length <= 140) return all;
+
+  const firstPatientMessage = all.find((entry) => entry.role === 'patient');
+  const tail = all.slice(-128);
+  if (!firstPatientMessage) return tail;
+
+  if (tail.some((entry) => entry.id === firstPatientMessage.id)) {
+    return tail;
+  }
+
+  return [firstPatientMessage, ...tail].slice(-140);
+};
+
 const compactState = (state: ClinicalState): ClinicalState => ({
   ...state,
   history: [],
-  archives: state.archives.slice(0, 120),
-  conversation: state.conversation.slice(-32),
+  archives: state.archives.slice(0, 80),
+  conversation: compactConversation(state.conversation),
   notifications: state.notifications.slice(0, 80),
 });
 
@@ -129,4 +144,3 @@ export const queueSessionSync = (state: ClinicalState): void => {
   }
   throttleTimer = window.setTimeout(flushPendingState, 120);
 };
-
