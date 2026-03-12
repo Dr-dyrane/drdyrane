@@ -51,10 +51,20 @@ const MainApp: React.FC = () => {
       state.settings.reduced_motion ? 'true' : 'false'
     );
     document.documentElement.setAttribute('data-motion-style', state.settings.motion_style);
+    document.documentElement.setAttribute(
+      'data-gratification-enabled',
+      state.settings.gratification_enabled ? 'true' : 'false'
+    );
 
     if (state.theme !== 'system') return;
     return watchSystemTheme(applyTheme);
-  }, [state.theme, state.settings.motion_style, state.settings.reduced_motion, state.settings.text_scale]);
+  }, [
+    state.theme,
+    state.settings.gratification_enabled,
+    state.settings.motion_style,
+    state.settings.reduced_motion,
+    state.settings.text_scale,
+  ]);
 
   useEffect(() => {
     if (launchPresentedRef.current) return;

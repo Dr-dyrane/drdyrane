@@ -1,7 +1,15 @@
+import { playCelebrationFromSettings } from './celebration';
+
 type FeedbackKind = 'select' | 'submit' | 'question' | 'error' | 'complete';
+type MotionStyle = 'subtle' | 'balanced' | 'expressive';
 interface FeedbackPreferences {
   hapticsEnabled?: boolean;
   audioEnabled?: boolean;
+  reducedMotion?: boolean;
+  motionStyle?: MotionStyle;
+  gratificationEnabled?: boolean;
+  celebrationX?: number;
+  celebrationY?: number;
 }
 
 const VIBRATION_PATTERN: Record<FeedbackKind, number | number[]> = {
@@ -73,9 +81,61 @@ const safeVibrate = (pattern: number | number[], enabled: boolean) => {
   navigator.vibrate(pattern);
 };
 
+const resolveMotionStyle = (value?: string | null): MotionStyle => {
+  if (value === 'subtle' || value === 'expressive' || value === 'balanced') return value;
+  return 'balanced';
+};
+
+const resolveRuntimeInteractionPrefs = (
+  prefs: FeedbackPreferences
+): { reducedMotion: boolean; motionStyle: MotionStyle; gratificationEnabled: boolean } => {
+  if (typeof document === 'undefined') {
+    return {
+      reducedMotion: prefs.reducedMotion ?? false,
+      motionStyle: resolveMotionStyle(prefs.motionStyle),
+      gratificationEnabled: prefs.gratificationEnabled ?? false,
+    };
+  }
+
+  const root = document.documentElement;
+  const reducedMotionFromDom = root.getAttribute('data-reduced-motion') === 'true';
+  const motionStyleFromDom = resolveMotionStyle(root.getAttribute('data-motion-style'));
+  const gratificationFromDom = root.getAttribute('data-gratification-enabled') !== 'false';
+
+  return {
+    reducedMotion: prefs.reducedMotion ?? reducedMotionFromDom,
+    motionStyle: prefs.motionStyle ?? motionStyleFromDom,
+    gratificationEnabled: prefs.gratificationEnabled ?? gratificationFromDom,
+  };
+};
+
+const FEEDBACK_BURST_INTENSITY: Record<Exclude<FeedbackKind, 'error'>, 'soft' | 'medium' | 'strong'> = {
+  select: 'soft',
+  submit: 'medium',
+  question: 'soft',
+  complete: 'strong',
+};
+
 export const signalFeedback = (kind: FeedbackKind, prefs: FeedbackPreferences = {}): void => {
   const hapticsEnabled = prefs.hapticsEnabled ?? true;
   const audioEnabled = prefs.audioEnabled ?? true;
+  const interactionPrefs = resolveRuntimeInteractionPrefs(prefs);
+
+  if (kind !== 'error' && interactionPrefs.gratificationEnabled) {
+    playCelebrationFromSettings(
+      {
+        reduced_motion: interactionPrefs.reducedMotion,
+        motion_style: interactionPrefs.motionStyle,
+        gratification_enabled: interactionPrefs.gratificationEnabled,
+      },
+      {
+        intensity: FEEDBACK_BURST_INTENSITY[kind],
+        x: prefs.celebrationX,
+        y: prefs.celebrationY,
+      }
+    );
+  }
+
   safeVibrate(VIBRATION_PATTERN[kind], hapticsEnabled);
 
   if (!audioEnabled) return;

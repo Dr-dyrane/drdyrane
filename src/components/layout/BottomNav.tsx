@@ -20,7 +20,6 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { signalFeedback } from '../../core/services/feedback';
-import { playCelebrationFromSettings } from '../../core/services/celebration';
 import { ClinicalProcessModal } from '../../features/consultation/ClinicalProcessModal';
 
 type ActionIcon = React.ComponentType<{ size?: string | number }>;
@@ -259,17 +258,13 @@ export const BottomNav: React.FC = () => {
       return;
     }
     if (primaryAction.disabled) return;
-    playCelebrationFromSettings(state.settings, {
-      intensity: 'soft',
-    });
+    feedback('submit');
     primaryAction.onClick();
   };
 
   const triggerAction = (action: NavAction) => {
     if (action.disabled) return;
-    playCelebrationFromSettings(state.settings, {
-      intensity: 'soft',
-    });
+    feedback('select');
     action.onClick();
     setMenuOpen(false);
   };
