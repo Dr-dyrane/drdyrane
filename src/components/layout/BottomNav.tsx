@@ -274,7 +274,7 @@ export const BottomNav: React.FC = () => {
   return (
     <>
       <nav className="fixed bottom-0 max-w-[440px] w-full z-40 px-3 pb-[calc(env(safe-area-inset-bottom)+0.85rem)] pointer-events-none">
-        <div className="relative flex items-end gap-1.5 pointer-events-auto">
+        <div className="relative flex w-full items-end justify-between pointer-events-auto">
           <motion.div
             layout
             className="ios-tabbar-surface rounded-full h-14 px-1.5 inline-flex items-center gap-0.5 shadow-float min-w-0 max-w-[calc(100%-4.5rem)]"
