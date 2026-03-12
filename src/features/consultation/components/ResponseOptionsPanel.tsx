@@ -9,6 +9,8 @@ interface ResponseOptionsPanelProps {
   onSubmitSingle: () => void;
   onSubmitMultiple: () => void;
   loading?: boolean;
+  compact?: boolean;
+  questionText?: string;
 }
 
 const getGridByVariant = (variant: ResponseOptions['ui_variant'], count: number): string => {
@@ -66,6 +68,44 @@ const getHintToneClass = (variant: NonNullable<ResponseOptions['ui_variant']>): 
   return 'option-hint-soft';
 };
 
+const normalizeText = (value: string): string =>
+  value.toLowerCase().replace(/\s+/g, ' ').trim();
+
+const isRedundantHint = (
+  hint: string,
+  questionText?: string,
+  compact: boolean = false
+): boolean => {
+  const normalizedHint = normalizeText(hint);
+  if (!normalizedHint) return true;
+
+  if (
+    /(single select|multi select|select one option|select one|choose one option|choose one|choose the nearest count range)/.test(
+      normalizedHint
+    )
+  ) {
+    return true;
+  }
+
+  const normalizedQuestion = normalizeText(questionText || '');
+  if (normalizedQuestion) {
+    if (normalizedQuestion.includes(normalizedHint) || normalizedHint.includes(normalizedQuestion)) {
+      return true;
+    }
+  }
+
+  if (
+    compact &&
+    /(most prominent|associated symptom|yes or no|quick yes\/no|safety check|clarifier)/.test(
+      normalizedHint
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+};
+
 export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   responseOptions,
   selectedOptionIds,
@@ -73,6 +113,8 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   onSubmitSingle,
   onSubmitMultiple,
   loading = false,
+  compact = false,
+  questionText,
 }) => {
   if (!responseOptions || responseOptions.options.length === 0) return null;
 
@@ -84,42 +126,20 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   const hasSelection = selectedOptionIds.length > 0;
   const showMultipleSubmit = isMultiple;
   const showSingleSubmit = isSingle && (isScale || variant === 'ladder');
+  const showContextHint =
+    !!responseOptions.context_hint &&
+    !isRedundantHint(responseOptions.context_hint, questionText, compact);
 
   const selectedScaleOption = getSelectedSingleOption(responseOptions, selectedOptionIds);
   const selectedScaleIndex = selectedScaleOption
     ? responseOptions.options.findIndex((option) => option.id === selectedScaleOption.id)
     : 0;
   const sliderValue = Math.max(1, selectedScaleIndex + 1);
-  const statusLabel = loading
-    ? 'Analyzing...'
-    : isMultiple
-      ? hasSelection
-        ? `${selectedOptionIds.length} selected`
-        : 'Select all that apply'
-      : hasSelection
-        ? 'Selection ready'
-        : 'Select one option';
 
   return (
-    <div className="space-y-4 relative">
-      <div className="flex items-center justify-between px-1">
-        <p className="text-[11px] text-content-dim tracking-wide uppercase">
-          {isMultiple ? 'Multi Select' : 'Single Select'}
-        </p>
-        <motion.span
-          key={`${statusLabel}-${selectedOptionIds.length}-${loading ? 'busy' : 'idle'}`}
-          initial={{ opacity: 0, y: 4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className={`h-7 px-2.5 rounded-full inline-flex items-center text-[11px] font-semibold ${
-            hasSelection ? 'bg-accent-soft text-accent-primary' : 'surface-chip text-content-secondary'
-          }`}
-        >
-          {statusLabel}
-        </motion.span>
-      </div>
-
+    <div className={`${compact ? 'space-y-3' : 'space-y-4'} relative`}>
       <AnimatePresence mode="wait">
-        {responseOptions.context_hint && (
+        {showContextHint && responseOptions.context_hint && (
           <motion.div
             key={responseOptions.context_hint}
             initial={{ opacity: 0, y: 6, scale: 0.985 }}
@@ -313,7 +333,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
       )}
 
       {showSingleSubmit && (
-        <div className="space-y-1.5">
+        <div className={compact ? 'space-y-0' : 'space-y-1.5'}>
           <motion.button
             layout
             onClick={onSubmitSingle}
@@ -328,7 +348,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 ? `Continue (${selectedScaleOption?.text || 'Selected'})`
                 : 'Select one option'}
           </motion.button>
-          {!hasSelection && !loading && (
+          {!compact && !hasSelection && !loading && (
             <p className="text-xs text-content-dim text-center">
               Choose a response before continuing.
             </p>
@@ -337,7 +357,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
       )}
 
       {showMultipleSubmit && (
-        <div className="space-y-1.5">
+        <div className={compact ? 'space-y-0' : 'space-y-1.5'}>
           <motion.button
             layout
             onClick={onSubmitMultiple}
@@ -352,7 +372,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 ? `Continue (${selectedOptionIds.length})`
                 : 'Select at least one option'}
           </motion.button>
-          {!hasSelection && !loading && (
+          {!compact && !hasSelection && !loading && (
             <p className="text-xs text-content-dim text-center">
               You can choose more than one response.
             </p>

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ChevronLeft, ListChecks, MessageCircleQuestion, Timer, X } from 'lucide-react';
+import { ArrowUp, ChevronLeft, Timer, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
@@ -245,6 +245,7 @@ export const StepRenderer: React.FC = () => {
   const gateProgress = state.question_gate?.active
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
+  const isClarifierMode = Boolean(state.question_gate?.active);
   const profileNeedsBiodata =
     !state.profile.age ||
     !state.profile.sex ||
@@ -478,37 +479,33 @@ export const StepRenderer: React.FC = () => {
             exit={{ opacity: 0 }}
             className="flex flex-col h-full relative px-2 pb-24"
           >
-            <div className="max-w-2xl mx-auto w-full space-y-6 consult-flow-shell">
+            <div className="max-w-2xl mx-auto w-full space-y-4 consult-flow-shell">
               {(currentMessage || state.status === 'active' || loading) && (
-                <div className="pt-6 space-y-2">
-                  {gateProgress && (
-                    <p className="text-xs tracking-wide text-content-dim text-center mb-2">
-                      Clarifier {gateProgress}
-                    </p>
+                <div className="pt-6 space-y-3">
+                  {(gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
+                    <div className="flex items-center justify-center gap-2">
+                      {gateProgress && (
+                        <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+                          Step {gateProgress}
+                        </span>
+                      )}
+                      {isTimedGateStep && gateCountdown !== null && (
+                        <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center gap-1">
+                          <Timer size={11} />
+                          {gateCountdown}s
+                        </span>
+                      )}
+                    </div>
                   )}
-                  {isTimedGateStep && gateCountdown !== null && (
-                    <p className="text-[11px] tracking-wide text-content-dim text-center mb-2 inline-flex w-full items-center justify-center gap-1">
-                      <Timer size={11} />
-                      Auto-continue in {gateCountdown}s
-                    </p>
-                  )}
-                  <p className="text-xs tracking-wide text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
-                    <MessageCircleQuestion size={11} />
-                    Current Question
-                  </p>
                   <ClinicalQuestionCard
-                    statement={statement}
+                    statement={isClarifierMode ? undefined : statement}
                     question={resolvedQuestion}
                     reducedMotion={state.settings.reduced_motion}
                   />
                 </div>
               )}
 
-              <div className="space-y-4 consult-answer-zone">
-                <p className="text-xs tracking-wide text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
-                  <ListChecks size={11} />
-                  Your Response
-                </p>
+              <div className="space-y-3 consult-answer-zone">
                 <ResponseOptionsPanel
                   responseOptions={state.response_options}
                   selectedOptionIds={selectedOptionIds}
@@ -516,6 +513,8 @@ export const StepRenderer: React.FC = () => {
                   onSubmitSingle={() => void handleSingleSubmit()}
                   onSubmitMultiple={() => void handleMultipleSubmit()}
                   loading={loading}
+                  compact={isClarifierMode}
+                  questionText={resolvedQuestion}
                 />
 
                 {showInput && (
