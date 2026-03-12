@@ -36,7 +36,9 @@ Scope: Patient-facing mobile web experience (consult, history, sheets, overlays)
 | Presentation patterns | Sheet behavior should feel native and context-preserving | Replaced side-drawer style with iOS-like bottom sheet presentation and detent behavior | `src/components/shared/SideSheet.tsx`, `src/features/profile/ProfileSheet.tsx`, `src/features/notifications/NotificationsSheet.tsx` | Implemented |
 | Input | Immediate feedback on interaction | Unified haptic/audio event hooks on select/submit/error states | `src/core/services/feedback.ts`, `src/components/layout/BottomNav.tsx`, `src/features/consultation/StepRenderer.tsx` | Implemented |
 | Writing | Clear, concise task-first labels | Replaced decorative micro-copy with concise labels and icon-led controls | `src/features/profile/ProfileSheet.tsx`, `src/features/notifications/NotificationsSheet.tsx`, `src/features/history/VisitRecordModal.tsx` | Implemented |
+| Writing | Avoid explanatory prose in production-critical controls | Drug page now uses terse production labels; removed in-app implementation narration text | `src/features/drug/DrugProtocolsView.tsx` | Implemented |
 | Icons | Meaningful iconography must reinforce action | Icon-first buttons for nav, profile controls, history actions, biodata controls | `src/components/layout/BottomNav.tsx`, `src/features/profile/ProfileSheet.tsx`, `src/features/consultation/components/BiodataCard.tsx` | Implemented |
+| Components | Medication lists should emphasize primary values and reduce scan friction | Prescription lines redesigned to compact medication cards with dose chip + frequency/duration chips | `src/features/drug/DrugProtocolsView.tsx` | Implemented |
 | PWA shell consistency | App metadata should be valid and discoverable | Explicit web manifest link added in document head | `index.html`, `public/manifest.webmanifest` | Implemented |
 
 ## Non-applicable native sections (mapped)

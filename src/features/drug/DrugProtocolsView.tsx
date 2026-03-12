@@ -1,11 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  CalendarDays,
   ChevronRight,
+  Clock3,
   Copy,
-  FlaskConical,
-  Image as ImageIcon,
-  Pill,
   Printer,
   Search,
   X,
@@ -104,12 +103,6 @@ const formatTimestamp = (value: number): string =>
     hour: '2-digit',
     minute: '2-digit',
   });
-
-const MODULES = [
-  { id: 'pharmacy', label: 'Pharmacy', icon: Pill, active: true },
-  { id: 'labs', label: 'Labs', icon: FlaskConical, active: false },
-  { id: 'radiology', label: 'Radiology', icon: ImageIcon, active: false },
-];
 
 export const DrugProtocolsView: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -278,38 +271,9 @@ export const DrugProtocolsView: React.FC = () => {
         </div>
 
         <div className="text-center space-y-2">
-          <span className="text-content-dim text-xs font-medium">Pharmacy workspace</span>
-          <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">Treatment Library</h1>
-          <p className="text-sm text-content-secondary px-2">
-            Pick a known protocol fast, adjust dosing context, then export a clean prescription PDF.
-          </p>
+          <span className="text-content-dim text-xs font-medium">Pharmacy</span>
+          <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">Treatment</h1>
         </div>
-
-        <section className="surface-raised rounded-[24px] p-4 space-y-3">
-          <p className="text-xs text-content-dim uppercase tracking-wide">Clinical Modules</p>
-          <div className="grid grid-cols-3 gap-2">
-            {MODULES.map((module) => {
-              const Icon = module.icon;
-              return (
-                <button
-                  key={module.id}
-                  disabled={!module.active}
-                  className={`h-[62px] rounded-2xl text-xs font-medium inline-flex flex-col items-center justify-center gap-1.5 transition-all ${
-                    module.active
-                      ? 'bg-surface-active text-content-active selected-elevation'
-                      : 'surface-strong text-content-dim opacity-70'
-                  }`}
-                >
-                  <Icon size={15} />
-                  {module.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="text-[11px] text-content-dim">
-            Labs and radiology modules will use the same nested native stack pattern from this page.
-          </p>
-        </section>
 
         <section className="surface-raised rounded-[24px] p-4 space-y-3">
           <label className="text-xs text-content-dim uppercase tracking-wide">Find Protocol</label>
@@ -483,17 +447,24 @@ export const DrugProtocolsView: React.FC = () => {
                   <section className="surface-raised rounded-[22px] p-4 space-y-2">
                     <p className="text-xs text-content-dim uppercase tracking-wide">Prescription Lines</p>
                     {activeProtocolRows.map((row, index) => (
-                      <div key={`${row.medication}-${index}`} className="surface-strong rounded-2xl px-3.5 py-3 space-y-1.5">
-                        <p className="text-sm font-semibold text-content-primary">
-                          {index + 1}. {row.form} {row.medication}
-                        </p>
-                        <div className="grid grid-cols-[72px,1fr] gap-y-1 text-xs">
-                          <span className="text-content-dim uppercase tracking-wide">Dose</span>
-                          <span className="text-content-secondary">{row.dose}</span>
-                          <span className="text-content-dim uppercase tracking-wide">Frequency</span>
-                          <span className="text-content-secondary">{row.frequency}</span>
-                          <span className="text-content-dim uppercase tracking-wide">Duration</span>
-                          <span className="text-content-secondary">{row.duration}</span>
+                      <div key={`${row.medication}-${index}`} className="surface-strong rounded-2xl px-3.5 py-3 space-y-2">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="text-sm font-semibold text-content-primary leading-snug min-w-0">
+                            {index + 1}. {row.form} {row.medication}
+                          </p>
+                          <span className="h-7 px-3 rounded-full bg-surface-active text-content-active text-xs font-semibold inline-flex items-center shrink-0">
+                            {row.dose}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2 text-[11px] text-content-secondary">
+                          <span className="h-7 px-2.5 rounded-full surface-chip inline-flex items-center gap-1.5">
+                            <Clock3 size={12} />
+                            {row.frequency}
+                          </span>
+                          <span className="h-7 px-2.5 rounded-full surface-chip inline-flex items-center gap-1.5">
+                            <CalendarDays size={12} />
+                            {row.duration}
+                          </span>
                         </div>
                       </div>
                     ))}
