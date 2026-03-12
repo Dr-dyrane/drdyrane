@@ -15,6 +15,15 @@ export const Header: React.FC = () => {
   const unreadCount = state.settings.notifications_enabled
     ? state.notifications.filter((notification) => !notification.read).length
     : 0;
+  const viewLabelMap: Record<typeof state.view, string> = {
+    consult: 'Consultation',
+    history: 'Records',
+    drug: 'Pharmacy',
+    lab: 'Lab Review',
+    radiology: 'Radiology Review',
+    about: 'System',
+  };
+  const viewLabel = viewLabelMap[state.view];
 
   return (
     <header className="fixed top-0 max-w-[440px] w-full z-30 px-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] pointer-events-none">
@@ -35,7 +44,7 @@ export const Header: React.FC = () => {
 
         <div className="flex-1 min-w-0 h-12 surface-raised rounded-2xl px-4 flex flex-col justify-center pointer-events-auto">
           <p className="text-[11px] text-content-dim leading-none">{todayLabel}</p>
-          <p className="text-sm font-semibold text-content-primary leading-tight truncate">Consultation</p>
+          <p className="text-sm font-semibold text-content-primary leading-tight truncate">{viewLabel}</p>
         </div>
 
         <button

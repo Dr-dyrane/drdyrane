@@ -2,10 +2,13 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   CalendarDays,
+  Calculator,
   ChevronRight,
   Clock3,
   Copy,
+  FlaskConical,
   Printer,
+  ScanLine,
   Search,
   X,
 } from 'lucide-react';
@@ -15,6 +18,7 @@ import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { Orb } from '../consultation/Orb';
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
+type CalculatorMode = 'weight' | 'age';
 
 interface DrugProtocolRow {
   name: string;
@@ -54,7 +58,11 @@ const estimateWeightFromAge = (age: number | null): number | null => {
 
 const formatDoseValue = (value: number): string => {
   if (value >= 100) return String(Math.round(value));
-  const rounded = Math.round(value * 10) / 10;
+  if (value >= 10) {
+    const rounded = Math.round(value * 10) / 10;
+    return Number.isInteger(rounded) ? String(Math.round(rounded)) : String(rounded);
+  }
+  const rounded = Math.round(value * 100) / 100;
   return Number.isInteger(rounded) ? String(Math.round(rounded)) : String(rounded);
 };
 
@@ -91,7 +99,6 @@ const buildDose = (factor: DoseFactor, max: number, unit: string, weightKg: numb
 };
 
 const isValidWeight = (weight: number): boolean => !Number.isNaN(weight) && weight > 0 && weight <= 300;
-
 const isValidAge = (age: number): boolean => !Number.isNaN(age) && age >= 0 && age <= 125;
 
 const formatTimestamp = (value: number): string =>
@@ -111,10 +118,20 @@ export const DrugProtocolsView: React.FC = () => {
   const [query, setQuery] = useState('');
   const [protocols, setProtocols] = useState<DrugProtocolEntry[]>([]);
   const [activeProtocol, setActiveProtocol] = useState<DrugProtocolEntry | null>(null);
+  const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [weightInput, setWeightInput] = useState<string>(
     state.profile.weight_kg ? String(state.profile.weight_kg) : ''
   );
   const [ageInput, setAgeInput] = useState<string>(state.profile.age ? String(state.profile.age) : '');
+  const [calculatorMode, setCalculatorMode] = useState<CalculatorMode>('weight');
+  const [calcWeightInput, setCalcWeightInput] = useState<string>(
+    state.profile.weight_kg ? String(state.profile.weight_kg) : ''
+  );
+  const [calcAgeInput, setCalcAgeInput] = useState<string>(state.profile.age ? String(state.profile.age) : '');
+  const [calcDosePerKgInput, setCalcDosePerKgInput] = useState<string>('');
+  const [calcDoseInput, setCalcDoseInput] = useState<string>('');
+  const [calcStrengthInput, setCalcStrengthInput] = useState<string>('');
+  const [calcVolumeInput, setCalcVolumeInput] = useState<string>('');
 
   const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
     signalFeedback(kind, {
@@ -154,8 +171,12 @@ export const DrugProtocolsView: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setWeightInput(state.profile.weight_kg ? String(state.profile.weight_kg) : '');
-    setAgeInput(state.profile.age ? String(state.profile.age) : '');
+    const profileWeight = state.profile.weight_kg ? String(state.profile.weight_kg) : '';
+    const profileAge = state.profile.age ? String(state.profile.age) : '';
+    setWeightInput(profileWeight);
+    setAgeInput(profileAge);
+    setCalcWeightInput(profileWeight);
+    setCalcAgeInput(profileAge);
   }, [state.profile.age, state.profile.weight_kg]);
 
   const filteredProtocols = useMemo(() => {
@@ -196,6 +217,28 @@ export const DrugProtocolsView: React.FC = () => {
       duration: (drug.duration || '-').trim() || '-',
     }));
   }, [activeProtocol, effectiveWeight]);
+  const parsedCalcWeight = Number(calcWeightInput);
+  const parsedCalcAge = Number(calcAgeInput);
+  const parsedDosePerKg = Number(calcDosePerKgInput);
+  const parsedDose = Number(calcDoseInput);
+  const parsedStrength = Number(calcStrengthInput);
+  const parsedVolume = Number(calcVolumeInput);
+
+  const validCalcWeight = isValidWeight(parsedCalcWeight) ? Math.round(parsedCalcWeight * 10) / 10 : null;
+  const validCalcAge = isValidAge(parsedCalcAge) ? Math.round(parsedCalcAge) : null;
+  const calculatorWeight = calculatorMode === 'weight' ? validCalcWeight : estimateWeightFromAge(validCalcAge);
+  const dosePerKg = Number.isFinite(parsedDosePerKg) && parsedDosePerKg > 0 ? parsedDosePerKg : null;
+  const manualDose = Number.isFinite(parsedDose) && parsedDose > 0 ? parsedDose : null;
+  const calculatedDose =
+    manualDose ?? (calculatorWeight !== null && dosePerKg !== null ? calculatorWeight * dosePerKg : null);
+  const concentration =
+    Number.isFinite(parsedStrength) && parsedStrength > 0 && Number.isFinite(parsedVolume) && parsedVolume > 0
+      ? parsedStrength / parsedVolume
+      : null;
+  const calculatedVolumeMl =
+    calculatedDose !== null && concentration !== null && concentration > 0
+      ? calculatedDose / concentration
+      : null;
 
   const persistProfileContext = () => {
     const payload: { age?: number; weight_kg?: number } = {};
@@ -207,6 +250,20 @@ export const DrugProtocolsView: React.FC = () => {
     }
     if (Object.keys(payload).length > 0) {
       dispatch({ type: 'UPDATE_PROFILE', payload });
+    }
+  };
+
+  const persistCalculatorProfileContext = () => {
+    const payload: { age?: number; weight_kg?: number } = {};
+    if (validCalcWeight !== null && validCalcWeight !== state.profile.weight_kg) {
+      payload.weight_kg = validCalcWeight;
+    }
+    if (validCalcAge !== null && validCalcAge !== state.profile.age) {
+      payload.age = validCalcAge;
+    }
+    if (Object.keys(payload).length > 0) {
+      dispatch({ type: 'UPDATE_PROFILE', payload });
+      feedback('submit');
     }
   };
 
@@ -275,6 +332,50 @@ export const DrugProtocolsView: React.FC = () => {
           <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">Treatment</h1>
         </div>
 
+        <section className="surface-raised rounded-[24px] p-3 space-y-2">
+          <p className="text-xs text-content-dim uppercase tracking-wide px-1">Actions</p>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => {
+                setCalculatorOpen(true);
+                feedback('select');
+              }}
+              className="h-[70px] rounded-2xl surface-strong text-content-primary inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap"
+            >
+              <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
+                <Calculator size={14} />
+              </span>
+              Volume
+            </button>
+
+            <button
+              onClick={() => {
+                feedback('select');
+                dispatch({ type: 'SET_VIEW', payload: 'lab' });
+              }}
+              className="h-[70px] rounded-2xl surface-strong text-content-primary inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap"
+            >
+              <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
+                <FlaskConical size={14} />
+              </span>
+              Labs
+            </button>
+
+            <button
+              onClick={() => {
+                feedback('select');
+                dispatch({ type: 'SET_VIEW', payload: 'radiology' });
+              }}
+              className="h-[70px] rounded-2xl surface-strong text-content-primary inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap"
+            >
+              <span className="h-8 w-8 rounded-xl surface-chip inline-flex items-center justify-center">
+                <ScanLine size={14} />
+              </span>
+              Radiology
+            </button>
+          </div>
+        </section>
+
         <section className="surface-raised rounded-[24px] p-4 space-y-3">
           <label className="text-xs text-content-dim uppercase tracking-wide">Find Protocol</label>
           <div className="h-11 rounded-2xl surface-strong px-3 inline-flex items-center gap-2 w-full">
@@ -282,7 +383,7 @@ export const DrugProtocolsView: React.FC = () => {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search diagnosis or workflow"
+              placeholder="Search diagnosis"
               className="w-full text-sm text-content-primary"
             />
           </div>
@@ -317,7 +418,7 @@ export const DrugProtocolsView: React.FC = () => {
           )}
 
           {!loading && !error && filteredProtocols.length > 0 && (
-            <div className="max-h-[46vh] overflow-y-auto no-scrollbar space-y-2 pr-1">
+            <div className="max-h-[42vh] overflow-y-auto no-scrollbar space-y-2 pr-1">
               {filteredProtocols.map((entry) => (
                 <button
                   key={entry.value}
@@ -468,6 +569,197 @@ export const DrugProtocolsView: React.FC = () => {
                         </div>
                       </div>
                     ))}
+                  </section>
+                </div>
+              </motion.div>
+            </>
+          )}
+
+          {calculatorOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setCalculatorOpen(false)}
+                className="fixed inset-0 z-[140] overlay-backdrop backdrop-blur-sm"
+              />
+
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+                className="fixed inset-x-0 bottom-0 h-[82vh] max-w-[440px] mx-auto z-[150] rounded-t-[32px] ios-sheet-surface shadow-modal pointer-events-auto flex flex-col overflow-hidden"
+              >
+                <div className="flex items-center justify-center pt-2 pb-1">
+                  <span className="h-1 w-11 rounded-full surface-chip" />
+                </div>
+
+                <div className="px-5 py-4 flex items-center justify-between gap-3">
+                  <div className="space-y-1 min-w-0">
+                    <p className="text-xs text-content-dim font-medium">Dose Form</p>
+                    <p className="text-sm text-content-primary font-semibold truncate">Volume Calculator</p>
+                  </div>
+                  <button
+                    onClick={() => setCalculatorOpen(false)}
+                    className="h-10 w-10 rounded-full surface-strong flex items-center justify-center interactive-tap"
+                    aria-label="Close volume calculator"
+                  >
+                    <X size={15} />
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto no-scrollbar px-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] space-y-4">
+                  <section className="surface-raised rounded-[22px] p-4 space-y-3">
+                    <div className="surface-strong rounded-[18px] p-1 grid grid-cols-2 gap-1.5">
+                      <button
+                        onClick={() => setCalculatorMode('weight')}
+                        className={`relative h-10 rounded-xl text-xs font-semibold uppercase tracking-wide interactive-tap ${
+                          calculatorMode === 'weight' ? 'text-content-active' : 'text-content-secondary'
+                        }`}
+                      >
+                        {calculatorMode === 'weight' ? (
+                          <motion.span
+                            layoutId="volume-calculator-mode-pill"
+                            className="absolute inset-0 rounded-xl bg-surface-active selected-elevation"
+                            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                          />
+                        ) : (
+                          <span className="absolute inset-0 rounded-xl surface-chip" />
+                        )}
+                        <span className="relative z-10">Weight</span>
+                      </button>
+
+                      <button
+                        onClick={() => setCalculatorMode('age')}
+                        className={`relative h-10 rounded-xl text-xs font-semibold uppercase tracking-wide interactive-tap ${
+                          calculatorMode === 'age' ? 'text-content-active' : 'text-content-secondary'
+                        }`}
+                      >
+                        {calculatorMode === 'age' ? (
+                          <motion.span
+                            layoutId="volume-calculator-mode-pill"
+                            className="absolute inset-0 rounded-xl bg-surface-active selected-elevation"
+                            transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                          />
+                        ) : (
+                          <span className="absolute inset-0 rounded-xl surface-chip" />
+                        )}
+                        <span className="relative z-10">Age</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {calculatorMode === 'weight' ? (
+                        <div className="surface-strong rounded-2xl px-3 py-2 col-span-2">
+                          <label className="text-[11px] text-content-dim uppercase tracking-wide">Weight (kg)</label>
+                          <input
+                            value={calcWeightInput}
+                            onChange={(event) => setCalcWeightInput(event.target.value)}
+                            type="number"
+                            min={1}
+                            max={300}
+                            step="0.1"
+                            placeholder="kg"
+                            className="h-9 w-full text-sm text-content-primary"
+                          />
+                        </div>
+                      ) : (
+                        <div className="surface-strong rounded-2xl px-3 py-2 col-span-2">
+                          <label className="text-[11px] text-content-dim uppercase tracking-wide">Age (years)</label>
+                          <input
+                            value={calcAgeInput}
+                            onChange={(event) => setCalcAgeInput(event.target.value)}
+                            type="number"
+                            min={0}
+                            max={125}
+                            placeholder="years"
+                            className="h-9 w-full text-sm text-content-primary"
+                          />
+                        </div>
+                      )}
+
+                      <div className="surface-strong rounded-2xl px-3 py-2">
+                        <label className="text-[11px] text-content-dim uppercase tracking-wide">Dose/kg (mg/kg)</label>
+                        <input
+                          value={calcDosePerKgInput}
+                          onChange={(event) => setCalcDosePerKgInput(event.target.value)}
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          placeholder="e.g. 15"
+                          className="h-9 w-full text-sm text-content-primary"
+                        />
+                      </div>
+
+                      <div className="surface-strong rounded-2xl px-3 py-2">
+                        <label className="text-[11px] text-content-dim uppercase tracking-wide">Dose (mg) *</label>
+                        <input
+                          value={calcDoseInput}
+                          onChange={(event) => setCalcDoseInput(event.target.value)}
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          placeholder="optional override"
+                          className="h-9 w-full text-sm text-content-primary"
+                        />
+                      </div>
+
+                      <div className="surface-strong rounded-2xl px-3 py-2">
+                        <label className="text-[11px] text-content-dim uppercase tracking-wide">Drug Strength (mg) *</label>
+                        <input
+                          value={calcStrengthInput}
+                          onChange={(event) => setCalcStrengthInput(event.target.value)}
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          placeholder="e.g. 250"
+                          className="h-9 w-full text-sm text-content-primary"
+                        />
+                      </div>
+
+                      <div className="surface-strong rounded-2xl px-3 py-2">
+                        <label className="text-[11px] text-content-dim uppercase tracking-wide">Drug Volume (ml) *</label>
+                        <input
+                          value={calcVolumeInput}
+                          onChange={(event) => setCalcVolumeInput(event.target.value)}
+                          type="number"
+                          min={0}
+                          step="0.1"
+                          placeholder="e.g. 5"
+                          className="h-9 w-full text-sm text-content-primary"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="surface-strong rounded-2xl p-3 space-y-1.5 text-sm">
+                      <p className="text-content-secondary">
+                        Weight basis:{' '}
+                        <span className="text-content-primary font-semibold">
+                          {calculatorWeight !== null ? `${formatDoseValue(calculatorWeight)} kg` : 'not set'}
+                        </span>
+                      </p>
+                      <p className="text-content-secondary">
+                        Calculated dose:{' '}
+                        <span className="text-content-primary font-semibold">
+                          {calculatedDose !== null ? `${formatDoseValue(calculatedDose)} mg` : 'not available'}
+                        </span>
+                      </p>
+                      <p className="text-content-secondary">
+                        Dose volume:{' '}
+                        <span className="text-content-primary font-semibold">
+                          {calculatedVolumeMl !== null ? `${formatDoseValue(calculatedVolumeMl)} ml` : 'not available'}
+                        </span>
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={persistCalculatorProfileContext}
+                      className="h-11 w-full rounded-2xl surface-strong text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap"
+                    >
+                      Save Weight/Age to Profile
+                    </button>
                   </section>
                 </div>
               </motion.div>

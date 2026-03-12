@@ -89,7 +89,7 @@ export const BottomNav: React.FC = () => {
   const navItems = [
     { id: 'consult' as AppView, icon: Stethoscope, label: 'Consult' },
     { id: 'history' as AppView, icon: History, label: 'History' },
-    { id: 'drug' as AppView, icon: Pill, label: 'Drug' },
+    { id: 'drug' as AppView, icon: Pill, label: 'Pharmacy' },
   ];
 
   const hasArchives = state.archives.length > 0;
@@ -154,6 +154,18 @@ export const BottomNav: React.FC = () => {
   );
 
   const primaryAction = useMemo(() => {
+    if (state.view === 'lab' || state.view === 'radiology') {
+      return {
+        label: 'Back to Pharmacy',
+        icon: Pill,
+        onClick: () => {
+          dispatch({ type: 'SET_VIEW', payload: 'drug' });
+          feedback('select');
+        },
+        disabled: false,
+      };
+    }
+
     if (state.view === 'drug') {
       return {
         label: 'Back to Consult',

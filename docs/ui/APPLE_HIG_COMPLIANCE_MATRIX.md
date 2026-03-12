@@ -2,7 +2,7 @@
 
 Date: 2026-03-12  
 Owner: Codex  
-Scope: Patient-facing mobile web experience (consult, history, sheets, overlays)
+Scope: Patient-facing mobile web experience (consult, history, pharmacy, lab/radiology review, sheets, overlays)
 
 ## Source set (Apple)
 - https://developer.apple.com/design/human-interface-guidelines/
@@ -39,6 +39,8 @@ Scope: Patient-facing mobile web experience (consult, history, sheets, overlays)
 | Writing | Avoid explanatory prose in production-critical controls | Drug page now uses terse production labels; removed in-app implementation narration text | `src/features/drug/DrugProtocolsView.tsx` | Implemented |
 | Icons | Meaningful iconography must reinforce action | Icon-first buttons for nav, profile controls, history actions, biodata controls | `src/components/layout/BottomNav.tsx`, `src/features/profile/ProfileSheet.tsx`, `src/features/consultation/components/BiodataCard.tsx` | Implemented |
 | Components | Medication lists should emphasize primary values and reduce scan friction | Prescription lines redesigned to compact medication cards with dose chip + frequency/duration chips | `src/features/drug/DrugProtocolsView.tsx` | Implemented |
+| Presentation | Keep utility tools in context-preserving sheets | Pharmacy dose-volume calculator runs as a dedicated bottom sheet from icon action | `src/features/drug/DrugProtocolsView.tsx` | Implemented |
+| Navigation | Related workflows can open as dedicated pages without tab overload | Lab Review and Radiology Review are full pages launched from Pharmacy actions and profile quick navigation | `src/App.tsx`, `src/features/diagnostics/DiagnosticReviewView.tsx`, `src/features/profile/ProfileSheet.tsx` | Implemented |
 | PWA shell consistency | App metadata should be valid and discoverable | Explicit web manifest link added in document head | `index.html`, `public/manifest.webmanifest` | Implemented |
 
 ## Non-applicable native sections (mapped)

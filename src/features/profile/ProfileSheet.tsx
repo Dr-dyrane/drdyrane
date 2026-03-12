@@ -2,11 +2,13 @@ import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell,
+  FlaskConical,
   History,
   Info,
   Monitor,
   Moon,
   Pill,
+  ScanLine,
   Sparkles,
   Stethoscope,
   Sun,
@@ -19,6 +21,7 @@ import {
 } from 'lucide-react';
 import { SideSheet } from '../../components/shared/SideSheet';
 import { useClinical } from '../../core/context/ClinicalContext';
+import { AppView } from '../../core/types/clinical';
 import { ToggleSwitch } from '../../components/shared/ToggleSwitch';
 import { signalFeedback } from '../../core/services/feedback';
 import {
@@ -63,7 +66,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
       audioEnabled: settings.audio_enabled,
     });
 
-  const setViewAndClose = (view: 'consult' | 'history' | 'drug' | 'about') => {
+  const setViewAndClose = (view: AppView) => {
     feedback('select');
     dispatch({ type: 'SET_VIEW', payload: view });
     dispatch({ type: 'CLOSE_SHEETS' });
@@ -123,6 +126,19 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
     dispatch({ type: 'UPDATE_PROFILE', payload: { avatar_url: '' } });
     feedback('select');
   };
+
+  const quickNavItems: Array<{
+    id: AppView;
+    label: string;
+    icon: React.ComponentType<{ size?: string | number }>;
+  }> = [
+    { id: 'consult', label: 'Consult', icon: Stethoscope },
+    { id: 'history', label: 'History', icon: History },
+    { id: 'drug', label: 'Pharmacy', icon: Pill },
+    { id: 'lab', label: 'Lab', icon: FlaskConical },
+    { id: 'radiology', label: 'Radiology', icon: ScanLine },
+    { id: 'about', label: 'System', icon: Info },
+  ];
 
   return (
     <SideSheet isOpen={isOpen} side="left" onClose={closeSheet}>
@@ -427,98 +443,36 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
 
           <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-2 pb-3">
             <div className="px-3 py-2 text-xs font-semibold text-content-dim uppercase tracking-wide">Quick Navigation</div>
-            <div className="grid grid-cols-4 gap-2">
-              <motion.button
-                onClick={() => setViewAndClose('consult')}
-                whileHover={{ y: -1 }}
-                whileTap={{ scale: 0.97 }}
-                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
-                  state.view === 'consult' ? 'text-content-active' : 'text-content-primary'
-                }`}
-              >
-                {state.view === 'consult' ? (
-                  <motion.span
-                    layoutId="profile-nav-pill"
-                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
-                ) : (
-                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
-                )}
-                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
-                  <Stethoscope size={15} />
-                  Consult
-                </span>
-              </motion.button>
-
-              <motion.button
-                onClick={() => setViewAndClose('history')}
-                whileHover={{ y: -1 }}
-                whileTap={{ scale: 0.97 }}
-                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
-                  state.view === 'history' ? 'text-content-active' : 'text-content-primary'
-                }`}
-              >
-                {state.view === 'history' ? (
-                  <motion.span
-                    layoutId="profile-nav-pill"
-                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
-                ) : (
-                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
-                )}
-                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
-                  <History size={15} />
-                  History
-                </span>
-              </motion.button>
-
-              <motion.button
-                onClick={() => setViewAndClose('about')}
-                whileHover={{ y: -1 }}
-                whileTap={{ scale: 0.97 }}
-                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
-                  state.view === 'about' ? 'text-content-active' : 'text-content-primary'
-                }`}
-              >
-                {state.view === 'about' ? (
-                  <motion.span
-                    layoutId="profile-nav-pill"
-                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
-                ) : (
-                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
-                )}
-                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
-                  <Info size={15} />
-                  About
-                </span>
-              </motion.button>
-
-              <motion.button
-                onClick={() => setViewAndClose('drug')}
-                whileHover={{ y: -1 }}
-                whileTap={{ scale: 0.97 }}
-                className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
-                  state.view === 'drug' ? 'text-content-active' : 'text-content-primary'
-                }`}
-              >
-                {state.view === 'drug' ? (
-                  <motion.span
-                    layoutId="profile-nav-pill"
-                    className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
-                    transition={{ type: 'spring', stiffness: 420, damping: 34 }}
-                  />
-                ) : (
-                  <span className="absolute inset-0 rounded-[18px] surface-strong" />
-                )}
-                <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
-                  <Pill size={15} />
-                  Drug
-                </span>
-              </motion.button>
+            <div className="grid grid-cols-3 gap-2">
+              {quickNavItems.map((item) => {
+                const Icon = item.icon;
+                const isActive = state.view === item.id;
+                return (
+                  <motion.button
+                    key={item.id}
+                    onClick={() => setViewAndClose(item.id)}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`relative h-[60px] rounded-[18px] inline-flex flex-col items-center justify-center gap-1.5 text-xs font-medium interactive-tap interactive-soft ${
+                      isActive ? 'text-content-active' : 'text-content-primary'
+                    }`}
+                  >
+                    {isActive ? (
+                      <motion.span
+                        layoutId="profile-nav-pill"
+                        className="absolute inset-0 rounded-[18px] bg-surface-active selected-elevation"
+                        transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                      />
+                    ) : (
+                      <span className="absolute inset-0 rounded-[18px] surface-strong" />
+                    )}
+                    <span className="relative z-10 inline-flex flex-col items-center gap-1.5">
+                      <Icon size={15} />
+                      {item.label}
+                    </span>
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.section>
         </motion.div>
