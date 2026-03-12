@@ -104,7 +104,7 @@ const MainApp: React.FC = () => {
         />
 
         {/* Main Routing Context */}
-        <main className="relative z-10 flex-1 flex flex-col px-3 pt-[calc(env(safe-area-inset-top)+5rem)] pb-[calc(env(safe-area-inset-bottom)+7.25rem)] min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
+        <main className="relative z-10 flex-1 flex flex-col px-3 pt-[calc(env(safe-area-inset-top)+4.35rem)] pb-[calc(env(safe-area-inset-bottom)+7.25rem)] min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
           <AnimatePresence mode="wait">
             {state.view === 'consult' && (
               <motion.div

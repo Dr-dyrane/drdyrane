@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { Activity, Copy, Printer, Shield, TrendingUp, UserCheck } from 'lucide-react';
-import { Orb } from '../consultation/Orb';
 import { PillarData } from '../../core/types/clinical';
 
 type EncounterPrescription = NonNullable<NonNullable<PillarData['encounter']>['prescriptions'][number]>;
@@ -157,10 +156,7 @@ export const PillarCard: React.FC = () => {
   ].filter(Boolean) as string[];
 
   return (
-    <div className="flex-1 px-2 py-7 space-y-7 animate-emergence">
-      <div className="flex justify-center">
-        <Orb prominence="support" />
-      </div>
+    <div className="flex-1 px-2 py-4 space-y-5 animate-emergence">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}

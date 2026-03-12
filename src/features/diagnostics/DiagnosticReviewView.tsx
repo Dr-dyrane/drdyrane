@@ -15,7 +15,6 @@ import { signalFeedback } from '../../core/services/feedback';
 import { analyzeClinicalImage, VisionAnalysisResult } from '../../core/api/visionEngine';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
-import { Orb } from '../consultation/Orb';
 
 export type DiagnosticReviewKind = 'scan';
 type DiagnosticEventKind = DiagnosticReviewKind | 'lab' | 'radiology';
@@ -350,10 +349,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
   return (
     <>
-      <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
-        <div className="flex justify-center">
-          <Orb prominence="support" />
-        </div>
+      <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-4 space-y-4 animate-emergence">
 
         <div className="text-center space-y-2">
           <span className="text-content-dim text-xs font-medium">{config.pageLabel}</span>

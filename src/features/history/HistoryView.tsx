@@ -9,7 +9,6 @@ import {
   Plus,
 } from 'lucide-react';
 import { TheHx } from '../consultation/TheHx';
-import { Orb } from '../consultation/Orb';
 import { SessionRecord } from '../../core/types/clinical';
 import { VisitRecordModal } from './VisitRecordModal';
 import { signalFeedback } from '../../core/services/feedback';
@@ -77,10 +76,7 @@ export const HistoryView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
-      <div className="flex justify-center">
-        <Orb prominence="support" />
-      </div>
+    <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-4 space-y-4 animate-emergence">
       <div className="text-center space-y-2">
         <span className="text-content-dim text-xs font-medium">Past visits</span>
         <h1 className="display-type text-[1.7rem] text-content-primary">Clinical History</h1>

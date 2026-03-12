@@ -13,7 +13,6 @@ import {
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
-import { Orb } from '../consultation/Orb';
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
 type CalculatorMode = 'weight' | 'age';
@@ -353,10 +352,7 @@ export const DrugProtocolsView: React.FC = () => {
 
   return (
     <>
-      <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-7 space-y-5 animate-emergence">
-        <div className="flex justify-center">
-          <Orb prominence="support" />
-        </div>
+      <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-4 space-y-4 animate-emergence">
 
         <div className="text-center space-y-2">
           <span className="text-content-dim text-xs font-medium">Pharmacy</span>

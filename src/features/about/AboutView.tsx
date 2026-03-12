@@ -1,7 +1,6 @@
 import React from 'react';
 import { GlassContainer } from '../../components/shared/GlassContainer';
 import { ShieldCheck, Database, Cpu, Activity } from 'lucide-react';
-import { Orb } from '../consultation/Orb';
 
 export const AboutView: React.FC = () => {
   const specs = [
@@ -12,10 +11,7 @@ export const AboutView: React.FC = () => {
   ];
 
   return (
-    <div className="flex-1 px-2 py-7 space-y-4 animate-emergence">
-      <div className="flex justify-center">
-        <Orb prominence="support" />
-      </div>
+    <div className="flex-1 px-2 py-4 space-y-4 animate-emergence">
       <div className="text-center space-y-4">
         <span className="text-content-dim text-xs font-medium">System</span>
         <h1 className="display-type text-[1.7rem] text-content-primary leading-tight">System Specification</h1>
