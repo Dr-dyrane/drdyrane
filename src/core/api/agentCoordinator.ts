@@ -13,6 +13,7 @@ import {
   createPatientMessage,
 } from './agent/messageFactory';
 import { buildLocalOptions } from './agent/localOptions';
+import { isOptionSetRelevant } from './agent/optionQuality';
 import {
   extractBundledSegments,
   getFallbackQuestion,
@@ -184,15 +185,19 @@ export class AgentCoordinator {
         current_index: 0,
         answers: [],
       };
-      responseOptions = buildLocalOptions(firstSegment.prompt, stateForTurn.profile);
-    } else if (conversationResult.needs_options) {
-      responseOptions = await generateResponseOptions(
+      responseOptions = await this.resolveQuestionOptions(
+        firstSegment.prompt,
+        conversationResult.agent_state,
+        { ...stateForTurn.soap, ...conversationResult.soap_updates },
+        stateForTurn.profile
+      );
+    } else if (conversationResult.needs_options || (conversationResult.status === 'active' && question)) {
+      responseOptions = await this.resolveQuestionOptions(
         question,
         conversationResult.agent_state,
-        { ...stateForTurn.soap, ...conversationResult.soap_updates }
+        { ...stateForTurn.soap, ...conversationResult.soap_updates },
+        stateForTurn.profile
       );
-    } else if (conversationResult.status === 'active' && question) {
-      responseOptions = buildLocalOptions(question, stateForTurn.profile);
     }
 
     nextConversation.push(doctorMessage);
@@ -251,11 +256,17 @@ export class AgentCoordinator {
       };
 
       const stagedDoctor = createDoctorMessage(nextSegment.prompt, 'Noted');
+      const stagedOptions = await this.resolveQuestionOptions(
+        nextSegment.prompt,
+        this.state.agent_state,
+        this.state.soap,
+        profileForTurn
+      );
       const stagedState: Partial<ClinicalState> = {
         conversation: [...this.state.conversation, patientMessage, stagedDoctor],
         profile: profileForTurn,
         question_gate: nextGate,
-        response_options: buildLocalOptions(nextSegment.prompt, profileForTurn),
+        response_options: stagedOptions,
         selected_options: [],
         status: 'active',
       };
@@ -296,6 +307,25 @@ export class AgentCoordinator {
       };
       this.state = { ...this.state, ...fallbackState };
       return fallbackState;
+    }
+  }
+
+  private async resolveQuestionOptions(
+    question: string,
+    agentState: ClinicalState['agent_state'],
+    currentSOAP: ClinicalState['soap'],
+    profile: ClinicalState['profile']
+  ): Promise<ResponseOptions> {
+    const localFallback = buildLocalOptions(question, profile);
+    try {
+      const aiOptions = await generateResponseOptions(question, agentState, currentSOAP);
+      if (!isOptionSetRelevant(question, aiOptions)) {
+        return localFallback;
+      }
+      return aiOptions;
+    } catch (error) {
+      console.error('Option resolution fallback:', error);
+      return localFallback;
     }
   }
 

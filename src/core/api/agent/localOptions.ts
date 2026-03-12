@@ -15,6 +15,9 @@ export const buildLocalOptions = (
     /(keep fluids down|keep liquid down|hold down fluids|able to drink|drinking fluids|hydration|dehydrat|oral intake|sips)/;
   const symptomInventoryPattern =
     /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/;
+  const lateralityPattern = /(one side|both sides|which side|left|right|unilateral|bilateral)/;
+  const triggerPattern =
+    /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/;
 
   if (symptomInventoryPattern.test(normalized)) {
     return {
@@ -64,6 +67,52 @@ export const buildLocalOptions = (
       ],
       allow_custom_input: true,
       context_hint: 'Select your highest measured temperature.',
+    };
+  }
+
+  if (lateralityPattern.test(normalized) && triggerPattern.test(normalized)) {
+    return {
+      mode: 'multiple',
+      ui_variant: 'chips',
+      options: [
+        { id: 'pain-left', text: 'Left side', category: 'laterality', priority: 10 },
+        { id: 'pain-right', text: 'Right side', category: 'laterality', priority: 9 },
+        { id: 'pain-both', text: 'Both sides', category: 'laterality', priority: 8 },
+        { id: 'pain-breath', text: 'Worse with deep breath', category: 'trigger', priority: 7 },
+        { id: 'pain-cough', text: 'Worse with cough', category: 'trigger', priority: 6 },
+        { id: 'pain-no-trigger', text: 'No breathing/cough change', category: 'trigger', priority: 5 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Select side and what makes it worse.',
+    };
+  }
+
+  if (lateralityPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'segmented',
+      options: [
+        { id: 'pain-left', text: 'Left', category: 'laterality', priority: 10 },
+        { id: 'pain-right', text: 'Right', category: 'laterality', priority: 9 },
+        { id: 'pain-both', text: 'Both', category: 'laterality', priority: 8 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Choose the pain side.',
+    };
+  }
+
+  if (triggerPattern.test(normalized)) {
+    return {
+      mode: 'single',
+      ui_variant: 'stack',
+      options: [
+        { id: 'trigger-deep-breath', text: 'Worse with deep breath', category: 'trigger', priority: 10 },
+        { id: 'trigger-cough', text: 'Worse with cough', category: 'trigger', priority: 9 },
+        { id: 'trigger-both', text: 'Worse with both', category: 'trigger', priority: 8 },
+        { id: 'trigger-neither', text: 'Not affected by either', category: 'trigger', priority: 7 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Pick what triggers pain most.',
     };
   }
 
@@ -157,7 +206,11 @@ export const buildLocalOptions = (
     };
   }
 
-  if (/(worsen|worsening|improve|improvement|better|worse|changed|progress|since.*started)/.test(normalized)) {
+  if (
+    /(how.*(changed|change|improv|wors)|overall.*(better|worse)|since.*started.*(better|worse|change)|progress(ion|ed)?\b|has .* (improved|worsened|changed))/.test(
+      normalized
+    )
+  ) {
     return {
       mode: 'single',
       ui_variant: 'stack',

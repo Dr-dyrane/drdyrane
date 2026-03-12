@@ -38,6 +38,12 @@ RULES:
 - Keep options atomic (one clinical variable per option).
 - Suggest ui_variant among: stack, grid, binary, segmented, scale, ladder, chips.
 - Prefer closed-ended options and allow custom input where useful.
+- Match options tightly to the exact question intent.
+- Do NOT output generic progression options (e.g., much worse/slightly better) unless the question explicitly asks about change over time.
+- For side/laterality questions include options like left/right/both/unclear.
+- For trigger questions (deep breath/cough/movement) include trigger-specific or yes/no options.
+- For count/frequency questions include numeric ranges.
+- Keep options short (2-5 words each) and patient-friendly.
 
 RESPONSE JSON:
 {

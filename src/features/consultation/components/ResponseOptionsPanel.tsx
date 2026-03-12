@@ -33,7 +33,7 @@ const getVariant = (responseOptions: ResponseOptions): NonNullable<ResponseOptio
 
 const getOptionClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
   const base =
-    'option-button option-live option-live-smooth relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
+    'option-button option-live option-live-smooth option-live-bounce relative overflow-hidden transition-all duration-300 text-center group focus-glow disabled:opacity-50 disabled:cursor-not-allowed';
 
   if (variant === 'binary' || variant === 'segmented') return `${base} min-h-12 rounded-[16px] px-3 py-3`;
   if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3 surface-raised shadow-glass`;
@@ -63,6 +63,12 @@ const getSelectedSingleOption = (
 
 const SPRING_CONFIG = { type: 'spring' as const, stiffness: 320, damping: 28 };
 
+const getHintToneClass = (variant: NonNullable<ResponseOptions['ui_variant']>): string => {
+  if (variant === 'chips' || variant === 'grid') return 'option-hint-energetic';
+  if (variant === 'scale' || variant === 'ladder') return 'option-hint-analytical';
+  return 'option-hint-soft';
+};
+
 export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   responseOptions,
   selectedOptionIds,
@@ -90,15 +96,17 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   return (
     <div className="space-y-4">
       {responseOptions.context_hint && (
-        <motion.p
+        <motion.div
           key={responseOptions.context_hint}
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="text-[10px] uppercase tracking-[0.2em] text-content-dim text-center"
+          className={`option-hint-chip ${getHintToneClass(variant)}`}
         >
-          {responseOptions.context_hint}
-        </motion.p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-content-primary text-center">
+            {responseOptions.context_hint}
+          </p>
+        </motion.div>
       )}
 
       {isScale ? (
@@ -174,7 +182,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
           }}
           className={`${
             isSegmentedLike
-              ? `surface-raised segment-live-shell rounded-[22px] p-1.5 grid gap-1.5 ${getGridByVariant(
+              ? `surface-raised segment-live-shell option-shell-live rounded-[22px] p-1.5 grid gap-1.5 ${getGridByVariant(
                   variant,
                   responseOptions.options.length
                 )}`

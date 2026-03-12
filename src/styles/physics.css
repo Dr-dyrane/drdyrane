@@ -381,6 +381,10 @@ button {
     opacity 220ms var(--ease-fluid);
 }
 
+.option-live-bounce:hover:not(:disabled) {
+  transform: translateY(-2px) scale(1.01);
+}
+
 .option-live::before {
   content: '';
   position: absolute;
@@ -413,6 +417,48 @@ button {
     0 20px 44px rgba(0, 245, 255, 0.26),
     0 12px 20px rgba(124, 255, 178, 0.2);
   animation: option-spark 680ms var(--ease-fluid);
+}
+
+.option-shell-live {
+  box-shadow:
+    0 10px 24px rgba(0, 245, 255, 0.08),
+    0 10px 24px rgba(124, 255, 178, 0.07);
+}
+
+.option-hint-chip {
+  display: inline-flex;
+  justify-content: center;
+  width: 100%;
+  border-radius: 9999px;
+  padding: 0.55rem 0.85rem;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.2);
+}
+
+.option-hint-soft {
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08),
+    rgba(0, 245, 255, 0.14),
+    rgba(124, 255, 178, 0.08)
+  );
+}
+
+.option-hint-analytical {
+  background-image: linear-gradient(
+    135deg,
+    rgba(0, 245, 255, 0.22),
+    rgba(124, 255, 178, 0.16),
+    rgba(255, 209, 102, 0.12)
+  );
+}
+
+.option-hint-energetic {
+  background-image: linear-gradient(
+    135deg,
+    rgba(255, 125, 170, 0.22),
+    rgba(255, 209, 102, 0.2),
+    rgba(0, 245, 255, 0.2)
+  );
 }
 
 .option-ladder-bar {

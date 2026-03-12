@@ -37,7 +37,8 @@ const sanitizeOptions = (options: ResponseOptions['options']): ResponseOptions['
   return options
     .filter((option) => option && typeof option.text === 'string' && option.text.trim())
     .map((option, idx) => {
-      const baseId = option.id?.trim() || slugify(option.text) || `option-${idx + 1}`;
+      const normalizedText = option.text.trim().replace(/\s+/g, ' ').replace(/[.,;:]+$/, '');
+      const baseId = option.id?.trim() || slugify(normalizedText) || `option-${idx + 1}`;
       let nextId = baseId;
       let suffix = 1;
       while (usedIds.has(nextId)) {
@@ -45,7 +46,7 @@ const sanitizeOptions = (options: ResponseOptions['options']): ResponseOptions['
         suffix += 1;
       }
       usedIds.add(nextId);
-      return { ...option, id: nextId, text: option.text.trim() };
+      return { ...option, id: nextId, text: normalizedText };
     })
     .slice(0, 12);
 };
@@ -109,7 +110,8 @@ const normalizeResponseOptions = (
       ? raw.mode
       : 'single';
 
-  let options = sanitizeOptions(raw.options || []);
+  const maxOptions = mode === 'multiple' ? 8 : 10;
+  let options = sanitizeOptions(raw.options || []).slice(0, maxOptions);
 
   if (shouldUseFunctionalScale(question, options)) {
     options = FUNCTIONAL_SCALE_OPTIONS;
@@ -196,20 +198,7 @@ export const generateResponseOptions = async (
     return normalized;
 
   } catch (error) {
-    console.error("Options Engine Error:", error);
-    // Fallback options
-    const fallback: ResponseOptions = {
-      mode: 'single',
-      ui_variant: 'binary',
-      options: [
-        { id: 'yes', text: 'Yes', category: 'confirmation' },
-        { id: 'no', text: 'No', category: 'confirmation' },
-        { id: 'unsure', text: 'Not sure', category: 'confirmation' }
-      ],
-      context_hint: 'Basic confirmation options',
-      allow_custom_input: true
-    };
-    setPromptCache(optionsCacheKey, fallback, 1000 * 60 * 3);
-    return fallback;
+    console.error('Options Engine Error:', error);
+    throw error instanceof Error ? error : new Error('Options generation failed.');
   }
 };
