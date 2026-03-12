@@ -108,7 +108,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             >
             <div className="flex items-center justify-between">
               <div className="space-y-1">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-content-dim">Crop Avatar (Optional)</p>
+                <p className="text-xs uppercase tracking-[0.22em] text-content-dim">Crop Avatar (Optional)</p>
                 <p className="text-sm text-content-secondary">
                   Move and zoom image before saving.
                 </p>
@@ -127,7 +127,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 
             <div className="space-y-2">
               <label className="block space-y-1">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-content-dim">
+                <span className="text-xs uppercase tracking-[0.18em] text-content-dim">
                   Zoom
                 </span>
                 <input
@@ -142,7 +142,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               </label>
 
               <label className="block space-y-1">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-content-dim">
+                <span className="text-xs uppercase tracking-[0.18em] text-content-dim">
                   Horizontal
                 </span>
                 <input
@@ -157,7 +157,7 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
               </label>
 
               <label className="block space-y-1">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-content-dim">
+                <span className="text-xs uppercase tracking-[0.18em] text-content-dim">
                   Vertical
                 </span>
                 <input
@@ -175,13 +175,13 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
             <div className="grid grid-cols-2 gap-2 pb-1">
               <button
                 onClick={onSkipCrop}
-                className="h-11 rounded-xl surface-strong text-[10px] uppercase tracking-[0.2em]"
+                className="h-11 rounded-xl surface-strong text-xs uppercase tracking-[0.2em]"
               >
                 Use Original
               </button>
               <button
                 onClick={confirmCrop}
-                className="h-11 rounded-xl cta-live-icon text-[10px] uppercase tracking-[0.2em] font-semibold"
+                className="h-11 rounded-xl cta-live-icon text-xs uppercase tracking-[0.2em] font-semibold"
               >
                 <span className="inline-flex items-center gap-1.5">
                   <Scissors size={12} /> Crop
@@ -191,14 +191,14 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
 
             <button
               onClick={confirmCrop}
-              className="w-full h-11 rounded-xl bg-surface-active text-content-active text-[10px] uppercase tracking-[0.2em] font-semibold"
+              className="w-full h-11 rounded-xl bg-surface-active text-content-active text-xs uppercase tracking-[0.2em] font-semibold"
             >
               <span className="inline-flex items-center gap-1.5">
                 <Check size={12} /> Save Avatar
               </span>
             </button>
 
-            <p className="text-[10px] text-content-dim">
+            <p className="text-xs text-content-dim">
               Source: {imageSize.width} x {imageSize.height}
             </p>
 
@@ -210,3 +210,4 @@ export const AvatarCropModal: React.FC<AvatarCropModalProps> = ({
     </OverlayPortal>
   );
 };
+

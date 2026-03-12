@@ -68,16 +68,17 @@ const inferVariant = (
   options: ResponseOptions['options'],
   hinted?: ResponseOptions['ui_variant']
 ): NonNullable<ResponseOptions['ui_variant']> => {
+  // Always normalize binary sets to segmented controls for predictable UX.
+  if (mode === 'single' && isBinaryLike(options)) {
+    return 'segmented';
+  }
+
   if (hinted && VALID_VARIANTS.has(hinted)) {
     return hinted;
   }
 
   if (mode === 'multiple') {
     return options.length > 6 ? 'grid' : 'chips';
-  }
-
-  if (isBinaryLike(options)) {
-    return 'segmented';
   }
 
   if (

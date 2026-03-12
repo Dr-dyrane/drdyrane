@@ -20,6 +20,20 @@
     "health",
     "productivity"
   ],
+  "shortcuts": [
+    {
+      "name": "Start Consult",
+      "short_name": "Consult",
+      "description": "Begin a new consultation with Dr. Dyrane",
+      "url": "/?view=consult"
+    },
+    {
+      "name": "Open History",
+      "short_name": "History",
+      "description": "Review previous clinical visits",
+      "url": "/?view=history"
+    }
+  ],
   "prefer_related_applications": false,
   "icons": [
     {

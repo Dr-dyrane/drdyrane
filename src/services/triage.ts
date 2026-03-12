@@ -1,3 +1,5 @@
+import { ClinicalState } from '../core/types/clinical';
+
 export interface SBARReport {
   situation: string;
   background: string;
@@ -5,7 +7,7 @@ export interface SBARReport {
   recommendation: string;
 }
 
-export const generateSBAR = (state: any): SBARReport => {
+export const generateSBAR = (state: ClinicalState): SBARReport => {
   return {
     situation: `Patient presenting with ${Object.values(state.soap.S).join(', ')}. Red flag triggered.`,
     background: `Medical history: ${JSON.stringify(state.soap.S)}. First session encounter: ${state.sessionId}`,

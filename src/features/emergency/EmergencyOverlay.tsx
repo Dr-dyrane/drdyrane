@@ -32,11 +32,11 @@ export const EmergencyOverlay: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[270] bg-neon-red/10 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center space-y-10 overflow-hidden"
+          className="fixed inset-0 z-[270] bg-danger-soft backdrop-blur-md p-6 flex flex-col items-center justify-center text-center space-y-10 overflow-hidden"
         >
           <div className="space-y-4">
-            <AlertCircle className="w-16 h-16 text-neon-red mx-auto animate-pulse emergency-icon-glow" />
-            <h1 className="text-3xl font-bold text-neon-red tracking-tight leading-none uppercase">EMERGENCY</h1>
+            <AlertCircle className="w-16 h-16 text-danger-primary mx-auto animate-pulse emergency-icon-glow" />
+            <h1 className="text-3xl font-bold text-danger-primary tracking-tight leading-none uppercase">EMERGENCY</h1>
             <p className="text-lg text-content-primary/60 font-light">
               Must-not-miss pathophysiology detected.
             </p>
@@ -47,7 +47,7 @@ export const EmergencyOverlay: React.FC = () => {
               href={edUrl || '#'}
               target="_blank"
               rel="noreferrer"
-              className="bg-neon-red text-content-active p-5 rounded-[24px] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-lg shadow-neon-red/20 border-none outline-none"
+              className="cta-danger p-5 rounded-[24px] text-lg font-bold flex items-center justify-center gap-3 transition-transform active:scale-95 shadow-lg border-none outline-none"
             >
               <MapPin size={20} /> Nearest ED
             </a>

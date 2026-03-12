@@ -72,7 +72,7 @@ export const TheHx: React.FC<{
             {/* Header */}
             <div className="px-8 pt-8 pb-4 flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-content-dim uppercase tracking-[0.3em] font-bold">Clinical Records</span>
+                <span className="text-xs text-content-dim uppercase tracking-[0.3em] font-bold">Clinical Records</span>
                 <h2 className="text-2xl font-light text-content-primary mt-1">{displayDiagnosis}</h2>
               </div>
               <button
@@ -89,19 +89,19 @@ export const TheHx: React.FC<{
                 <GlassContainer className="p-5 rounded-[24px] border-none shadow-none bg-surface-muted/80">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] uppercase tracking-[0.22em] text-accent-soft font-semibold">
+                      <span className="text-xs uppercase tracking-[0.22em] text-accent-soft font-semibold">
                         Active Case Snapshot
                       </span>
-                      <span className="text-[10px] text-content-dim">{getElapsedLabel(latestEntry?.timestamp)}</span>
+                      <span className="text-xs text-content-dim">{getElapsedLabel(latestEntry?.timestamp)}</span>
                     </div>
                     <div className="space-y-2">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-content-dim">Latest complaint</p>
+                      <p className="text-xs uppercase tracking-[0.18em] text-content-dim">Latest complaint</p>
                       <p className="text-sm text-content-primary font-light leading-relaxed">
                         {latestPatientInput || 'No patient complaint captured yet.'}
                       </p>
                     </div>
                     <div className="space-y-2">
-                      <p className="text-[10px] uppercase tracking-[0.18em] text-content-dim">Current clinical question</p>
+                      <p className="text-xs uppercase tracking-[0.18em] text-content-dim">Current clinical question</p>
                       <p className="text-sm text-content-secondary font-light leading-relaxed">
                         {latestDoctorPrompt || 'No active question yet.'}
                       </p>
@@ -118,7 +118,7 @@ export const TheHx: React.FC<{
                   <div key={section.key} className="space-y-3">
                     <div className="flex items-center gap-2 px-2">
                       <section.icon size={14} className={`${section.color} opacity-60`} />
-                      <span className="text-[10px] uppercase tracking-widest font-bold text-content-dim">
+                      <span className="text-xs uppercase tracking-widest font-bold text-content-dim">
                         {section.label}
                       </span>
                     </div>
@@ -130,7 +130,7 @@ export const TheHx: React.FC<{
                         <div className="space-y-3">
                           {Object.entries(data).map(([key, value]) => (
                             <div key={key} className="space-y-1">
-                              <span className="text-[9px] uppercase tracking-wider text-accent-soft font-medium">{key}</span>
+                              <span className="text-[11px] uppercase tracking-wider text-accent-soft font-medium">{key}</span>
                               <p className="text-sm text-content-secondary font-light leading-relaxed">
                                 {typeof value === 'string' ? value : JSON.stringify(value)}
                               </p>
@@ -147,7 +147,7 @@ export const TheHx: React.FC<{
               <div className="space-y-3">
                 <div className="flex items-center gap-2 px-2">
                   <Shield size={14} className="text-accent-primary opacity-80" />
-                  <span className="text-[10px] uppercase tracking-widest font-bold text-content-dim">
+                  <span className="text-xs uppercase tracking-widest font-bold text-content-dim">
                     Clinical Notes (Auto)
                   </span>
                 </div>
@@ -161,7 +161,7 @@ export const TheHx: React.FC<{
                       { label: 'FH', value: displayClerking.fh },
                     ].map((section) => (
                       <div key={section.label} className="space-y-1">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-content-dim">{section.label}</p>
+                        <p className="text-xs uppercase tracking-[0.18em] text-content-dim">{section.label}</p>
                         <p className="text-sm text-content-secondary font-light leading-relaxed">
                           {section.value || 'Not recorded.'}
                         </p>
@@ -175,7 +175,7 @@ export const TheHx: React.FC<{
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 px-2">
                     <Activity size={14} className="text-accent-primary opacity-80" />
-                    <span className="text-[10px] uppercase tracking-widest font-bold text-content-dim">
+                    <span className="text-xs uppercase tracking-widest font-bold text-content-dim">
                       Differential Diagnosis (DDx)
                     </span>
                   </div>
@@ -183,7 +183,7 @@ export const TheHx: React.FC<{
                     {displayDDx.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {displayDDx.map((item: string, i: number) => (
-                          <span key={i} className="px-3 py-1 bg-accent-soft rounded-full text-[10px] text-accent-primary font-bold tracking-wide">
+                          <span key={i} className="px-3 py-1 bg-accent-soft rounded-full text-xs text-accent-primary font-bold tracking-wide">
                             {item}
                           </span>
                         ))}
@@ -202,3 +202,4 @@ export const TheHx: React.FC<{
     </OverlayPortal>
   );
 };
+

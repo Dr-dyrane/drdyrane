@@ -4,10 +4,10 @@ export type AppView = 'consult' | 'history' | 'about';
 export type SheetType = 'profile' | 'notifications' | null;
 
 export interface SOAPState {
-  S: Record<string, any>;
-  O: Record<string, any>;
-  A: Record<string, any>;
-  P: Record<string, any>;
+  S: Record<string, unknown>;
+  O: Record<string, unknown>;
+  A: Record<string, unknown>;
+  P: Record<string, unknown>;
 }
 
 export interface PillarData {
