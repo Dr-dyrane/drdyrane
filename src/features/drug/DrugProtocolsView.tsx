@@ -13,6 +13,7 @@ import {
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
+import { copyTextToClipboard } from '../../core/services/clipboard';
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
 type CalculatorMode = 'weight' | 'age';
@@ -337,12 +338,19 @@ export const DrugProtocolsView: React.FC = () => {
       ),
     ];
     const payload = lines.join('\n');
-    try {
-      await navigator.clipboard.writeText(payload);
+    const copied = await copyTextToClipboard(payload);
+    if (copied) {
       feedback('submit');
-    } catch {
-      window.prompt('Copy treatment sheet', payload);
+      return;
     }
+    dispatch({
+      type: 'ADD_NOTIFICATION',
+      payload: {
+        title: 'Copy Failed',
+        body: 'Unable to copy treatment sheet automatically. Please try again.',
+      },
+    });
+    feedback('error');
   };
 
   const openCalculatorSheet = () => {

@@ -49,6 +49,12 @@ export const buildLocalOptions = (
     /(keep fluids down|keep liquid down|hold down fluids|able to drink|drinking fluids|hydration|dehydrat|oral intake|sips)/;
   const symptomInventoryPattern =
     /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/;
+  const associatedMostPattern =
+    /(which|what).*(associated symptom|symptom).*(stand out|most|prominent)|most prominent associated symptom/;
+  const respiratoryContextPattern =
+    /\bcough|chest pain|breath|shortness of breath|sputum|phlegm|wheez/;
+  const feverContextPattern = /\bfever|chills?|rigors?|sweat|night\b/;
+  const painContextPattern = /\bpain|ache|chest\b/;
   const symptomClusterPattern =
     /(which symptom cluster|symptom cluster|which cluster stands out|cluster stands out)/;
   const feverDetailPattern = /(within fever pattern|fever pattern.*stand out|fever cluster)/;
@@ -158,6 +164,74 @@ export const buildLocalOptions = (
       ],
       allow_custom_input: true,
       context_hint: 'Choose one standout symptom.',
+    };
+  }
+
+  if (associatedMostPattern.test(normalized)) {
+    if (respiratoryContextPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'grid',
+        options: [
+          { id: 'resp-short-breath', text: 'Shortness of breath', category: 'associated_symptom', priority: 10 },
+          { id: 'resp-chest-pain', text: 'Chest pain', category: 'associated_symptom', priority: 9 },
+          { id: 'resp-fever-chills', text: 'Fever or chills', category: 'associated_symptom', priority: 8 },
+          { id: 'resp-sputum', text: 'Sputum or phlegm', category: 'associated_symptom', priority: 7 },
+          { id: 'resp-fatigue', text: 'Fatigue', category: 'associated_symptom', priority: 6 },
+          { id: 'resp-none', text: 'None stand out', category: 'associated_symptom', priority: 5 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Pick one key associated symptom.',
+      };
+    }
+
+    if (feverContextPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'grid',
+        options: [
+          { id: 'fever-chills', text: 'Chills or rigors', category: 'associated_symptom', priority: 10 },
+          { id: 'fever-headache', text: 'Headache', category: 'associated_symptom', priority: 9 },
+          { id: 'fever-body-aches', text: 'Body aches', category: 'associated_symptom', priority: 8 },
+          { id: 'fever-sweating', text: 'Sweating', category: 'associated_symptom', priority: 7 },
+          { id: 'fever-nausea', text: 'Nausea', category: 'associated_symptom', priority: 6 },
+          { id: 'fever-none', text: 'None stand out', category: 'associated_symptom', priority: 5 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Pick one key associated symptom.',
+      };
+    }
+
+    if (painContextPattern.test(normalized)) {
+      return {
+        mode: 'single',
+        ui_variant: 'grid',
+        options: [
+          { id: 'pain-breathlessness', text: 'Breathlessness', category: 'associated_symptom', priority: 10 },
+          { id: 'pain-nausea', text: 'Nausea', category: 'associated_symptom', priority: 9 },
+          { id: 'pain-dizziness', text: 'Dizziness', category: 'associated_symptom', priority: 8 },
+          { id: 'pain-sweating', text: 'Sweating', category: 'associated_symptom', priority: 7 },
+          { id: 'pain-palpitations', text: 'Palpitations', category: 'associated_symptom', priority: 6 },
+          { id: 'pain-none', text: 'None stand out', category: 'associated_symptom', priority: 5 },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Pick one key associated symptom.',
+      };
+    }
+
+    return {
+      mode: 'single',
+      ui_variant: 'grid',
+      options: [
+        { id: 'assoc-pain', text: 'Pain', category: 'associated_symptom', priority: 10 },
+        { id: 'assoc-breathing', text: 'Breathing issues', category: 'associated_symptom', priority: 9 },
+        { id: 'assoc-fever', text: 'Fever or chills', category: 'associated_symptom', priority: 8 },
+        { id: 'assoc-stomach', text: 'Stomach symptoms', category: 'associated_symptom', priority: 7 },
+        { id: 'assoc-fatigue', text: 'Fatigue', category: 'associated_symptom', priority: 6 },
+        { id: 'assoc-none', text: 'None stand out', category: 'associated_symptom', priority: 5 },
+      ],
+      allow_custom_input: true,
+      context_hint: 'Pick one key associated symptom.',
     };
   }
 

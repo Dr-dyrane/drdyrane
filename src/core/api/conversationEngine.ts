@@ -27,8 +27,10 @@ export const callConversationEngine = async (
   status: ClinicalState['status'];
 }> => {
   const memoryDossier = buildEncounterDossier(state);
+  const turnThreadMarker = `${state.sessionId}:${state.conversation.length}`;
   const conversationCacheKey = [
     'conversation',
+    turnThreadMarker,
     patientInput.trim().toLowerCase(),
     state.urgency,
     state.agent_state.phase,
@@ -68,6 +70,8 @@ export const callConversationEngine = async (
       body: JSON.stringify({
         patientInput,
         state: {
+          session_id: state.sessionId,
+          turn_index: state.conversation.length,
           soap: state.soap,
           agent_state: state.agent_state,
           ddx: state.ddx,
@@ -84,7 +88,7 @@ export const callConversationEngine = async (
             medications: state.profile.medications ?? null,
           },
           memory_dossier: memoryDossier,
-          conversation: state.conversation.slice(-12).map((msg) => ({
+          conversation: state.conversation.slice(-24).map((msg) => ({
             role: msg.role,
             content: msg.content,
           })),

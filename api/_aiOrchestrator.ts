@@ -237,12 +237,10 @@ const getApiKey = (provider: LlmProvider): string => {
     provider === 'anthropic'
       ? [
           normalizeEnvValue(process.env.ANTHROPIC_API_KEY),
-          normalizeEnvValue(process.env.VITE_ANTHROPIC_API_KEY),
           normalizeEnvValue(process.env.CLAUDE_API_KEY),
         ]
       : [
           normalizeEnvValue(process.env.OPENAI_API_KEY),
-          normalizeEnvValue(process.env.VITE_OPENAI_API_KEY),
         ];
   return candidates.find((value) => value.length > 0) || '';
 };
@@ -622,6 +620,29 @@ type OrchestratedCandidate = {
   source: 'profile' | 'llm';
 };
 
+type ChiefComplaintEngineId =
+  | 'fever'
+  | 'chest_pain'
+  | 'shortness_of_breath'
+  | 'headache'
+  | 'abdominal_pain'
+  | 'vomiting_nausea'
+  | 'diarrhea'
+  | 'rash'
+  | 'joint_pain'
+  | 'weakness_fatigue'
+  | 'bleeding'
+  | 'altered_mental_status'
+  | 'general';
+
+interface ChiefComplaintEngine {
+  id: ChiefComplaintEngineId;
+  label: string;
+  starterQuestion: string;
+  mustNotMiss: string[];
+  matchers: RegExp[];
+}
+
 const ICD10_RULES: Icd10Rule[] = [
   { pattern: /\bmalaria\b/i, code: 'B54' },
   { pattern: /\bdengue\b/i, code: 'A97.9' },
@@ -787,6 +808,94 @@ const FEVER_DISEASE_PROFILES: DiseaseProfile[] = [
     ],
     followUpQuestion: 'Any cough, sore throat, or runny nose consistent with influenza-like illness?',
     pendingActions: ['Assess influenza-like illness criteria', 'Supportive care and risk review'],
+  },
+];
+
+const CHIEF_COMPLAINT_ENGINES: ChiefComplaintEngine[] = [
+  {
+    id: 'fever',
+    label: 'Fever Engine',
+    starterQuestion: 'How long have you had the fever?',
+    mustNotMiss: ['Sepsis', 'Meningitis', 'Severe malaria'],
+    matchers: [/\bfever|temperature|pyrexia|febrile|chills?|rigors?\b/i],
+  },
+  {
+    id: 'chest_pain',
+    label: 'Chest Pain Engine',
+    starterQuestion: 'Is the chest pain pressure-like and does it spread to arm, jaw, or back?',
+    mustNotMiss: ['Acute coronary syndrome', 'Pulmonary embolism', 'Aortic dissection'],
+    matchers: [/\bchest pain|chest pressure|tight chest|sternal pain\b/i],
+  },
+  {
+    id: 'shortness_of_breath',
+    label: 'Shortness of Breath Engine',
+    starterQuestion: 'Did the breathing difficulty start suddenly, and is it present at rest?',
+    mustNotMiss: ['Pulmonary embolism', 'Acute heart failure', 'Severe asthma'],
+    matchers: [/\bshortness of breath|breathless|dyspnea|difficulty breathing\b/i],
+  },
+  {
+    id: 'headache',
+    label: 'Headache Engine',
+    starterQuestion: 'Is this the worst headache of your life or linked to neck stiffness?',
+    mustNotMiss: ['Subarachnoid hemorrhage', 'Meningitis', 'Stroke'],
+    matchers: [/\bheadache|head pain|migraine\b/i],
+  },
+  {
+    id: 'abdominal_pain',
+    label: 'Abdominal Pain Engine',
+    starterQuestion:
+      'Where is the pain most severe: upper right, upper middle, lower right, lower left, or diffuse?',
+    mustNotMiss: ['Appendicitis', 'Peritonitis', 'GI bleed'],
+    matchers: [/\babdominal pain|stomach pain|belly pain|epigastric|flank pain\b/i],
+  },
+  {
+    id: 'vomiting_nausea',
+    label: 'Vomiting/Nausea Engine',
+    starterQuestion: 'How many vomiting episodes have you had in the last 24 hours?',
+    mustNotMiss: ['Severe dehydration', 'Acute abdomen', 'DKA'],
+    matchers: [/\bnausea|vomit|throwing up\b/i],
+  },
+  {
+    id: 'diarrhea',
+    label: 'Diarrhea Engine',
+    starterQuestion: 'Is the stool watery or bloody, and for how many days?',
+    mustNotMiss: ['Severe dehydration', 'Sepsis', 'GI bleeding'],
+    matchers: [/\bdiarrh|loose stool|watery stool\b/i],
+  },
+  {
+    id: 'rash',
+    label: 'Rash Engine',
+    starterQuestion: 'Is the rash painful, itchy, or associated with fever or bleeding?',
+    mustNotMiss: ['Severe drug reaction', 'Meningococcemia', 'Sepsis'],
+    matchers: [/\brash|skin eruption|hives|lesion\b/i],
+  },
+  {
+    id: 'joint_pain',
+    label: 'Joint Pain Engine',
+    starterQuestion: 'Is the pain in one joint or many joints, and is there swelling or fever?',
+    mustNotMiss: ['Septic arthritis', 'Acute gout flare with infection mimic'],
+    matchers: [/\bjoint pain|arthralgia|swollen joint\b/i],
+  },
+  {
+    id: 'weakness_fatigue',
+    label: 'Weakness/Fatigue Engine',
+    starterQuestion: 'Is this generalized fatigue or focal weakness on one side of the body?',
+    mustNotMiss: ['Stroke', 'Sepsis', 'Severe anemia'],
+    matchers: [/\bweakness|fatigue|malaise|tired\b/i],
+  },
+  {
+    id: 'bleeding',
+    label: 'Bleeding Engine',
+    starterQuestion: 'Where are you bleeding from, and is bleeding heavy or persistent?',
+    mustNotMiss: ['GI hemorrhage', 'Postpartum hemorrhage', 'Coagulopathy'],
+    matchers: [/\bbleeding|blood in stool|vomiting blood|coughing blood|hematuria\b/i],
+  },
+  {
+    id: 'altered_mental_status',
+    label: 'Altered Mental Status Engine',
+    starterQuestion: 'Is there confusion, drowsiness, seizure, or recent loss of consciousness?',
+    mustNotMiss: ['Stroke', 'Hypoglycemia', 'Sepsis', 'Drug toxicity'],
+    matchers: [/\bconfusion|disoriented|altered mental|unconscious|seizure|faint\b/i],
   },
 ];
 
@@ -960,6 +1069,55 @@ const FEVER_PATHOGEN_PATTERNS: RegExp[] = [
   /\burinary tract infection\b|\buti\b|pyelonephritis/i,
   /\bgastroenteritis\b/i,
 ];
+
+const classifyChiefComplaint = (corpus: string): {
+  engineId: ChiefComplaintEngineId;
+  label: string;
+  starterQuestion: string;
+  mustNotMiss: string[];
+  confidence: number;
+  reason: string;
+} => {
+  const normalized = sanitizeText(corpus).toLowerCase();
+  if (!normalized) {
+    return {
+      engineId: 'general',
+      label: 'General Intake Engine',
+      starterQuestion: 'What symptom is bothering you the most right now?',
+      mustNotMiss: ['Acute collapse', 'Severe respiratory distress', 'Uncontrolled bleeding'],
+      confidence: 32,
+      reason: 'No clear chief complaint token detected',
+    };
+  }
+
+  const scored = CHIEF_COMPLAINT_ENGINES.map((engine) => ({
+    engine,
+    score: engine.matchers.filter((matcher) => matcher.test(normalized)).length,
+  })).sort((left, right) => right.score - left.score);
+
+  const lead = scored[0];
+  if (!lead || lead.score === 0) {
+    return {
+      engineId: 'general',
+      label: 'General Intake Engine',
+      starterQuestion: 'What symptom is bothering you the most right now?',
+      mustNotMiss: ['Acute collapse', 'Severe respiratory distress', 'Uncontrolled bleeding'],
+      confidence: 36,
+      reason: 'No direct engine keyword match',
+    };
+  }
+
+  const runner = scored[1];
+  const confidence = Math.max(45, Math.min(96, 58 + lead.score * 14 - (runner?.score || 0) * 9));
+  return {
+    engineId: lead.engine.id,
+    label: lead.engine.label,
+    starterQuestion: lead.engine.starterQuestion,
+    mustNotMiss: lead.engine.mustNotMiss,
+    confidence,
+    reason: `Matched ${lead.score} complaint cues for ${lead.engine.label}`,
+  };
+};
 
 const stripIcd10Label = (diagnosis: string): string =>
   diagnosis.replace(/\s*\(ICD-10:\s*[A-Z0-9.-]+\)\s*/gi, '').trim();
@@ -1326,6 +1484,7 @@ const applyFeverOnlyGuardrail = (
 const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
   const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
   const corpus = buildConsultTextCorpus(body, payload);
+  const complaintRoute = classifyChiefComplaint(corpus);
   const evidence = buildFeatureEvidence(corpus);
   const rankedProfiles = rankTopDownProfiles(corpus);
   const rankedFromLlm = rankLlmDiagnoses(withCodedDdx, evidence);
@@ -1356,9 +1515,13 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     : shouldOverrideQuestion(payload.question, lead, corpus, secondScore)
       ? lead.followUpQuestion
       : payload.question;
+  const safetyAction = `Must-not-miss checks for ${complaintRoute.label}: ${complaintRoute.mustNotMiss.join(', ')}`;
+  const routeAction = `Chief complaint route: ${complaintRoute.label} (${complaintRoute.reason})`;
   const nextActions = dedupeDxList([
     ...(payload.agent_state?.pending_actions || []),
     ...lead.pendingActions,
+    routeAction,
+    safetyAction,
     'Apply WHO/Medscape aligned differential confirmation steps',
   ]);
   const patientTurns =
@@ -1415,6 +1578,14 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     }
   );
 
+  const genericQuestionPattern = /(what symptom is bothering you the most right now|what changed most since symptoms began)/i;
+  const resolvedQuestion =
+    preferredQuestion && !genericQuestionPattern.test(preferredQuestion)
+      ? preferredQuestion
+      : payload.question && !genericQuestionPattern.test(payload.question)
+        ? payload.question
+        : complaintRoute.starterQuestion;
+
   return {
     ...payload,
     statement: ensureEmpathicStatement(payload.statement, body),
@@ -1426,17 +1597,16 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
       confidence: Math.max(clampPercent(payload.agent_state?.confidence), probabilityFloor),
       focus_area:
         payload.agent_state?.focus_area ||
-        `${stripIcd10Label(lead.diagnosis)} focused top-down differential narrowing`,
+        `${complaintRoute.label}: ${stripIcd10Label(lead.diagnosis)} focused top-down differential narrowing`,
       pending_actions: nextActions.slice(0, 8),
       last_decision:
-        `Top-down orchestration prioritized ${stripIcd10Label(lead.diagnosis)} with evidence-weighted ranking`,
+        `Top-down orchestration prioritized ${stripIcd10Label(lead.diagnosis)} with ${complaintRoute.label} routing`,
       positive_findings: mergedPositiveFindings,
       negative_findings: mergedNegativeFindings,
       must_not_miss_checkpoint: mergedCheckpoint,
     },
     question:
-      preferredQuestion ||
-      payload.question ||
+      resolvedQuestion ||
       'What symptom is bothering you the most right now?',
   };
 };
@@ -1479,7 +1649,7 @@ const callAnthropic = async (input: {
   const apiKey = getApiKey('anthropic');
   if (!apiKey) {
     throw new Error(
-      'Missing Anthropic key on server. Configure ANTHROPIC_API_KEY (or legacy VITE_ANTHROPIC_API_KEY).'
+      'Missing Anthropic key on server. Configure ANTHROPIC_API_KEY.'
     );
   }
 
@@ -1641,6 +1811,21 @@ const selectPrimaryProviderForOptions = (body: OptionsRequest): LlmProvider => {
   return 'openai';
 };
 
+const shouldForceCollaborativeConsult = (body: ConsultRequest): boolean => {
+  const urgency = sanitizeText(body.state?.urgency).toLowerCase();
+  if (urgency === 'critical' || urgency === 'high') return true;
+
+  const checkpoint = body.state?.agent_state?.must_not_miss_checkpoint as
+    | { required?: unknown; status?: unknown }
+    | undefined;
+  if (checkpoint?.required === true || sanitizeText(checkpoint?.status as string) === 'pending') {
+    return true;
+  }
+
+  const textCorpus = `${body.patientInput || ''} ${body.state?.memory_dossier || ''}`.toLowerCase();
+  return /(stroke|seizure|collapse|cannot breathe|chest pain|uncontrolled bleeding)/i.test(textCorpus);
+};
+
 const resolveProviderOrder = (primary: LlmProvider): LlmProvider[] =>
   primary === 'anthropic' ? ['anthropic', 'openai'] : ['openai', 'anthropic'];
 
@@ -1777,7 +1962,9 @@ Return only valid JSON.`;
 export const runConsult = async (body: ConsultRequest): Promise<unknown> => {
   const primaryProvider = selectPrimaryProviderForConsult(body);
   const providerOrder = resolveProviderOrder(primaryProvider);
-  const collaborationEnabled = normalizeBooleanEnv(process.env.LLM_COLLABORATION, true);
+  const collaborationEnabled =
+    shouldForceCollaborativeConsult(body) ||
+    normalizeBooleanEnv(process.env.LLM_COLLABORATION, false);
   const response = await runCollaborative(
     providerOrder,
     collaborationEnabled,
@@ -1790,7 +1977,7 @@ export const runConsult = async (body: ConsultRequest): Promise<unknown> => {
 export const runOptions = async (body: OptionsRequest): Promise<unknown> => {
   const primaryProvider = selectPrimaryProviderForOptions(body);
   const providerOrder = resolveProviderOrder(primaryProvider);
-  const collaborationEnabled = normalizeBooleanEnv(process.env.LLM_OPTIONS_COLLABORATION, true);
+  const collaborationEnabled = normalizeBooleanEnv(process.env.LLM_OPTIONS_COLLABORATION, false);
 
   return runCollaborative(
     providerOrder,

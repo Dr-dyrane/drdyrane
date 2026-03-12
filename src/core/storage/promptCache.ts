@@ -15,9 +15,9 @@ const PROMPT_LOG_KEY = 'dr_dyrane.v2.prompt_log';
 const MAX_LOG_ITEMS = 240;
 
 const readCache = (): Record<string, CacheEntry<unknown>> => {
-  const raw = localStorage.getItem(CACHE_KEY);
-  if (!raw) return {};
   try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (!raw) return {};
     return JSON.parse(raw) as Record<string, CacheEntry<unknown>>;
   } catch {
     return {};
@@ -25,7 +25,11 @@ const readCache = (): Record<string, CacheEntry<unknown>> => {
 };
 
 const writeCache = (cache: Record<string, CacheEntry<unknown>>) => {
-  localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore cache persistence failures; runtime should continue.
+  }
 };
 
 export const getPromptCache = <T>(cacheKey: string): T | null => {
@@ -51,8 +55,12 @@ export const setPromptCache = <T>(cacheKey: string, value: T, ttlMs: number): vo
 };
 
 export const recordPromptUsage = (kind: PromptLogEntry['kind'], key: string): void => {
-  const raw = localStorage.getItem(PROMPT_LOG_KEY);
-  const list: PromptLogEntry[] = raw ? (JSON.parse(raw) as PromptLogEntry[]) : [];
-  list.unshift({ kind, key, at: Date.now() });
-  localStorage.setItem(PROMPT_LOG_KEY, JSON.stringify(list.slice(0, MAX_LOG_ITEMS)));
+  try {
+    const raw = localStorage.getItem(PROMPT_LOG_KEY);
+    const list: PromptLogEntry[] = raw ? (JSON.parse(raw) as PromptLogEntry[]) : [];
+    list.unshift({ kind, key, at: Date.now() });
+    localStorage.setItem(PROMPT_LOG_KEY, JSON.stringify(list.slice(0, MAX_LOG_ITEMS)));
+  } catch {
+    // Ignore log persistence failures; this should not break consult flow.
+  }
 };

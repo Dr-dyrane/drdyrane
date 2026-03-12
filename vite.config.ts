@@ -9,7 +9,6 @@ export default defineConfig(({ mode }) => {
   const resolvedAnthropicKey =
     process.env.ANTHROPIC_API_KEY ||
     env.ANTHROPIC_API_KEY ||
-    env.VITE_ANTHROPIC_API_KEY ||
     ''
 
   if (resolvedAnthropicKey.trim()) {
@@ -19,7 +18,6 @@ export default defineConfig(({ mode }) => {
   const resolvedOpenAiKey =
     process.env.OPENAI_API_KEY ||
     env.OPENAI_API_KEY ||
-    env.VITE_OPENAI_API_KEY ||
     ''
 
   if (resolvedOpenAiKey.trim()) {

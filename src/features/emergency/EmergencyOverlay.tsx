@@ -3,9 +3,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { AlertCircle, MapPin, Share2, Siren } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { getNearestED, generateSBAR } from '../../core/services/triage';
+import { copyTextToClipboard } from '../../core/services/clipboard';
 
 export const EmergencyOverlay: React.FC = () => {
-  const { state } = useClinical();
+  const { state, dispatch } = useClinical();
   const [edUrl, setEdUrl] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
 
@@ -24,8 +25,16 @@ export const EmergencyOverlay: React.FC = () => {
       if (navigator.share) {
         await navigator.share({ title: 'SBAR Report', text });
       } else {
-        await navigator.clipboard.writeText(text);
-        window.alert('SBAR report copied. Show this to emergency staff.');
+        const copied = await copyTextToClipboard(text);
+        dispatch({
+          type: 'ADD_NOTIFICATION',
+          payload: {
+            title: copied ? 'SBAR Copied' : 'SBAR Share Required',
+            body: copied
+              ? 'SBAR report copied. Show this to emergency staff.'
+              : 'Unable to copy SBAR automatically. Share manually from this screen.',
+          },
+        });
       }
     } finally {
       setSharing(false);
@@ -101,4 +110,3 @@ export const EmergencyOverlay: React.FC = () => {
     </AnimatePresence>
   );
 };
-

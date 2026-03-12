@@ -16,6 +16,16 @@ const extractFocusedQuestion = (question: string): string => {
     return normalized;
   }
 
+  const clauseStartMatch = [...normalized.matchAll(/(?:^|[.?!]\s+)(who|what|when|where|why|how|is|are|do|did|have|has|can|could|would|will|should)\b/gi)];
+  if (clauseStartMatch.length > 0) {
+    const lastClause = clauseStartMatch[clauseStartMatch.length - 1];
+    const keyword = lastClause[1];
+    const keywordIndex = normalized.toLowerCase().lastIndexOf(keyword.toLowerCase());
+    if (keywordIndex >= 0) {
+      return normalized.slice(keywordIndex).trim();
+    }
+  }
+
   const matches = Array.from(
     normalized.matchAll(
       new RegExp(QUESTION_START_PATTERN.source, 'gi')
@@ -25,7 +35,7 @@ const extractFocusedQuestion = (question: string): string => {
 
   const questionMarkIndex = normalized.lastIndexOf('?');
   const validMatches = matches.filter((match) => (match.index ?? 0) < questionMarkIndex);
-  const anchor = validMatches.length > 0 ? validMatches[validMatches.length - 1] : matches[0];
+  const anchor = validMatches.length > 0 ? validMatches[0] : matches[0];
   const startIndex = anchor.index ?? 0;
 
   return normalized

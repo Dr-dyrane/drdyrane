@@ -626,11 +626,17 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       persistSessionState(state);
     } catch {
-      console.warn("Storage quota exceeded. Pruning history.");
-      // If we hit quota, clear non-essential history snapshots to save the session
-      if (state.history.length > 0) {
-        // This will trigger a re-render and another attempt at saving via the next effect loop or similar
-        // For now, we'll just log it; the next action will use the pruned state.
+      console.warn('Storage quota exceeded. Persisting a compact fallback snapshot.');
+      try {
+        persistSessionState({
+          ...state,
+          history: [],
+          archives: state.archives.slice(0, 120),
+          conversation: state.conversation.slice(-24),
+          notifications: state.notifications.slice(0, 60),
+        });
+      } catch {
+        // Ignore hard storage failures to keep UI responsive.
       }
     }
   }, [state]);

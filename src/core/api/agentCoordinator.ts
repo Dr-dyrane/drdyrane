@@ -28,6 +28,8 @@ import {
   getPhaseFallbackQuestion,
   getRecentDoctorQuestions,
   isLikelyAnsweredTopicQuestion,
+  isLoopingGenericPrompt,
+  isRecentlyAnsweredQuestionIntent,
   isLikelyRepeatedQuestion,
 } from './agent/repetitionGuard';
 import { buildAutoClerking } from './agent/clerkingAutoFill';
@@ -536,7 +538,7 @@ export class AgentCoordinator {
       typeof firstSegment.timeout_seconds === 'number' && firstSegment.timeout_seconds > 0
         ? {
             ...stagedOptionsBase,
-            allow_custom_input: false,
+            allow_custom_input: true,
             context_hint:
               stagedOptionsBase.context_hint ||
               `Step 1 of ${segments.length}: Capture complaint timing.`,
@@ -584,7 +586,7 @@ export class AgentCoordinator {
       stagedOptionsBase && typeof nextSegment.timeout_seconds === 'number' && nextSegment.timeout_seconds > 0
         ? {
             ...stagedOptionsBase,
-            allow_custom_input: false,
+            allow_custom_input: true,
             context_hint:
               stagedOptionsBase.context_hint ||
               `Step ${nextIndex + 1} of ${gate.segments.length}: Quick yes/no.`,
@@ -676,7 +678,7 @@ export class AgentCoordinator {
     let doctorMessage = buildDoctorMessageFromResult(conversationResult.message);
     const aiQuestion = this.ensureProgressiveQuestion(
       doctorMessage.metadata?.question || getFallbackQuestion(),
-      stateForTurn.conversation,
+      nextConversation,
       conversationResult.agent_state.phase
     );
     doctorMessage = createDoctorMessage(aiQuestion, conversationResult.message.metadata?.statement);
@@ -1067,13 +1069,46 @@ export class AgentCoordinator {
   ): string {
     const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
     const recentQuestions = getRecentDoctorQuestions(conversation, 3);
-    if (
-      !isLikelyRepeatedQuestion(sanitized, recentQuestions) &&
-      !isLikelyAnsweredTopicQuestion(sanitized, conversation)
-    ) {
+    const shouldFallback =
+      isLikelyRepeatedQuestion(sanitized, recentQuestions) ||
+      isLikelyAnsweredTopicQuestion(sanitized, conversation) ||
+      isRecentlyAnsweredQuestionIntent(sanitized, conversation) ||
+      isLoopingGenericPrompt(sanitized, conversation);
+    if (!shouldFallback) {
       return sanitized;
     }
-    return getPhaseFallbackQuestion(phase, conversation.length);
+    const contextualFallback = this.getContextAwareFallbackQuestion(phase, conversation);
+    if (contextualFallback) {
+      return contextualFallback;
+    }
+    return getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
+  }
+
+  private getContextAwareFallbackQuestion(
+    phase: ClinicalState['agent_state']['phase'],
+    conversation: ClinicalState['conversation']
+  ): string | null {
+    const patientMentions = conversation
+      .filter((entry) => entry.role === 'patient')
+      .map((entry) => entry.content.toLowerCase())
+      .slice(-6)
+      .join(' ');
+
+    if (/\bnone stand out|nothing stands out|no other symptom\b/.test(patientMentions)) {
+      if (/\bcough\b/.test(patientMentions) && /\bchest pain\b/.test(patientMentions)) {
+        return 'Is the chest pain worse with deep breathing, cough, movement, or unchanged?';
+      }
+      if (/\bcough\b/.test(patientMentions)) {
+        return 'With your cough, are you also having sputum, wheeze, or shortness of breath?';
+      }
+      if (/\bfever\b/.test(patientMentions)) {
+        return 'Do fever episodes come in cycles (evening chills, night spike, morning relief) or stay constant?';
+      }
+      return 'What is the one symptom worrying you most right now?';
+    }
+
+    const recentQuestions = getRecentDoctorQuestions(conversation, 3);
+    return getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
   }
 
   private resolveSymptomCluster(answerText: string): 'fever' | 'head_pain' | 'airway' | 'gut' | 'general' | 'none' {
@@ -1142,7 +1177,11 @@ export class AgentCoordinator {
   }
 
   private getRecoveryQuestion(phase: ClinicalState['agent_state']['phase']): string {
-    return getPhaseFallbackQuestion(phase, this.state.conversation.length);
+    return getPhaseFallbackQuestion(
+      phase,
+      this.state.conversation.length,
+      getRecentDoctorQuestions(this.state.conversation, 3)
+    );
   }
 
   private shouldAutoCompleteEncounter(
@@ -1229,6 +1268,7 @@ export const processAgentInteraction = async (
   isOptionSelection: boolean = false
 ): Promise<Partial<ClinicalState>> => {
   const coordinator = getAgentCoordinator(state);
+  coordinator.updateState(state);
 
   if (isOptionSelection) {
     return coordinator.processOptionSelection(Array.isArray(input) ? input : [input]);

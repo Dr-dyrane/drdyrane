@@ -1,3 +1,5 @@
+import { ensureE2EServer } from './e2eServer.mjs';
+
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
 
 const makeInitialState = () => ({
@@ -62,53 +64,57 @@ const updateConversation = (state, input, response) => {
 };
 
 const run = async () => {
+  const server = await ensureE2EServer(baseUrl);
   const state = makeInitialState();
   let finalResponse = null;
+  try {
+    for (let turn = 0; turn < scenario.length; turn += 1) {
+      const patientInput = scenario[turn];
+      const response = await fetch(`${baseUrl}/api/consult`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ patientInput, state }),
+      });
 
-  for (let turn = 0; turn < scenario.length; turn += 1) {
-    const patientInput = scenario[turn];
-    const response = await fetch(`${baseUrl}/api/consult`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ patientInput, state }),
-    });
+      if (!response.ok) {
+        const raw = await response.text();
+        throw new Error(`Consult API failed at turn ${turn + 1}: ${response.status} ${raw}`);
+      }
 
-    if (!response.ok) {
-      const raw = await response.text();
-      throw new Error(`Consult API failed at turn ${turn + 1}: ${response.status} ${raw}`);
+      finalResponse = await response.json();
+      const ddx = Array.isArray(finalResponse.ddx) ? finalResponse.ddx : [];
+      console.log(`Turn ${turn + 1}:`, ddx[0] || 'No DDX');
+
+      if (!hasSingleQuestion(finalResponse.question)) {
+        console.error('Single-question policy failed.');
+        console.error('Turn:', turn + 1);
+        console.error('Question:', finalResponse.question);
+        process.exit(1);
+      }
+
+      updateConversation(state, patientInput, finalResponse);
+      mergeSoapUpdates(state, finalResponse.soap_updates);
+      state.ddx = ddx;
+      state.agent_state = finalResponse.agent_state || state.agent_state;
+      state.urgency = finalResponse.urgency || state.urgency;
+      state.probability = Number(finalResponse.probability) || state.probability;
     }
 
-    finalResponse = await response.json();
-    const ddx = Array.isArray(finalResponse.ddx) ? finalResponse.ddx : [];
-    console.log(`Turn ${turn + 1}:`, ddx[0] || 'No DDX');
+    const topDx = finalResponse?.ddx?.[0] || '';
+    const hasMalaria = /malaria/i.test(topDx);
+    const hasIcd10 = /ICD-10:\s*B54/i.test(topDx);
 
-    if (!hasSingleQuestion(finalResponse.question)) {
-      console.error('Single-question policy failed.');
-      console.error('Turn:', turn + 1);
-      console.error('Question:', finalResponse.question);
+    if (!hasMalaria || !hasIcd10) {
+      console.error('E2E malaria test failed.');
+      console.error('Top diagnosis:', topDx);
       process.exit(1);
     }
 
-    updateConversation(state, patientInput, finalResponse);
-    mergeSoapUpdates(state, finalResponse.soap_updates);
-    state.ddx = ddx;
-    state.agent_state = finalResponse.agent_state || state.agent_state;
-    state.urgency = finalResponse.urgency || state.urgency;
-    state.probability = Number(finalResponse.probability) || state.probability;
+    console.log('E2E malaria test passed.');
+    console.log('Top diagnosis:', topDx);
+  } finally {
+    await server.stop();
   }
-
-  const topDx = finalResponse?.ddx?.[0] || '';
-  const hasMalaria = /malaria/i.test(topDx);
-  const hasIcd10 = /ICD-10:\s*B54/i.test(topDx);
-
-  if (!hasMalaria || !hasIcd10) {
-    console.error('E2E malaria test failed.');
-    console.error('Top diagnosis:', topDx);
-    process.exit(1);
-  }
-
-  console.log('E2E malaria test passed.');
-  console.log('Top diagnosis:', topDx);
 };
 
 run().catch((error) => {

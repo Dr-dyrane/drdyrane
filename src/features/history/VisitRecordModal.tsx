@@ -32,6 +32,7 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
   const [visitLabel, setVisitLabel] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
   const [notes, setNotes] = useState('');
+  const [confirmDeleteArmed, setConfirmDeleteArmed] = useState(false);
   const timestampLabel = useMemo(
     () => (record ? new Date(record.timestamp).toLocaleString() : ''),
     [record]
@@ -48,7 +49,14 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
     setVisitLabel(record.visit_label || 'Visit');
     setDiagnosis(record.diagnosis || '');
     setNotes(record.notes || '');
+    setConfirmDeleteArmed(false);
   }, [record]);
+
+  useEffect(() => {
+    if (!confirmDeleteArmed) return;
+    const timeout = window.setTimeout(() => setConfirmDeleteArmed(false), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [confirmDeleteArmed]);
 
   const isDirty = useMemo(() => {
     if (!record) return false;
@@ -88,10 +96,14 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
 
   const deleteRecord = () => {
     if (!record) return;
-    const ok = window.confirm('Delete this visit record permanently?');
-    if (!ok) return;
+    if (!confirmDeleteArmed) {
+      setConfirmDeleteArmed(true);
+      feedback('question');
+      return;
+    }
     dispatch({ type: 'DELETE_ARCHIVE', payload: record.id });
     feedback('error');
+    setConfirmDeleteArmed(false);
     onClose();
   };
 
@@ -337,10 +349,12 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
 
                   <button
                     onClick={deleteRecord}
-                    className="h-12 w-full rounded-2xl px-4 cta-danger text-sm font-semibold focus-glow interactive-tap"
+                    className={`h-12 w-full rounded-2xl px-4 text-sm font-semibold focus-glow interactive-tap ${
+                      confirmDeleteArmed ? 'cta-danger' : 'surface-strong text-danger-primary'
+                    }`}
                   >
                     <span className="inline-flex items-center gap-2">
-                      <Trash2 size={14} /> Delete Visit
+                      <Trash2 size={14} /> {confirmDeleteArmed ? 'Confirm Delete' : 'Delete Visit'}
                     </span>
                   </button>
                 </motion.section>

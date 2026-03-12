@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useCallback, useMemo, useState } from 'react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { AppView } from '../../core/types/clinical';
 import {
@@ -20,7 +20,11 @@ import {
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { signalFeedback } from '../../core/services/feedback';
-import { ClinicalProcessModal } from '../../features/consultation/ClinicalProcessModal';
+const ClinicalProcessModal = lazy(() =>
+  import('../../features/consultation/ClinicalProcessModal').then((module) => ({
+    default: module.ClinicalProcessModal,
+  }))
+);
 
 type ActionIcon = React.ComponentType<{ size?: string | number }>;
 
@@ -131,8 +135,15 @@ export const BottomNav: React.FC = () => {
       return;
     }
 
-    window.alert('PDF export is available after a completed consultation or from visit records.');
+    dispatch({
+      type: 'ADD_NOTIFICATION',
+      payload: {
+        title: 'PDF Not Ready',
+        body: 'PDF export is available after a completed consultation or from visit records.',
+      },
+    });
   }, [
+    dispatch,
     state.archives,
     state.pillars,
     state.profile.age,
@@ -365,10 +376,12 @@ export const BottomNav: React.FC = () => {
         </div>
       </nav>
 
-      <ClinicalProcessModal
-        isOpen={processOpen}
-        onClose={() => setProcessOpen(false)}
-      />
+      <Suspense fallback={null}>
+        <ClinicalProcessModal
+          isOpen={processOpen}
+          onClose={() => setProcessOpen(false)}
+        />
+      </Suspense>
     </>
   );
 };

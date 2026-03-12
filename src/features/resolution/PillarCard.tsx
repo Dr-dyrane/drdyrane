@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { Activity, Copy, Printer, Shield, TrendingUp, UserCheck } from 'lucide-react';
 import { PillarData } from '../../core/types/clinical';
+import { copyTextToClipboard } from '../../core/services/clipboard';
 
 type EncounterPrescription = NonNullable<NonNullable<PillarData['encounter']>['prescriptions'][number]>;
 
@@ -22,6 +23,12 @@ const getOrsBandDose = (weight: number): number => {
 };
 
 const isValidWeight = (value: number): boolean => !Number.isNaN(value) && value > 0 && value <= 300;
+
+const getLikelihoodBand = (value: number): 'High likelihood' | 'Medium likelihood' | 'Low likelihood' => {
+  if (value >= 75) return 'High likelihood';
+  if (value >= 50) return 'Medium likelihood';
+  return 'Low likelihood';
+};
 
 const resolveDoseFromWeight = (item: EncounterPrescription, weightKg: number | null): string => {
   const meta = item.weight_based;
@@ -133,10 +140,15 @@ export const PillarCard: React.FC = () => {
       ...(plan.encounter?.follow_up?.length ? [`Follow-up: ${plan.encounter.follow_up.join(' | ')}`] : []),
     ];
     const payload = lines.join('\n');
-    try {
-      await navigator.clipboard.writeText(payload);
-    } catch {
-      window.prompt('Copy clinical summary', payload);
+    const copied = await copyTextToClipboard(payload);
+    if (!copied) {
+      dispatch({
+        type: 'ADD_NOTIFICATION',
+        payload: {
+          title: 'Copy Failed',
+          body: 'Unable to copy summary automatically. Please try again.',
+        },
+      });
     }
   };
 
@@ -154,6 +166,8 @@ export const PillarCard: React.FC = () => {
     state.profile.sex ? state.profile.sex : null,
     enteredWeight ? `${enteredWeight} kg` : null,
   ].filter(Boolean) as string[];
+  const likelihoodBand = getLikelihoodBand(Math.max(0, Math.min(100, state.probability || 0)));
+  const confidenceLabel = `${Math.round(Math.max(0, Math.min(100, state.probability || 0)))}%`;
 
   return (
     <div className="flex-1 px-2 py-4 space-y-5 animate-emergence">
@@ -175,6 +189,14 @@ export const PillarCard: React.FC = () => {
             ))}
           </div>
         )}
+        <div className="flex items-center justify-center gap-2">
+          <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+            {likelihoodBand}
+          </span>
+          <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+            Confidence {confidenceLabel}
+          </span>
+        </div>
       </motion.div>
 
       <div className="flex flex-col gap-6 pb-24">

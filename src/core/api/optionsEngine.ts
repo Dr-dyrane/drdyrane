@@ -236,7 +236,8 @@ const normalizeResponseOptions = (
           }
         : undefined,
     context_hint: sanitizeContextHint(raw.context_hint),
-    allow_custom_input: raw.allow_custom_input ?? true,
+    // Chat-first contract: options are assistive, never the only path.
+    allow_custom_input: true,
   };
 };
 
