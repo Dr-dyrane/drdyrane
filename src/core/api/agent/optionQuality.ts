@@ -1,4 +1,6 @@
 import { ResponseOptions } from '../../types/clinical';
+import { isNumericScaleOptionSet, isScaleIntentQuestion } from './scaleIntent';
+import { isDirectYesNoQuestion } from './localOptions';
 
 const BINARY_SET = new Set(['yes', 'no', 'not sure', 'unsure', 'unknown']);
 const TRAJECTORY_PATTERN =
@@ -19,7 +21,14 @@ export const isOptionSetRelevant = (question: string, options: ResponseOptions):
   const texts = toTexts(options);
   if (texts.length === 0) return false;
 
+  if (isScaleIntentQuestion(q)) {
+    return isNumericScaleOptionSet(options.options);
+  }
+
   const binaryLike = isBinaryLike(texts);
+  if (isDirectYesNoQuestion(q)) {
+    return binaryLike;
+  }
   const trajectoryCount = texts.filter((text) => TRAJECTORY_PATTERN.test(text)).length;
 
   if (/(what other symptoms|which symptoms|other symptoms|along with|associated symptoms)/i.test(q)) {

@@ -1,0 +1,42 @@
+{
+  "id": "/",
+  "name": "Dr. Dyrane",
+  "short_name": "DrDyrane",
+  "description": "The Digital Consultant - High-fidelity clinical induction registrar.",
+  "lang": "en-US",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone"
+  ],
+  "orientation": "portrait",
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "categories": [
+    "medical",
+    "health",
+    "productivity"
+  ],
+  "prefer_related_applications": false,
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

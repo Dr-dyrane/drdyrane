@@ -12,25 +12,32 @@ import {
   createDoctorMessage,
   createPatientMessage,
 } from './agent/messageFactory';
-import { buildLocalOptions } from './agent/localOptions';
+import { buildLocalOptions, isStructuredLocalQuestion } from './agent/localOptions';
 import { isOptionSetRelevant } from './agent/optionQuality';
 import {
   extractBundledSegments,
   getFallbackQuestion,
+  sanitizeQuestion,
 } from './agent/questionFlow';
 import {
   extractProfileUpdates,
   getProfileDelta,
   mergeProfile,
 } from './agent/profileMemory';
+import {
+  getPhaseFallbackQuestion,
+  getRecentDoctorQuestions,
+  isLikelyAnsweredTopicQuestion,
+  isLikelyRepeatedQuestion,
+} from './agent/repetitionGuard';
+import { buildAutoClerking } from './agent/clerkingAutoFill';
 
 const PROFILE_MEMORY_NOTIFICATION = {
   title: 'Profile Memory Updated',
   body: 'New patient details were captured and saved for future clinical context.',
 };
 
-const INTERRUPTION_FALLBACK = {
-  question: 'I had a brief interruption. What symptom feels worst right now?',
+const INTERRUPTION_FALLBACK_BASE = {
   statement: 'Thank you. I am still with you.',
 };
 
@@ -73,9 +80,10 @@ export class AgentCoordinator {
       return await this.processConversationTurn(normalizedInput, patientMessage, stateForTurn);
     } catch (error) {
       console.error('Agent Coordinator Error:', error);
+      const recoveryQuestion = this.getRecoveryQuestion(stateForTurn.agent_state.phase);
       const fallbackDoctorMessage = createDoctorMessage(
-        INTERRUPTION_FALLBACK.question,
-        INTERRUPTION_FALLBACK.statement
+        recoveryQuestion,
+        INTERRUPTION_FALLBACK_BASE.statement
       );
 
       const fallbackState: Partial<ClinicalState> = {
@@ -83,8 +91,14 @@ export class AgentCoordinator {
         conversation: [...this.state.conversation, patientMessage, fallbackDoctorMessage],
         thinking: 'Attempting to reconnect with clinical engine...',
         profile: stateForTurn.profile,
+        clerking: buildAutoClerking(
+          stateForTurn.clerking,
+          stateForTurn.soap,
+          [...this.state.conversation, patientMessage, fallbackDoctorMessage],
+          stateForTurn.profile
+        ),
         question_gate: null,
-        response_options: buildLocalOptions(INTERRUPTION_FALLBACK.question, this.state.profile),
+        response_options: buildLocalOptions(recoveryQuestion, this.state.profile),
         selected_options: [],
       };
 
@@ -164,7 +178,15 @@ export class AgentCoordinator {
 
     const nextConversation: ConversationMessage[] = [...stateForTurn.conversation, patientMessage];
     let doctorMessage = buildDoctorMessageFromResult(conversationResult.message);
-    const question = doctorMessage.metadata?.question || getFallbackQuestion();
+    const question = this.ensureProgressiveQuestion(
+      doctorMessage.metadata?.question || getFallbackQuestion(),
+      stateForTurn.conversation,
+      conversationResult.agent_state.phase
+    );
+    doctorMessage = createDoctorMessage(
+      question,
+      conversationResult.message.metadata?.statement
+    );
     const segments = conversationResult.lens_trigger ? [] : extractBundledSegments(question);
 
     let questionGate: QuestionGateState | null = null;
@@ -201,12 +223,20 @@ export class AgentCoordinator {
     }
 
     nextConversation.push(doctorMessage);
+    const nextSoap = { ...stateForTurn.soap, ...conversationResult.soap_updates };
+    const nextClerking = buildAutoClerking(
+      stateForTurn.clerking,
+      nextSoap,
+      nextConversation,
+      stateForTurn.profile
+    );
 
     const newState: Partial<ClinicalState> = {
       conversation: nextConversation,
-      soap: { ...stateForTurn.soap, ...conversationResult.soap_updates },
+      soap: nextSoap,
       ddx: conversationResult.ddx,
       profile: stateForTurn.profile,
+      clerking: nextClerking,
       agent_state: conversationResult.agent_state,
       urgency: conversationResult.urgency,
       probability: conversationResult.probability,
@@ -265,6 +295,12 @@ export class AgentCoordinator {
       const stagedState: Partial<ClinicalState> = {
         conversation: [...this.state.conversation, patientMessage, stagedDoctor],
         profile: profileForTurn,
+        clerking: buildAutoClerking(
+          this.state.clerking,
+          this.state.soap,
+          [...this.state.conversation, patientMessage, stagedDoctor],
+          profileForTurn
+        ),
         question_gate: nextGate,
         response_options: stagedOptions,
         selected_options: [],
@@ -301,6 +337,12 @@ export class AgentCoordinator {
       const fallbackState: Partial<ClinicalState> = {
         status: 'active',
         conversation: [...this.state.conversation, patientMessage, fallbackDoctorMessage],
+        clerking: buildAutoClerking(
+          this.state.clerking,
+          this.state.soap,
+          [...this.state.conversation, patientMessage, fallbackDoctorMessage],
+          this.state.profile
+        ),
         question_gate: null,
         response_options: buildLocalOptions(GATE_FINALIZATION_FALLBACK.question, this.state.profile),
         selected_options: [],
@@ -317,6 +359,9 @@ export class AgentCoordinator {
     profile: ClinicalState['profile']
   ): Promise<ResponseOptions> {
     const localFallback = buildLocalOptions(question, profile);
+    if (isStructuredLocalQuestion(question)) {
+      return localFallback;
+    }
     try {
       const aiOptions = await generateResponseOptions(question, agentState, currentSOAP);
       if (!isOptionSetRelevant(question, aiOptions)) {
@@ -327,6 +372,26 @@ export class AgentCoordinator {
       console.error('Option resolution fallback:', error);
       return localFallback;
     }
+  }
+
+  private ensureProgressiveQuestion(
+    question: string,
+    conversation: ClinicalState['conversation'],
+    phase: ClinicalState['agent_state']['phase']
+  ): string {
+    const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
+    const recentQuestions = getRecentDoctorQuestions(conversation, 3);
+    if (
+      !isLikelyRepeatedQuestion(sanitized, recentQuestions) &&
+      !isLikelyAnsweredTopicQuestion(sanitized, conversation)
+    ) {
+      return sanitized;
+    }
+    return getPhaseFallbackQuestion(phase, conversation.length);
+  }
+
+  private getRecoveryQuestion(phase: ClinicalState['agent_state']['phase']): string {
+    return getPhaseFallbackQuestion(phase, this.state.conversation.length);
   }
 
   getState(): ClinicalState {

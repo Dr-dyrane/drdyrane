@@ -8,7 +8,12 @@ CONVERSATION PROTOCOLS:
 2. Keep responses concise and patient-facing.
 3. Do not ask for data already provided in SOAP or profile memory.
 4. If visual inspection is required, set lens_trigger with a short instruction.
-5. Return only strict JSON.
+5. Never repeat the same question asked in recent turns; ask the next discriminating question.
+6. Use ICD-10 oriented diagnostic framing for medical conditions. Use DSM-5 framing only when the symptom cluster is psychiatric.
+7. Keep question length <= 140 characters when possible.
+8. Return only strict JSON.
+9. Initial epidemiology context is Nigeria unless the patient states another location.
+10. For fever-first presentations in Nigeria, consider malaria early in DDX and ask high-yield differentiating questions.
 
 RESPONSE JSON:
 {
@@ -44,6 +49,8 @@ RULES:
 - For trigger questions (deep breath/cough/movement) include trigger-specific or yes/no options.
 - For count/frequency questions include numeric ranges.
 - Keep options short (2-5 words each) and patient-friendly.
+- If the question asks for a numeric scale (e.g., 1-10), return numeric options only.
+- If the question is direct yes/no, return only yes/no/not sure options.
 
 RESPONSE JSON:
 {
@@ -69,6 +76,7 @@ export type ConsultRequest = {
     urgency: string;
     probability: number;
     profile: Record<string, unknown>;
+    memory_dossier?: string;
     conversation: ConversationEntry[];
   };
 };
@@ -143,15 +151,31 @@ const callAnthropic = async (payload: Record<string, unknown>): Promise<string> 
 
   for (let index = 0; index < models.length; index += 1) {
     const model = models[index];
-    const response = await fetch(ANTHROPIC_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({ ...basePayload, model }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 18000);
+    let response: Response;
+    try {
+      response = await fetch(ANTHROPIC_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({ ...basePayload, model, temperature: 0.2 }),
+        signal: controller.signal,
+      });
+    } catch (error) {
+      clearTimeout(timeout);
+      const hasAnotherCandidate = index < models.length - 1;
+      lastErrorMessage = error instanceof Error ? error.message : 'Anthropic network failure.';
+      if (hasAnotherCandidate) {
+        continue;
+      }
+      throw new Error(lastErrorMessage);
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (response.ok) {
       const data = (await response.json()) as { content?: Array<{ text?: string }> };
@@ -171,10 +195,15 @@ const callAnthropic = async (payload: Record<string, unknown>): Promise<string> 
 };
 
 export const runConsult = async (body: ConsultRequest): Promise<unknown> => {
-  const conversationContext = (body.state?.conversation || []).slice(-10).map((entry) => ({
+  const conversationContext = (body.state?.conversation || []).slice(-12).map((entry) => ({
     role: entry.role === 'doctor' ? 'assistant' : 'user',
     content: entry.content,
   }));
+
+  const recentDoctorQuestions = (body.state?.conversation || [])
+    .filter((entry) => entry.role === 'doctor')
+    .map((entry) => entry.content)
+    .slice(-4);
 
   const prompt = `CONTEXT:
 Current SOAP: ${JSON.stringify(body.state?.soap || {})}
@@ -182,6 +211,9 @@ Agent State: ${JSON.stringify(body.state?.agent_state || {})}
 Differential (DDX): ${(body.state?.ddx || []).join(', ')}
 Urgency: ${body.state?.urgency || 'low'}
 Confidence: ${body.state?.probability || 0}%
+Recent Doctor Questions: ${JSON.stringify(recentDoctorQuestions)}
+Clinical Memory Dossier: ${body.state?.memory_dossier || 'No structured dossier yet.'}
+Deployment Region: Nigeria (default context)
 
 Patient Input: "${body.patientInput || ''}"
 
@@ -190,7 +222,7 @@ Patient Profile Memory: ${JSON.stringify(body.state?.profile || {})}
 Advance clinical assessment and ask one question.`;
 
   const raw = await callAnthropic({
-    max_tokens: 1024,
+    max_tokens: 650,
     system: [{ type: 'text', text: CONVERSATION_SYSTEM_PROMPT }],
     messages: [...conversationContext, { role: 'user', content: prompt }],
   });
@@ -200,7 +232,7 @@ Advance clinical assessment and ask one question.`;
 
 export const runOptions = async (body: OptionsRequest): Promise<unknown> => {
   const raw = await callAnthropic({
-    max_tokens: 900,
+    max_tokens: 420,
     system: [{ type: 'text', text: OPTIONS_SYSTEM_PROMPT }],
     messages: [
       {

@@ -1,5 +1,12 @@
 import { ClinicalState, ResponseOptions } from '../types/clinical';
 import { getPromptCache, recordPromptUsage, setPromptCache } from '../storage/promptCache';
+import {
+  buildNumericScaleOptions,
+  isNumericScaleOptionSet,
+  isScaleIntentQuestion,
+  parseScaleRange,
+} from './agent/scaleIntent';
+import { isDirectYesNoQuestion } from './agent/localOptions';
 
 const OPTIONS_CACHE_TTL_MS = 1000 * 60 * 20;
 
@@ -101,21 +108,61 @@ const shouldUseFunctionalScale = (
   return functionalPattern.test(question) && (options.length === 0 || isBinaryLike(options));
 };
 
+const forceNumericScaleIfNeeded = (
+  question: string,
+  mode: ResponseOptions['mode'],
+  options: ResponseOptions['options'],
+  hintedVariant?: ResponseOptions['ui_variant']
+): {
+  mode: ResponseOptions['mode'];
+  options: ResponseOptions['options'];
+  uiVariantHint?: ResponseOptions['ui_variant'];
+  scale?: ResponseOptions['scale'];
+} => {
+  if (!isScaleIntentQuestion(question)) {
+    return { mode, options, uiVariantHint: hintedVariant };
+  }
+
+  const range = parseScaleRange(question) || { min: 1, max: 10 };
+  if (isNumericScaleOptionSet(options) && (hintedVariant === 'scale' || hintedVariant === undefined)) {
+    return {
+      mode: 'single',
+      options,
+      uiVariantHint: 'scale',
+      scale: { min: range.min, max: range.max, step: 1, low_label: 'Mild', high_label: 'Severe' },
+    };
+  }
+
+  return {
+    mode: 'single',
+    options: buildNumericScaleOptions(range.min, range.max),
+    uiVariantHint: 'scale',
+    scale: { min: range.min, max: range.max, step: 1, low_label: 'Mild', high_label: 'Severe' },
+  };
+};
+
 const normalizeResponseOptions = (
   raw: Partial<ResponseOptions>,
   question: string
 ): ResponseOptions => {
-  const mode: ResponseOptions['mode'] =
+  let mode: ResponseOptions['mode'] =
     raw.mode === 'multiple' || raw.mode === 'freeform' || raw.mode === 'confirm'
       ? raw.mode
       : 'single';
 
   const maxOptions = mode === 'multiple' ? 8 : 10;
   let options = sanitizeOptions(raw.options || []).slice(0, maxOptions);
+  let hintedVariant = raw.ui_variant;
 
   if (shouldUseFunctionalScale(question, options)) {
     options = FUNCTIONAL_SCALE_OPTIONS;
   }
+
+  const scaleAdjusted = forceNumericScaleIfNeeded(question, mode, options, hintedVariant);
+  const forcedScale: ResponseOptions['scale'] | undefined = scaleAdjusted.scale;
+  mode = scaleAdjusted.mode;
+  options = scaleAdjusted.options;
+  hintedVariant = scaleAdjusted.uiVariantHint;
 
   if (options.length === 0) {
     options = [
@@ -125,7 +172,19 @@ const normalizeResponseOptions = (
     ];
   }
 
-  const uiVariant = inferVariant(mode, options, raw.ui_variant);
+  const uiVariant = inferVariant(mode, options, hintedVariant);
+
+  const sanitizeContextHint = (hint: string | undefined): string => {
+    const cleaned = (hint || '').replace(/\s+/g, ' ').trim();
+    if (!cleaned) return isDirectYesNoQuestion(question) ? 'Yes or No.' : 'Select response.';
+    if (
+      cleaned.length > 64 ||
+      /(helps|distinguish|because|important|used to|clinical|diagnos)/i.test(cleaned)
+    ) {
+      return isDirectYesNoQuestion(question) ? 'Yes or No.' : 'Select response.';
+    }
+    return cleaned;
+  };
 
   return {
     mode,
@@ -133,7 +192,7 @@ const normalizeResponseOptions = (
     ui_variant: uiVariant,
     scale:
       uiVariant === 'scale'
-        ? {
+        ? forcedScale || {
             min: 1,
             max: options.length,
             step: 1,
@@ -141,7 +200,7 @@ const normalizeResponseOptions = (
             high_label: 'High',
           }
         : undefined,
-    context_hint: raw.context_hint || 'Select the best match.',
+    context_hint: sanitizeContextHint(raw.context_hint),
     allow_custom_input: raw.allow_custom_input ?? true,
   };
 };
@@ -156,6 +215,8 @@ export const generateResponseOptions = async (
     lastQuestion.trim().toLowerCase(),
     agentState.phase,
     agentState.focus_area,
+    JSON.stringify(currentSOAP?.S || {}),
+    JSON.stringify(currentSOAP?.A || {}),
   ].join('::');
 
   const cached = getPromptCache<ResponseOptions>(optionsCacheKey);

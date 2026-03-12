@@ -1,5 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { Check } from 'lucide-react';
 import { ResponseOptions } from '../../../core/types/clinical';
 
 interface ResponseOptionsPanelProps {
@@ -45,11 +46,6 @@ const getOptionClass = (variant: NonNullable<ResponseOptions['ui_variant']>): st
 const getToneClass = (index: number): string => {
   const tones = ['option-tone-cyan', 'option-tone-mint', 'option-tone-amber', 'option-tone-rose'];
   return tones[index % tones.length];
-};
-
-const getOptionMarker = (index: number): string => {
-  const markers = ['*', '+', '^', '~', 'o', '>'];
-  return markers[index % markers.length];
 };
 
 const getSelectedSingleOption = (
@@ -257,13 +253,16 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 )}
 
                 {isSelected && !isLadder && !isSegmentedLike && (
-                  <span className="absolute right-3 top-3 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full option-selected-badge text-[12px]">
-                    {getOptionMarker(index)}
+                  <span className="absolute right-3 top-3 z-20 inline-flex h-6 w-6 items-center justify-center rounded-full option-selected-badge">
+                    <Check size={12} />
                   </span>
                 )}
 
                 {isSelected && isSegmentedLike && (
-                  <span className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20 text-[10px]">*</span>
+                  <motion.span
+                    layoutId="segment-indicator"
+                    className="absolute bottom-1 left-2 right-2 z-20 h-[3px] rounded-full option-ladder-bar-active"
+                  />
                 )}
               </motion.button>
             );

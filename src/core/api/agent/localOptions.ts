@@ -1,4 +1,36 @@
 import { ClinicalState, ResponseOptions } from '../../types/clinical';
+import {
+  buildNumericScaleOptions,
+  isScaleIntentQuestion,
+  parseScaleRange,
+} from './scaleIntent';
+
+const STRUCTURED_QUESTION_PATTERNS: RegExp[] = [
+  /(when did|since when|how long|when .* start|started|start)/,
+  /(highest.*(temperature|temp)|temperature|temp|how high|measured|reading|degrees|thermometer)/,
+  /(how many|number of|episodes?|times|count|frequency)/,
+  /(what other symptoms|other symptoms|which symptoms|what symptoms|associated symptoms|along with)/,
+  /(one side|both sides|which side|left|right|unilateral|bilateral)/,
+  /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/,
+  /(how old|your age|age\?)/,
+  /(how.*(changed|change|improv|wors)|overall.*(better|worse)|since.*started.*(better|worse|change)|progress(ion|ed)?\b|has .* (improved|worsened|changed))/,
+];
+
+export const isStructuredLocalQuestion = (question: string): boolean => {
+  const normalized = (question || '').toLowerCase();
+  if (!normalized) return false;
+  if (isScaleIntentQuestion(normalized)) return true;
+  if (isDirectYesNoQuestion(normalized)) return true;
+  return STRUCTURED_QUESTION_PATTERNS.some((pattern) => pattern.test(normalized));
+};
+
+export const isDirectYesNoQuestion = (question: string): boolean => {
+  const normalized = (question || '').toLowerCase().trim();
+  if (!normalized) return false;
+  if (/^(how many|how long|what|which|where|when|why)\b/.test(normalized)) return false;
+  if (/(scale|rate|severity|intensity|score|\d+\s*(?:-|to)\s*\d+)/.test(normalized)) return false;
+  return /^(is|are|do|did|have|has|can|could|will|would|should)\b/.test(normalized);
+};
 
 export const buildLocalOptions = (
   question: string,
@@ -18,6 +50,7 @@ export const buildLocalOptions = (
   const lateralityPattern = /(one side|both sides|which side|left|right|unilateral|bilateral)/;
   const triggerPattern =
     /(worse when|worsen when|deep breath|breathe deeply|cough|movement|touch|pain on breathing|pleuritic)/;
+  const yesNoPattern = isDirectYesNoQuestion(normalized);
 
   if (symptomInventoryPattern.test(normalized)) {
     return {
@@ -164,21 +197,14 @@ export const buildLocalOptions = (
     };
   }
 
-  if (/(scale|1-10|1 to 10|rate|severity|intensity|worst)/.test(normalized)) {
-    const options = Array.from({ length: 10 }, (_, index) => {
-      const value = index + 1;
-      return {
-        id: `scale-${value}`,
-        text: String(value),
-        category: 'severity',
-        priority: 11 - value,
-      };
-    });
+  if (isScaleIntentQuestion(normalized)) {
+    const range = parseScaleRange(normalized) || { min: 1, max: 10 };
+    const options = buildNumericScaleOptions(range.min, range.max);
     return {
       mode: 'single',
       ui_variant: 'scale',
       options,
-      scale: { min: 1, max: 10, step: 1, low_label: 'Mild', high_label: 'Severe' },
+      scale: { min: range.min, max: range.max, step: 1, low_label: 'Mild', high_label: 'Severe' },
       allow_custom_input: true,
       context_hint: 'Select the closest severity level.',
     };
@@ -226,7 +252,7 @@ export const buildLocalOptions = (
     };
   }
 
-  if (/^(is|are|do|did|have|has|can|will|would|should|could)\b/.test(normalized) || normalized.includes('yes or no')) {
+  if (yesNoPattern || normalized.includes('yes or no')) {
     return {
       mode: 'single',
       ui_variant: 'segmented',
@@ -236,7 +262,7 @@ export const buildLocalOptions = (
         { id: 'unsure', text: 'Not sure', category: 'confirmation', priority: 8 },
       ],
       allow_custom_input: true,
-      context_hint: 'Pick the closest answer.',
+      context_hint: 'Yes or No.',
     };
   }
 

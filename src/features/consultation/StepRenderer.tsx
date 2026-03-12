@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ChevronLeft, X } from 'lucide-react';
+import { ArrowUp, ChevronLeft, ListChecks, MessageCircleQuestion, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
@@ -282,7 +282,7 @@ export const StepRenderer: React.FC = () => {
           {canGoBack && (
             <button
               onClick={() => dispatch({ type: 'GO_BACK' })}
-              className="p-2 text-content-dim hover:text-neon-cyan transition-all active:scale-90 rounded-full focus-glow"
+              className="p-2 text-content-dim hover:text-accent-primary transition-all active:scale-90 rounded-full focus-glow"
               aria-label="Go back"
             >
               <ChevronLeft size={20} />
@@ -293,7 +293,7 @@ export const StepRenderer: React.FC = () => {
           {state.status !== 'idle' && (
             <button
               onClick={() => dispatch({ type: 'RESET' })}
-              className="p-2 text-content-dim hover:text-neon-red transition-all active:scale-90 rounded-full focus-glow"
+              className="p-2 text-content-dim hover:text-danger-primary transition-all active:scale-90 rounded-full focus-glow"
               aria-label="Reset consultation"
             >
               <X size={18} />
@@ -407,8 +407,9 @@ export const StepRenderer: React.FC = () => {
                       Clarifier {gateProgress}
                     </p>
                   )}
-                  <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center">
-                    Question
+                  <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
+                    <MessageCircleQuestion size={11} />
+                    Prompt
                   </p>
                   <ClinicalQuestionCard
                     statement={statement}
@@ -419,8 +420,9 @@ export const StepRenderer: React.FC = () => {
               )}
 
               <div className="space-y-4 consult-answer-zone">
-                <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center">
-                  Choose Response
+                <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim text-center inline-flex w-full items-center justify-center gap-1.5">
+                  <ListChecks size={11} />
+                  Response
                 </p>
                 <ResponseOptionsPanel
                   responseOptions={state.response_options}

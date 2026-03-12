@@ -1,7 +1,15 @@
 import { ClinicalState, ConversationMessage, AgentState } from '../types/clinical';
 import { getPromptCache, recordPromptUsage, setPromptCache } from '../storage/promptCache';
+import { normalizePercentage } from './agent/clinicalMath';
+import { buildEncounterDossier } from './agent/encounterMemory';
 
-const CONVERSATION_CACHE_TTL_MS = 1000 * 45;
+const CONVERSATION_CACHE_TTL_MS = 1000 * 12;
+
+const getConversationFingerprint = (state: ClinicalState): string =>
+  state.conversation
+    .slice(-6)
+    .map((message) => `${message.role}:${(message.metadata?.question || message.content || '').slice(0, 80)}`)
+    .join('|');
 
 export const callConversationEngine = async (
   patientInput: string,
@@ -18,11 +26,14 @@ export const callConversationEngine = async (
   lens_trigger: string | null;
   status: ClinicalState['status'];
 }> => {
+  const memoryDossier = buildEncounterDossier(state);
   const conversationCacheKey = [
     'conversation',
     patientInput.trim().toLowerCase(),
     state.urgency,
     state.agent_state.phase,
+    getConversationFingerprint(state),
+    memoryDossier.slice(0, 420),
     JSON.stringify(state.soap),
   ].join('::');
 
@@ -71,7 +82,8 @@ export const callConversationEngine = async (
             chronic_conditions: state.profile.chronic_conditions ?? null,
             medications: state.profile.medications ?? null,
           },
-          conversation: state.conversation.slice(-10).map((msg) => ({
+          memory_dossier: memoryDossier,
+          conversation: state.conversation.slice(-12).map((msg) => ({
             role: msg.role,
             content: msg.content,
           })),
@@ -94,6 +106,16 @@ export const callConversationEngine = async (
     }
 
     const aiResponse = await response.json();
+    const normalizedAgentState: AgentState = {
+      phase: aiResponse?.agent_state?.phase || state.agent_state.phase,
+      confidence: normalizePercentage(aiResponse?.agent_state?.confidence, state.agent_state.confidence),
+      focus_area: aiResponse?.agent_state?.focus_area || state.agent_state.focus_area,
+      pending_actions: Array.isArray(aiResponse?.agent_state?.pending_actions)
+        ? aiResponse.agent_state.pending_actions.slice(0, 8)
+        : state.agent_state.pending_actions,
+      last_decision: aiResponse?.agent_state?.last_decision || state.agent_state.last_decision,
+    };
+    const normalizedProbability = normalizePercentage(aiResponse?.probability, state.probability);
 
     // Create conversation message
     const fullContent = [aiResponse.statement, aiResponse.question].filter(Boolean).join(' ');
@@ -106,7 +128,7 @@ export const callConversationEngine = async (
       metadata: {
         soap_updates: aiResponse.soap_updates,
         urgency: aiResponse.urgency,
-        probability: aiResponse.probability,
+        probability: normalizedProbability,
         thinking: aiResponse.thinking,
         statement: aiResponse.statement,
         question: aiResponse.question,
@@ -117,10 +139,10 @@ export const callConversationEngine = async (
     const normalizedResult = {
       message: doctorMessage,
       soap_updates: aiResponse.soap_updates || {},
-      agent_state: aiResponse.agent_state,
+      agent_state: normalizedAgentState,
       ddx: aiResponse.ddx || state.ddx,
       urgency: aiResponse.urgency,
-      probability: aiResponse.probability,
+      probability: normalizedProbability,
       thinking: aiResponse.thinking,
       needs_options: aiResponse.needs_options,
       lens_trigger: aiResponse.lens_trigger ?? null,

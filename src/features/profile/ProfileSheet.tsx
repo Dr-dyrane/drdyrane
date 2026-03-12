@@ -1,5 +1,22 @@
 import React, { useRef, useState } from 'react';
-import { User, Settings2, Info, History, Stethoscope, Upload, Trash2, X } from 'lucide-react';
+import {
+  User,
+  Settings2,
+  Info,
+  History,
+  Stethoscope,
+  Upload,
+  Trash2,
+  X,
+  Monitor,
+  Moon,
+  Sun,
+  Vibrate,
+  Volume2,
+  Bell,
+  Sparkles,
+  Type,
+} from 'lucide-react';
 import { SideSheet } from '../../components/shared/SideSheet';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { ToggleSwitch } from '../../components/shared/ToggleSwitch';
@@ -121,8 +138,8 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
 
           <section className="space-y-3">
             <div className="flex items-center gap-2 px-1">
-              <User size={14} className="text-neon-cyan/80" />
-              <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Patient Details</span>
+              <User size={14} className="text-accent-soft" />
+              <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Profile</span>
             </div>
             <div className="surface-raised rounded-[24px] p-4 space-y-3">
               <label className="block space-y-1">
@@ -134,7 +151,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 />
               </label>
               <div className="space-y-2">
-                <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Profile photo</span>
+                <span className="text-[10px] uppercase tracking-[0.2em] text-content-dim">Avatar</span>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -208,31 +225,41 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
 
           <section className="space-y-3">
             <div className="flex items-center gap-2 px-1">
-              <Settings2 size={14} className="text-neon-cyan/80" />
-              <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Settings</span>
+              <Settings2 size={14} className="text-accent-soft" />
+              <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Controls</span>
             </div>
             <div className="surface-raised rounded-[24px] p-4 space-y-3">
               <div className="flex items-center justify-between px-3 py-2 rounded-xl surface-strong text-sm">
-                <span>Theme</span>
+                <span className="inline-flex items-center gap-2">
+                  <Sparkles size={13} /> Theme
+                </span>
                 <div className="flex gap-1">
-                  {(['system', 'dark', 'light'] as const).map((theme) => (
+                  {[
+                    { id: 'system' as const, icon: Monitor, label: 'System' },
+                    { id: 'dark' as const, icon: Moon, label: 'Dark' },
+                    { id: 'light' as const, icon: Sun, label: 'Light' },
+                  ].map((theme) => (
                     <button
-                      key={theme}
+                      key={theme.id}
+                      title={theme.label}
+                      aria-label={theme.label}
                       onClick={() => {
                         feedback();
-                        dispatch({ type: 'SET_THEME', payload: theme });
+                        dispatch({ type: 'SET_THEME', payload: theme.id });
                       }}
-                      className={`h-7 px-2 rounded-lg text-[10px] uppercase tracking-[0.18em] interactive-tap ${
-                        state.theme === theme ? 'bg-surface-active text-content-active' : 'surface-raised'
+                      className={`h-7 w-7 rounded-lg inline-flex items-center justify-center interactive-tap ${
+                        state.theme === theme.id ? 'bg-surface-active text-content-active' : 'surface-raised'
                       }`}
                     >
-                      {theme}
+                      <theme.icon size={12} />
                     </button>
                   ))}
                 </div>
               </div>
               <div className="flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm">
-                <span>Haptics</span>
+                <span className="inline-flex items-center gap-2">
+                  <Vibrate size={13} /> Haptics
+                </span>
                 <ToggleSwitch
                   checked={settings.haptics_enabled}
                   onToggle={() => toggleSetting({ haptics_enabled: !settings.haptics_enabled })}
@@ -240,7 +267,9 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div className="flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm">
-                <span>Audio cues</span>
+                <span className="inline-flex items-center gap-2">
+                  <Volume2 size={13} /> Audio
+                </span>
                 <ToggleSwitch
                   checked={settings.audio_enabled}
                   onToggle={() => toggleSetting({ audio_enabled: !settings.audio_enabled })}
@@ -248,7 +277,9 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div className="flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm">
-                <span>Reduced motion</span>
+                <span className="inline-flex items-center gap-2">
+                  <Monitor size={13} /> Motion
+                </span>
                 <ToggleSwitch
                   checked={settings.reduced_motion}
                   onToggle={() => toggleSetting({ reduced_motion: !settings.reduced_motion })}
@@ -256,7 +287,9 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div className="flex items-center justify-between px-3 py-3 rounded-xl surface-strong text-sm">
-                <span>Notifications</span>
+                <span className="inline-flex items-center gap-2">
+                  <Bell size={13} /> Alerts
+                </span>
                 <ToggleSwitch
                   checked={settings.notifications_enabled}
                   onToggle={() => toggleSetting({ notifications_enabled: !settings.notifications_enabled })}
@@ -264,13 +297,17 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 />
               </div>
               <div className="flex items-center justify-between px-3 py-2 rounded-xl surface-strong text-sm">
-                <span>Text scale</span>
+                <span className="inline-flex items-center gap-2">
+                  <Type size={13} /> Type
+                </span>
                 <div className="flex gap-1">
                   {(['sm', 'md', 'lg'] as const).map((scale) => (
                     <button
                       key={scale}
+                      title={`Text ${scale}`}
+                      aria-label={`Text ${scale}`}
                       onClick={() => toggleSetting({ text_scale: scale })}
-                      className={`h-7 px-2 rounded-lg text-[10px] uppercase tracking-[0.18em] interactive-tap ${
+                      className={`h-7 w-7 rounded-lg text-[10px] uppercase tracking-[0.18em] interactive-tap ${
                         settings.text_scale === scale ? 'bg-surface-active text-content-active' : 'surface-raised'
                       }`}
                     >
@@ -284,19 +321,36 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
 
           <section className="space-y-3 pb-6">
             <div className="flex items-center gap-2 px-1">
-              <Info size={14} className="text-neon-cyan/80" />
-              <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Helper Pages</span>
+              <Info size={14} className="text-accent-soft" />
+              <span className="text-[10px] uppercase tracking-[0.22em] text-content-dim font-semibold">Pages</span>
             </div>
             <div className="surface-raised rounded-[24px] p-4 space-y-2">
-              <button onClick={() => setViewAndClose('consult')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm interactive-tap interactive-soft">
-                <Stethoscope size={14} /> Consult
-              </button>
-              <button onClick={() => setViewAndClose('history')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm interactive-tap interactive-soft">
-                <History size={14} /> History
-              </button>
-              <button onClick={() => setViewAndClose('about')} className="w-full flex items-center gap-2 px-3 py-2 rounded-xl surface-strong text-sm interactive-tap interactive-soft">
-                <Info size={14} /> About
-              </button>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  title="Consult"
+                  aria-label="Consult"
+                  onClick={() => setViewAndClose('consult')}
+                  className="h-11 rounded-xl surface-strong inline-flex items-center justify-center interactive-tap interactive-soft"
+                >
+                  <Stethoscope size={15} />
+                </button>
+                <button
+                  title="History"
+                  aria-label="History"
+                  onClick={() => setViewAndClose('history')}
+                  className="h-11 rounded-xl surface-strong inline-flex items-center justify-center interactive-tap interactive-soft"
+                >
+                  <History size={15} />
+                </button>
+                <button
+                  title="About"
+                  aria-label="About"
+                  onClick={() => setViewAndClose('about')}
+                  className="h-11 rounded-xl surface-strong inline-flex items-center justify-center interactive-tap interactive-soft"
+                >
+                  <Info size={15} />
+                </button>
+              </div>
             </div>
           </section>
         </div>

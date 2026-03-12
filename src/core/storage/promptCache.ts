@@ -10,8 +10,8 @@ interface PromptLogEntry {
   at: number;
 }
 
-const CACHE_KEY = 'dr_dyrane.v1.prompt_cache';
-const PROMPT_LOG_KEY = 'dr_dyrane.v1.prompt_log';
+const CACHE_KEY = 'dr_dyrane.v2.prompt_cache';
+const PROMPT_LOG_KEY = 'dr_dyrane.v2.prompt_log';
 const MAX_LOG_ITEMS = 240;
 
 const readCache = (): Record<string, CacheEntry<unknown>> => {

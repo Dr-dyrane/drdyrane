@@ -3,7 +3,6 @@ import { useClinical } from '../../core/context/ClinicalContext';
 import { AppView } from '../../core/types/clinical';
 import {
   ClipboardList,
-  FilePenLine,
   History,
   LineChart,
   MoreHorizontal,
@@ -17,20 +16,11 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { signalFeedback } from '../../core/services/feedback';
 import { playCelebrationBurst } from '../../core/services/celebration';
 import { ClinicalProcessModal } from '../../features/consultation/ClinicalProcessModal';
-import { OverlayPortal } from '../shared/OverlayPortal';
 
 export const BottomNav: React.FC = () => {
   const { state, dispatch } = useClinical();
   const [menuOpen, setMenuOpen] = useState(false);
-  const [clerkingOpen, setClerkingOpen] = useState(false);
   const [processOpen, setProcessOpen] = useState(false);
-  const [clerkingDraft, setClerkingDraft] = useState({
-    hpc: '',
-    pmh: '',
-    dh: '',
-    sh: '',
-    fh: '',
-  });
 
   const feedback = useCallback(
     (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
@@ -47,23 +37,6 @@ export const BottomNav: React.FC = () => {
     setMenuOpen(false);
   };
 
-  const openClerkingComposer = useCallback(() => {
-    setClerkingDraft({
-      hpc: state.clerking.hpc || '',
-      pmh: state.clerking.pmh || '',
-      dh: state.clerking.dh || '',
-      sh: state.clerking.sh || '',
-      fh: state.clerking.fh || '',
-    });
-    setClerkingOpen(true);
-  }, [
-    state.clerking.dh,
-    state.clerking.fh,
-    state.clerking.hpc,
-    state.clerking.pmh,
-    state.clerking.sh,
-  ]);
-
   const navItems = [
     { id: 'consult' as AppView, icon: Stethoscope, label: 'Consult' },
     { id: 'history' as AppView, icon: History, label: 'History' },
@@ -78,15 +51,6 @@ export const BottomNav: React.FC = () => {
         icon: ClipboardList,
         onClick: () => {
           dispatch({ type: 'TOGGLE_HX' });
-          feedback('select');
-        },
-      },
-      {
-        key: 'clerking',
-        label: 'Clerking',
-        icon: FilePenLine,
-        onClick: () => {
-          openClerkingComposer();
           feedback('select');
         },
       },
@@ -135,7 +99,6 @@ export const BottomNav: React.FC = () => {
       hasArchives,
       state.archives,
       feedback,
-      openClerkingComposer,
     ]
   );
 
@@ -167,11 +130,11 @@ export const BottomNav: React.FC = () => {
 
     if (state.status === 'idle') {
       return {
-        label: 'Open Clerking',
-        icon: FilePenLine,
+        label: 'Clinical Process',
+        icon: LineChart,
         onClick: () => {
-          openClerkingComposer();
-          feedback('select');
+          setProcessOpen(true);
+          feedback('question');
         },
         disabled: false,
       };
@@ -198,7 +161,7 @@ export const BottomNav: React.FC = () => {
       },
       disabled: false,
     };
-  }, [dispatch, feedback, hasArchives, openClerkingComposer, state.archives, state.status, state.view]);
+  }, [dispatch, feedback, hasArchives, state.archives, state.status, state.view]);
 
   const triggerPrimaryAction = () => {
     if (menuOpen) {
@@ -213,30 +176,6 @@ export const BottomNav: React.FC = () => {
     primaryAction.onClick();
   };
 
-  const commitClerking = () => {
-    const payload = {
-      hpc: clerkingDraft.hpc.trim(),
-      pmh: clerkingDraft.pmh.trim(),
-      dh: clerkingDraft.dh.trim(),
-      sh: clerkingDraft.sh.trim(),
-      fh: clerkingDraft.fh.trim(),
-    };
-
-    if (!Object.values(payload).some(Boolean)) return;
-    dispatch({ type: 'UPDATE_CLERKING', payload });
-    dispatch({
-      type: 'ADD_NOTIFICATION',
-      payload: {
-        title: 'Clerking Updated',
-        body: 'Structured clerking sections were updated for the active case.',
-      },
-    });
-    setClerkingDraft({ hpc: '', pmh: '', dh: '', sh: '', fh: '' });
-    setClerkingOpen(false);
-    setMenuOpen(false);
-    feedback('submit');
-  };
-
   const triggerAction = (run: () => void, disabled?: boolean) => {
     if (disabled) return;
     playCelebrationBurst({
@@ -245,11 +184,6 @@ export const BottomNav: React.FC = () => {
     });
     run();
     setMenuOpen(false);
-  };
-
-  const closeComposer = () => {
-    setClerkingOpen(false);
-    setClerkingDraft({ hpc: '', pmh: '', dh: '', sh: '', fh: '' });
   };
 
   const PrimaryIcon = primaryAction.icon;
@@ -276,7 +210,7 @@ export const BottomNav: React.FC = () => {
                   }`}
                   aria-label={`Open ${item.id}`}
                 >
-                  <item.icon size={18} className={isActive ? 'text-neon-cyan' : ''} />
+                  <item.icon size={18} className={isActive ? 'text-accent-primary' : ''} />
                   <AnimatePresence>
                     {isActive && (
                       <motion.span
@@ -359,72 +293,6 @@ export const BottomNav: React.FC = () => {
           </div>
         </div>
       </nav>
-
-      <OverlayPortal>
-        <AnimatePresence>
-          {clerkingOpen && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={closeComposer}
-                className="fixed inset-0 z-[150] overlay-backdrop backdrop-blur-md"
-              />
-              <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', damping: 28, stiffness: 280 }}
-                className="fixed inset-x-0 bottom-0 max-w-[440px] mx-auto z-[160] px-4 pb-6 pointer-events-auto"
-              >
-                <div className="surface-raised rounded-[30px] p-4 shadow-float space-y-3">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] uppercase tracking-[0.24em] text-content-dim font-semibold">
-                      Patient Clerking
-                    </p>
-                    <button onClick={closeComposer} className="h-9 w-9 rounded-full surface-strong flex items-center justify-center">
-                      <X size={14} />
-                    </button>
-                  </div>
-                  <div className="space-y-2">
-                    {[
-                      { key: 'hpc', label: 'HPC', placeholder: 'History of presenting complaint' },
-                      { key: 'pmh', label: 'PMH', placeholder: 'Past medical history' },
-                      { key: 'dh', label: 'DH', placeholder: 'Drug history' },
-                      { key: 'sh', label: 'SH', placeholder: 'Social history' },
-                      { key: 'fh', label: 'FH', placeholder: 'Family history' },
-                    ].map((field) => (
-                      <label key={field.key} className="block space-y-1">
-                        <span className="text-[10px] uppercase tracking-[0.18em] text-content-dim">{field.label}</span>
-                        <textarea
-                          rows={2}
-                          value={clerkingDraft[field.key as keyof typeof clerkingDraft]}
-                          onChange={(e) =>
-                            setClerkingDraft((prev) => ({
-                              ...prev,
-                              [field.key]: e.target.value,
-                            }))
-                          }
-                          placeholder={field.placeholder}
-                          className="w-full rounded-xl surface-strong p-3 text-sm text-content-primary resize-none"
-                        />
-                      </label>
-                    ))}
-                  </div>
-                  <button
-                    onClick={commitClerking}
-                    disabled={!Object.values(clerkingDraft).some((value) => value.trim())}
-                    className="w-full h-12 rounded-2xl bg-surface-active text-content-active text-[10px] uppercase tracking-[0.24em] font-semibold disabled:opacity-45"
-                  >
-                    Save Clerking
-                  </button>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </OverlayPortal>
 
       <ClinicalProcessModal
         isOpen={processOpen}

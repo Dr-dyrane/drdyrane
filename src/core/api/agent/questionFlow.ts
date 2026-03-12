@@ -3,12 +3,40 @@ import { GatedQuestionSegment } from '../../types/clinical';
 const FALLBACK_QUESTION = 'What symptom is bothering you the most right now?';
 const LEADING_QUESTION_PATTERN =
   /^(who|what|when|where|why|how|is|are|do|did|have|has|can|could|would|will|should)\b/i;
+const QUESTION_START_PATTERN =
+  /\b(who|what|when|where|why|how|is|are|do|did|have|has|can|could|would|will|should)\b/i;
 const CONNECTOR_SPLIT_PATTERN =
   /\s*(?:,|;)?\s+(?:and|also|plus)\s+(?=(?:are|is|do|did|have|has|can|could|would|will|should|what|when|where|which|why|how)\b)/gi;
 const COMMA_SPLIT_PATTERN =
   /\s*,\s+(?=(?:are|is|do|did|have|has|can|could|would|will|should|what|when|where|which|why|how)\b)/gi;
 
 export const getFallbackQuestion = (): string => FALLBACK_QUESTION;
+
+const extractFocusedQuestion = (question: string): string => {
+  const normalized = question.trim();
+  if (!normalized.includes('?')) return normalized;
+
+  if (LEADING_QUESTION_PATTERN.test(normalized)) {
+    return normalized;
+  }
+
+  const matches = Array.from(
+    normalized.matchAll(
+      new RegExp(QUESTION_START_PATTERN.source, 'gi')
+    )
+  );
+  if (matches.length === 0) return normalized;
+
+  const questionMarkIndex = normalized.lastIndexOf('?');
+  const validMatches = matches.filter((match) => (match.index ?? 0) < questionMarkIndex);
+  const anchor = validMatches.length > 0 ? validMatches[validMatches.length - 1] : matches[0];
+  const startIndex = anchor.index ?? 0;
+
+  return normalized
+    .slice(startIndex)
+    .replace(/^(and|also|plus)\s+/i, '')
+    .trim();
+};
 
 export const sanitizeQuestion = (rawQuestion: string): string => {
   const cleaned = (rawQuestion || '')
@@ -25,13 +53,15 @@ export const sanitizeQuestion = (rawQuestion: string): string => {
     .replace(/\s+/g, ' ')
     .trim();
 
-  if (!withoutUiArtifacts) return '';
-  if (withoutUiArtifacts.endsWith('?')) return withoutUiArtifacts;
-  if (LEADING_QUESTION_PATTERN.test(withoutUiArtifacts)) {
-    return `${withoutUiArtifacts}?`;
+  const focused = extractFocusedQuestion(withoutUiArtifacts);
+  if (!focused) return '';
+
+  if (focused.endsWith('?')) return focused;
+  if (LEADING_QUESTION_PATTERN.test(focused)) {
+    return `${focused}?`;
   }
 
-  return withoutUiArtifacts;
+  return focused;
 };
 
 export const extractQuestionFromContent = (content: string): string => {

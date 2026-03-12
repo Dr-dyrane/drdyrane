@@ -147,7 +147,7 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
       visit_label: `${dateLabel} Visit`,
       diagnosis,
       complaint: chiefComplaint,
-      notes: '',
+      notes: target.clerking.hpc || '',
       status: target.status,
       soap: target.soap,
       profile_snapshot: target.profile,

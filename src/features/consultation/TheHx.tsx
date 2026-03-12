@@ -41,10 +41,10 @@ export const TheHx: React.FC<{
   };
 
   const soapSections = [
-    { label: 'Subjective', key: 'S' as const, icon: ClipboardList, color: 'text-neon-cyan' },
-    { label: 'Objective', key: 'O' as const, icon: Activity, color: 'text-neon-cyan' },
-    { label: 'Assessment', key: 'A' as const, icon: Target, color: 'text-neon-cyan' },
-    { label: 'Plan', key: 'P' as const, icon: Shield, color: 'text-neon-cyan' },
+    { label: 'Subjective', key: 'S' as const, icon: ClipboardList, color: 'text-accent-primary' },
+    { label: 'Objective', key: 'O' as const, icon: Activity, color: 'text-accent-primary' },
+    { label: 'Assessment', key: 'A' as const, icon: Target, color: 'text-accent-primary' },
+    { label: 'Plan', key: 'P' as const, icon: Shield, color: 'text-accent-primary' },
   ];
 
   return (
@@ -72,7 +72,7 @@ export const TheHx: React.FC<{
             {/* Header */}
             <div className="px-8 pt-8 pb-4 flex items-center justify-between">
               <div>
-                <span className="text-[10px] text-neon-cyan/40 uppercase tracking-[0.3em] font-bold">Clinical Records</span>
+                <span className="text-[10px] text-content-dim uppercase tracking-[0.3em] font-bold">Clinical Records</span>
                 <h2 className="text-2xl font-light text-content-primary mt-1">{displayDiagnosis}</h2>
               </div>
               <button
@@ -89,7 +89,7 @@ export const TheHx: React.FC<{
                 <GlassContainer className="p-5 rounded-[24px] border-none shadow-none bg-surface-muted/80">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-[10px] uppercase tracking-[0.22em] text-neon-cyan/70 font-semibold">
+                      <span className="text-[10px] uppercase tracking-[0.22em] text-accent-soft font-semibold">
                         Active Case Snapshot
                       </span>
                       <span className="text-[10px] text-content-dim">{getElapsedLabel(latestEntry?.timestamp)}</span>
@@ -130,7 +130,7 @@ export const TheHx: React.FC<{
                         <div className="space-y-3">
                           {Object.entries(data).map(([key, value]) => (
                             <div key={key} className="space-y-1">
-                              <span className="text-[9px] uppercase tracking-wider text-neon-cyan/60 font-medium">{key}</span>
+                              <span className="text-[9px] uppercase tracking-wider text-accent-soft font-medium">{key}</span>
                               <p className="text-sm text-content-secondary font-light leading-relaxed">
                                 {typeof value === 'string' ? value : JSON.stringify(value)}
                               </p>
@@ -146,9 +146,9 @@ export const TheHx: React.FC<{
               {/* Differential Diagnosis (Live Only) */}
               <div className="space-y-3">
                 <div className="flex items-center gap-2 px-2">
-                  <Shield size={14} className="text-neon-cyan opacity-60" />
+                  <Shield size={14} className="text-accent-primary opacity-80" />
                   <span className="text-[10px] uppercase tracking-widest font-bold text-content-dim">
-                    Patient Clerking
+                    Clinical Notes (Auto)
                   </span>
                 </div>
                 <GlassContainer className="p-5 rounded-[24px] border-none shadow-none">
@@ -174,7 +174,7 @@ export const TheHx: React.FC<{
               {(!overrideState || displayDDx.length > 0) && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2 px-2">
-                    <Activity size={14} className="text-neon-cyan opacity-60" />
+                    <Activity size={14} className="text-accent-primary opacity-80" />
                     <span className="text-[10px] uppercase tracking-widest font-bold text-content-dim">
                       Differential Diagnosis (DDx)
                     </span>
@@ -183,7 +183,7 @@ export const TheHx: React.FC<{
                     {displayDDx.length > 0 ? (
                       <div className="flex flex-wrap gap-2">
                         {displayDDx.map((item: string, i: number) => (
-                          <span key={i} className="px-3 py-1 bg-neon-cyan/10 rounded-full text-[10px] text-neon-cyan font-bold tracking-wide">
+                          <span key={i} className="px-3 py-1 bg-accent-soft rounded-full text-[10px] text-accent-primary font-bold tracking-wide">
                             {item}
                           </span>
                         ))}
