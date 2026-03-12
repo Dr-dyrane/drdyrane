@@ -4,7 +4,7 @@ import { ArrowUp, ChevronLeft, Timer, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
-import { playCelebrationBurst } from '../../core/services/celebration';
+import { playCelebrationFromSettings } from '../../core/services/celebration';
 import { Orb } from './Orb';
 import { ClinicalQuestionCard } from './components/ClinicalQuestionCard';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
@@ -148,8 +148,7 @@ export const StepRenderer: React.FC = () => {
     const trimmed = val.trim();
     if (!trimmed || loading) return;
 
-    playCelebrationBurst({
-      reducedMotion: state.settings.reduced_motion,
+    playCelebrationFromSettings(state.settings, {
       intensity: 'medium',
     });
     signalFeedback('submit', {
@@ -168,8 +167,7 @@ export const StepRenderer: React.FC = () => {
 
     const { mode, ui_variant: variant } = state.response_options;
     const rect = event?.currentTarget?.getBoundingClientRect();
-    playCelebrationBurst({
-      reducedMotion: state.settings.reduced_motion,
+    playCelebrationFromSettings(state.settings, {
       intensity: 'soft',
       x: rect ? rect.left + rect.width / 2 : undefined,
       y: rect ? rect.top + rect.height / 2 : undefined,
@@ -208,8 +206,7 @@ export const StepRenderer: React.FC = () => {
 
   const handleSingleSubmit = async () => {
     if (selectedOptionIds.length === 0 || loading) return;
-    playCelebrationBurst({
-      reducedMotion: state.settings.reduced_motion,
+    playCelebrationFromSettings(state.settings, {
       intensity: 'strong',
     });
     signalFeedback('submit', {
@@ -222,8 +219,7 @@ export const StepRenderer: React.FC = () => {
 
   const handleMultipleSubmit = async () => {
     if (selectedOptionIds.length === 0 || loading) return;
-    playCelebrationBurst({
-      reducedMotion: state.settings.reduced_motion,
+    playCelebrationFromSettings(state.settings, {
       intensity: 'strong',
     });
     signalFeedback('submit', {

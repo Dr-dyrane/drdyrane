@@ -82,6 +82,8 @@ export interface AppSettings {
   reduced_motion: boolean;
   notifications_enabled: boolean;
   text_scale: 'sm' | 'md' | 'lg';
+  motion_style: 'subtle' | 'balanced' | 'expressive';
+  gratification_enabled: boolean;
 }
 
 export interface AppNotification {

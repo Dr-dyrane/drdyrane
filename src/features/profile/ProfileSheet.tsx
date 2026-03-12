@@ -393,6 +393,38 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
           <motion.section variants={sectionVariants} className="surface-raised rounded-[24px] p-3 space-y-2">
             <div className="text-xs font-semibold text-content-dim uppercase tracking-wide">Feedback</div>
 
+            <div className="surface-strong rounded-[18px] p-2 space-y-2">
+              <p className="px-1 text-[11px] text-content-dim uppercase tracking-wide">Motion style</p>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { id: 'subtle' as const, label: 'Subtle' },
+                  { id: 'balanced' as const, label: 'Balanced' },
+                  { id: 'expressive' as const, label: 'Expressive' },
+                ]).map((motionStyle) => (
+                  <motion.button
+                    key={motionStyle.id}
+                    onClick={() => toggleSetting({ motion_style: motionStyle.id })}
+                    whileHover={{ y: -1 }}
+                    whileTap={{ scale: 0.97 }}
+                    className={`relative h-10 rounded-xl text-[11px] font-semibold tracking-wide uppercase interactive-tap ${
+                      settings.motion_style === motionStyle.id ? 'text-content-active' : 'text-content-secondary'
+                    }`}
+                  >
+                    {settings.motion_style === motionStyle.id ? (
+                      <motion.span
+                        layoutId="motion-style-option-pill"
+                        className="absolute inset-0 rounded-xl bg-surface-active selected-elevation"
+                        transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                      />
+                    ) : (
+                      <span className="absolute inset-0 rounded-xl surface-chip" />
+                    )}
+                    <span className="relative z-10">{motionStyle.label}</span>
+                  </motion.button>
+                ))}
+              </div>
+            </div>
+
             <motion.div
               whileHover={{ y: -1 }}
               className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between"
@@ -420,6 +452,38 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
                 checked={settings.audio_enabled}
                 onToggle={() => toggleSetting({ audio_enabled: !settings.audio_enabled })}
                 ariaLabel="Toggle audio cues"
+              />
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -1 }}
+              className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between"
+            >
+              <span className="inline-flex items-center gap-2 text-sm">
+                <Sparkles size={14} />
+                Gamified bursts
+              </span>
+              <ToggleSwitch
+                checked={settings.gratification_enabled}
+                onToggle={() =>
+                  toggleSetting({ gratification_enabled: !settings.gratification_enabled })
+                }
+                ariaLabel="Toggle gamified bursts"
+              />
+            </motion.div>
+
+            <motion.div
+              whileHover={{ y: -1 }}
+              className="surface-strong rounded-[18px] px-3 py-2 flex items-center justify-between"
+            >
+              <span className="inline-flex items-center gap-2 text-sm">
+                <Monitor size={14} />
+                Reduce motion
+              </span>
+              <ToggleSwitch
+                checked={settings.reduced_motion}
+                onToggle={() => toggleSetting({ reduced_motion: !settings.reduced_motion })}
+                ariaLabel="Toggle reduced motion"
               />
             </motion.div>
 

@@ -62,7 +62,47 @@ const defaultSettings = (): AppSettings => ({
   reduced_motion: false,
   notifications_enabled: true,
   text_scale: 'md',
+  motion_style: 'balanced',
+  gratification_enabled: true,
 });
+
+const sanitizeSettings = (value?: Partial<AppSettings> | null): AppSettings => {
+  const defaults = defaultSettings();
+  const candidate = value || {};
+  const textScale = candidate.text_scale;
+  const motionStyle = candidate.motion_style;
+
+  return {
+    haptics_enabled:
+      typeof candidate.haptics_enabled === 'boolean'
+        ? candidate.haptics_enabled
+        : defaults.haptics_enabled,
+    audio_enabled:
+      typeof candidate.audio_enabled === 'boolean'
+        ? candidate.audio_enabled
+        : defaults.audio_enabled,
+    reduced_motion:
+      typeof candidate.reduced_motion === 'boolean'
+        ? candidate.reduced_motion
+        : defaults.reduced_motion,
+    notifications_enabled:
+      typeof candidate.notifications_enabled === 'boolean'
+        ? candidate.notifications_enabled
+        : defaults.notifications_enabled,
+    text_scale:
+      textScale === 'sm' || textScale === 'md' || textScale === 'lg'
+        ? textScale
+        : defaults.text_scale,
+    motion_style:
+      motionStyle === 'subtle' || motionStyle === 'balanced' || motionStyle === 'expressive'
+        ? motionStyle
+        : defaults.motion_style,
+    gratification_enabled:
+      typeof candidate.gratification_enabled === 'boolean'
+        ? candidate.gratification_enabled
+        : defaults.gratification_enabled,
+  };
+};
 
 const defaultClerking = (): ClerkingSchema => ({
   hpc: '',
@@ -310,10 +350,10 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
     case 'UPDATE_SETTINGS':
       return {
         ...state,
-        settings: {
+        settings: sanitizeSettings({
           ...state.settings,
           ...action.payload,
-        },
+        }),
       };
 
     case 'ADD_NOTIFICATION':
@@ -476,7 +516,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         if (parsed.question_gate === undefined) parsed.question_gate = null;
         if (!parsed.profile) parsed.profile = defaultProfile();
         parsed.profile.weight_kg = sanitizeWeightKg(parsed.profile.weight_kg);
-        if (!parsed.settings) parsed.settings = defaultSettings();
+        parsed.settings = sanitizeSettings(parsed.settings as Partial<AppSettings> | undefined);
         if (!parsed.theme || !['system', 'dark', 'light'].includes(parsed.theme)) {
           parsed.theme = 'system';
         }

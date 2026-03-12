@@ -1,4 +1,6 @@
-type BurstIntensity = 'soft' | 'medium' | 'strong';
+import { AppSettings } from '../types/clinical';
+
+type BurstIntensity = 'soft' | 'medium' | 'strong' | 'epic';
 
 interface CelebrationBurstOptions {
   x?: number;
@@ -16,6 +18,7 @@ const COLORS = [
 const MARKERS = ['*', '+', '^', '~', 'o', '>'];
 
 const resolveCount = (intensity: BurstIntensity): number => {
+  if (intensity === 'epic') return 34;
   if (intensity === 'strong') return 24;
   if (intensity === 'medium') return 16;
   return 10;
@@ -99,4 +102,39 @@ export const playCelebrationBurst = (options: CelebrationBurstOptions = {}): voi
       layer.parentNode.removeChild(layer);
     }
   }, 1300);
+};
+
+const nextIntensity = (intensity: BurstIntensity): BurstIntensity => {
+  if (intensity === 'soft') return 'medium';
+  if (intensity === 'medium') return 'strong';
+  if (intensity === 'strong') return 'epic';
+  return 'epic';
+};
+
+const previousIntensity = (intensity: BurstIntensity): BurstIntensity => {
+  if (intensity === 'epic') return 'strong';
+  if (intensity === 'strong') return 'medium';
+  if (intensity === 'medium') return 'soft';
+  return 'soft';
+};
+
+export const playCelebrationFromSettings = (
+  settings: Pick<AppSettings, 'reduced_motion' | 'motion_style' | 'gratification_enabled'>,
+  options: Omit<CelebrationBurstOptions, 'reducedMotion'> = {}
+): void => {
+  if (!settings.gratification_enabled) return;
+
+  const requestedIntensity = options.intensity || 'soft';
+  const tunedIntensity =
+    settings.motion_style === 'expressive'
+      ? nextIntensity(requestedIntensity)
+      : settings.motion_style === 'subtle'
+        ? previousIntensity(requestedIntensity)
+        : requestedIntensity;
+
+  playCelebrationBurst({
+    ...options,
+    reducedMotion: settings.reduced_motion,
+    intensity: tunedIntensity,
+  });
 };
