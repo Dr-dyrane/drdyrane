@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Pill, Printer, Search } from 'lucide-react';
+import { Copy, Pill, Printer, Search } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
@@ -83,6 +83,16 @@ const escapeHtml = (value: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 
+const formatTimestamp = (value: number): string =>
+  new Date(value).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
 export const DrugProtocolsView: React.FC = () => {
   const { state, dispatch } = useClinical();
   const [loading, setLoading] = useState(true);
@@ -163,8 +173,33 @@ export const DrugProtocolsView: React.FC = () => {
   const weightSource =
     explicitWeight !== null ? 'Entered weight' : effectiveWeight !== null ? 'Age-estimated weight' : 'No weight';
 
+  const quickPickProtocols = useMemo(
+    () =>
+      protocols
+        .filter((entry) =>
+          /(malaria|hypertension|asthma|diabetes|pneumonia|gastro|urti|uti)/i.test(entry.label)
+        )
+        .slice(0, 8),
+    [protocols]
+  );
+
+  const selectedRxLines =
+    selectedProtocol?.drugs.map((drug) => {
+      const dose = buildDose(drug.factor, drug.max, drug.unit, effectiveWeight);
+      return `${drug.form} ${drug.name} ${dose} ${drug.frequency || '-'} ${drug.duration || '-'}`.replace(/\s+/g, ' ').trim();
+    }) || [];
+
   const printSelectedProtocol = () => {
     if (!selectedProtocol) return;
+    const generatedAt = formatTimestamp(Date.now());
+    const patientContext = [
+      state.profile.display_name ? `Name: ${state.profile.display_name}` : null,
+      validAge !== null ? `Age: ${validAge}` : null,
+      explicitWeight !== null ? `Weight: ${explicitWeight} kg` : null,
+      state.profile.sex ? `Sex: ${state.profile.sex}` : null,
+    ]
+      .filter(Boolean)
+      .join(' | ');
     const rows = selectedProtocol.drugs
       .map((drug) => {
         const dose = buildDose(drug.factor, drug.max, drug.unit, effectiveWeight);
@@ -183,28 +218,51 @@ export const DrugProtocolsView: React.FC = () => {
       <head>
         <title>Dr Dyrane Treatment Sheet</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; padding: 24px; color: #111; }
-          h1 { font-size: 22px; margin: 0 0 8px; }
-          h2 { font-size: 15px; margin: 16px 0 8px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; padding: 26px; color: #111; background: #f3f4f6; }
+          h1 { font-size: 22px; margin: 0; }
+          h2 { font-size: 14px; margin: 0 0 8px; letter-spacing: 0.02em; text-transform: uppercase; color: #3f4652; }
+          p { line-height: 1.45; margin: 0; }
           table { width: 100%; border-collapse: separate; border-spacing: 0 6px; font-size: 12px; }
           th, td { text-align: left; padding: 8px 8px; border: 0; }
-          tbody td { background: #f6f7f8; }
+          tbody td { background: #f0f2f5; }
           tbody td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
           tbody td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-          .chip { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #f4f4f5; font-size: 11px; margin-right: 8px; }
+          .sheet { max-width: 860px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 24px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12); }
+          .meta-row { margin-top: 8px; font-size: 12px; color: #4b5563; }
+          .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+          .chip { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #eef2ff; color: #1f2937; font-size: 11px; }
+          .section { margin-top: 14px; background: #f8fafc; border-radius: 16px; padding: 14px; }
+          .note { margin-top: 16px; font-size: 11px; color: #6b7280; }
+          @media print {
+            body { background: #fff; padding: 0; }
+            .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
+          }
         </style>
       </head>
       <body>
-        <h1>Dr Dyrane Treatment Sheet</h1>
-        <div class="chip">${escapeHtml(selectedProtocol.label)}</div>
-        <div class="chip">Weight basis: ${escapeHtml(weightSource)}${effectiveWeight ? ` (${escapeHtml(String(effectiveWeight))} kg)` : ''}</div>
-        <h2>Prescription</h2>
-        <table>
-          <thead>
-            <tr><th>Form</th><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th></tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
+        <div class="sheet">
+          <h1>Dr Dyrane Treatment Sheet</h1>
+          <div class="meta-row">Generated: ${escapeHtml(generatedAt)}</div>
+          ${patientContext ? `<div class="meta-row">${escapeHtml(patientContext)}</div>` : ''}
+          <div class="chips">
+            <span class="chip">${escapeHtml(selectedProtocol.label)}</span>
+            <span class="chip">Weight basis: ${escapeHtml(weightSource)}${
+              effectiveWeight ? ` (${escapeHtml(String(effectiveWeight))} kg)` : ''
+            }</span>
+          </div>
+
+          <div class="section">
+            <h2>Prescription</h2>
+            <table>
+              <thead>
+                <tr><th>Form</th><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th></tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+
+          <p class="note">Formulary support output. Confirm with clinician judgment and local protocol before dispensing.</p>
+        </div>
       </body>
       </html>
     `;
@@ -231,6 +289,23 @@ export const DrugProtocolsView: React.FC = () => {
     }
     if (Object.keys(payload).length > 0) {
       dispatch({ type: 'UPDATE_PROFILE', payload });
+    }
+  };
+
+  const copySelectedProtocol = async () => {
+    if (!selectedProtocol) return;
+    const lines = [
+      `Dr Dyrane Treatment Sheet`,
+      `Protocol: ${selectedProtocol.label}`,
+      `Weight basis: ${weightSource}${effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}`,
+      'Prescription:',
+      ...selectedRxLines.map((line, index) => `${index + 1}. ${line}`),
+    ];
+    const payload = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      window.prompt('Copy treatment sheet', payload);
     }
   };
 
@@ -351,6 +426,39 @@ export const DrugProtocolsView: React.FC = () => {
         )}
       </motion.section>
 
+      {quickPickProtocols.length > 0 && (
+        <motion.section
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+          className="surface-raised rounded-[24px] p-4 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-content-dim uppercase tracking-wide">Quick Picks</p>
+            <p className="text-xs text-content-dim">One tap select</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {quickPickProtocols.map((entry) => {
+              const active = selectedValue === entry.value;
+              return (
+                <button
+                  key={`quick-${entry.value}`}
+                  onClick={() => {
+                    setSelectedValue(entry.value);
+                    setQuery('');
+                  }}
+                  className={`h-9 px-3 rounded-full text-xs font-medium transition-all interactive-tap ${
+                    active ? 'bg-surface-active text-content-active selected-elevation' : 'surface-strong text-content-primary'
+                  }`}
+                >
+                  {entry.label}
+                </button>
+              );
+            })}
+          </div>
+        </motion.section>
+      )}
+
       {selectedProtocol && (
         <motion.section
           initial={{ opacity: 0, y: 8 }}
@@ -362,14 +470,27 @@ export const DrugProtocolsView: React.FC = () => {
             <div>
               <p className="text-xs text-content-dim uppercase tracking-wide">Selected Treatment</p>
               <h2 className="text-base font-semibold text-content-primary leading-tight mt-1">{selectedProtocol.label}</h2>
+              <p className="text-[11px] text-content-dim mt-1">
+                Weight basis: {weightSource}
+                {effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}
+              </p>
             </div>
-            <button
-              onClick={printSelectedProtocol}
-              className="h-10 px-3 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap"
-            >
-              <Printer size={14} />
-              Print
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => void copySelectedProtocol()}
+                className="h-10 px-3 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap"
+              >
+                <Copy size={14} />
+                Copy
+              </button>
+              <button
+                onClick={printSelectedProtocol}
+                className="h-10 px-3 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap"
+              >
+                <Printer size={14} />
+                Print
+              </button>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -378,11 +499,16 @@ export const DrugProtocolsView: React.FC = () => {
               return (
                 <div key={`${drug.name}-${index}`} className="surface-strong rounded-2xl px-3.5 py-3">
                   <p className="text-sm font-semibold text-content-primary">
-                    {drug.form} {drug.name}
+                    {index + 1}. {drug.form} {drug.name}
                   </p>
-                  <p className="text-xs text-content-secondary mt-1">
-                    {dose} | {(drug.frequency || '-').trim() || '-'} | {(drug.duration || '-').trim() || '-'}
-                  </p>
+                  <div className="mt-2 grid grid-cols-[72px,1fr] gap-y-1 text-xs">
+                    <span className="text-content-dim uppercase tracking-wide">Dose</span>
+                    <span className="text-content-secondary">{dose}</span>
+                    <span className="text-content-dim uppercase tracking-wide">Frequency</span>
+                    <span className="text-content-secondary">{(drug.frequency || '-').trim() || '-'}</span>
+                    <span className="text-content-dim uppercase tracking-wide">Duration</span>
+                    <span className="text-content-secondary">{(drug.duration || '-').trim() || '-'}</span>
+                  </div>
                 </div>
               );
             })}

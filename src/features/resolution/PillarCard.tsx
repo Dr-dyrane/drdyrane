@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useClinical } from '../../core/context/ClinicalContext';
-import { Activity, Printer, Shield, TrendingUp, UserCheck } from 'lucide-react';
+import { Activity, Copy, Printer, Shield, TrendingUp, UserCheck } from 'lucide-react';
 import { Orb } from '../consultation/Orb';
 import { PillarData } from '../../core/types/clinical';
 
@@ -23,6 +23,16 @@ const getOrsBandDose = (weight: number): number => {
 };
 
 const isValidWeight = (value: number): boolean => !Number.isNaN(value) && value > 0 && value <= 300;
+
+const formatTimestamp = (value: number): string =>
+  new Date(value).toLocaleString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 const resolveDoseFromWeight = (item: EncounterPrescription, weightKg: number | null): string => {
   const meta = item.weight_based;
@@ -98,6 +108,15 @@ export const PillarCard: React.FC = () => {
   const printEncounter = () => {
     if (!state.pillars) return;
     const plan = state.pillars;
+    const generatedAt = formatTimestamp(Date.now());
+    const patientContext = [
+      state.profile.display_name ? `Name: ${state.profile.display_name}` : null,
+      state.profile.age ? `Age: ${state.profile.age}` : null,
+      state.profile.sex ? `Sex: ${state.profile.sex}` : null,
+      enteredWeight ? `Weight: ${enteredWeight} kg` : null,
+    ]
+      .filter(Boolean)
+      .join(' | ');
     const investigations = (plan.encounter?.investigations || [])
       .map((item) => `<li>${escapeHtml(item)}</li>`)
       .join('');
@@ -126,55 +145,91 @@ export const PillarCard: React.FC = () => {
       <head>
         <title>Dr Dyrane Prescription Summary</title>
         <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; padding: 24px; color: #111; }
-          h1 { font-size: 22px; margin: 0 0 8px; }
-          h2 { font-size: 15px; margin: 16px 0 8px; }
+          body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; padding: 26px; color: #111; background: #f3f4f6; }
+          h1 { font-size: 22px; margin: 0; }
+          h2 { font-size: 14px; margin: 0 0 8px; letter-spacing: 0.02em; text-transform: uppercase; color: #3f4652; }
           p { line-height: 1.45; white-space: pre-line; margin: 0; }
-          ul { margin: 0; padding-left: 18px; line-height: 1.4; }
+          ul { margin: 0; padding-left: 18px; line-height: 1.45; }
           table { width: 100%; border-collapse: separate; border-spacing: 0 6px; margin-top: 8px; font-size: 12px; }
           th, td { text-align: left; padding: 8px 8px; border: 0; }
-          tbody td { background: #f6f7f8; }
+          tbody td { background: #f0f2f5; }
           tbody td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
           tbody td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-          .chip { display: inline-block; padding: 4px 8px; border-radius: 999px; background: #f4f4f5; font-size: 11px; margin-bottom: 8px; }
+          .sheet { max-width: 860px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 24px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12); }
+          .meta-row { margin-top: 8px; font-size: 12px; color: #4b5563; }
+          .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+          .chip { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #eef2ff; color: #1f2937; font-size: 11px; }
+          .section { margin-top: 14px; background: #f8fafc; border-radius: 16px; padding: 14px; }
+          .note { margin-top: 16px; font-size: 11px; color: #6b7280; }
+          @media print {
+            body { background: #fff; padding: 0; }
+            .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
+          }
         </style>
       </head>
       <body>
-        <h1>Dr Dyrane Clinical Encounter</h1>
-        <div class="chip">Prescription-ready summary</div>
-        ${hasWeightBasedRx ? `<div class="chip">Dosing weight: ${enteredWeight ? `${escapeHtml(String(enteredWeight))} kg` : 'Not entered'}</div>` : ''}
-        <h2>Diagnosis</h2>
-        <p>${escapeHtml(plan.diagnosis)}</p>
-        <h2>Management</h2>
-        <p>${escapeHtml(plan.management)}</p>
-        ${
-          investigations
-            ? `<h2>Investigations</h2><ul>${investigations}</ul>`
-            : ''
-        }
-        ${
-          prescriptions
-            ? `<h2>Prescription</h2>
-              <table>
-                <thead><tr><th>Medication</th><th>Form</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Note</th></tr></thead>
-                <tbody>${prescriptions}</tbody>
-              </table>`
-            : ''
-        }
-        ${
-          counseling
-            ? `<h2>Pharmacy Counseling</h2><ul>${counseling}</ul>`
-            : ''
-        }
-        ${
-          followUp
-            ? `<h2>Follow-Up</h2><ul>${followUp}</ul>`
-            : ''
-        }
-        <h2>Prognosis</h2>
-        <p>${escapeHtml(plan.prognosis)}</p>
-        <h2>Prevention</h2>
-        <p>${escapeHtml(plan.prevention)}</p>
+        <div class="sheet">
+          <h1>Dr Dyrane Clinical Encounter</h1>
+          <div class="meta-row">Generated: ${escapeHtml(generatedAt)}</div>
+          ${patientContext ? `<div class="meta-row">${escapeHtml(patientContext)}</div>` : ''}
+          <div class="chips">
+            <span class="chip">Prescription-ready summary</span>
+            ${
+              hasWeightBasedRx
+                ? `<span class="chip">Dosing weight: ${
+                    enteredWeight ? `${escapeHtml(String(enteredWeight))} kg` : 'Not entered'
+                  }</span>`
+                : ''
+            }
+          </div>
+
+          <div class="section">
+            <h2>Diagnosis</h2>
+            <p>${escapeHtml(plan.diagnosis)}</p>
+          </div>
+
+          <div class="section">
+            <h2>Management</h2>
+            <p>${escapeHtml(plan.management)}</p>
+          </div>
+
+          ${
+            investigations
+              ? `<div class="section"><h2>Investigations</h2><ul>${investigations}</ul></div>`
+              : ''
+          }
+          ${
+            prescriptions
+              ? `<div class="section"><h2>Prescription</h2>
+                  <table>
+                    <thead><tr><th>Medication</th><th>Form</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Note</th></tr></thead>
+                    <tbody>${prescriptions}</tbody>
+                  </table>
+                </div>`
+              : ''
+          }
+          ${
+            counseling
+              ? `<div class="section"><h2>Pharmacy Counseling</h2><ul>${counseling}</ul></div>`
+              : ''
+          }
+          ${
+            followUp
+              ? `<div class="section"><h2>Follow-Up</h2><ul>${followUp}</ul></div>`
+              : ''
+          }
+
+          <div class="section">
+            <h2>Prognosis</h2>
+            <p>${escapeHtml(plan.prognosis)}</p>
+          </div>
+          <div class="section">
+            <h2>Prevention</h2>
+            <p>${escapeHtml(plan.prevention)}</p>
+          </div>
+
+          <p class="note">Clinical decision support output. Requires licensed clinician confirmation.</p>
+        </div>
       </body>
       </html>
     `;
@@ -196,6 +251,31 @@ export const PillarCard: React.FC = () => {
     dispatch({ type: 'RESET' });
   };
 
+  const copySummary = async () => {
+    if (!state.pillars) return;
+    const plan = state.pillars;
+    const lines = [
+      'Dr Dyrane Clinical Encounter',
+      `Diagnosis: ${plan.diagnosis}`,
+      `Management: ${plan.management}`,
+      ...(prescriptionsForRender.length > 0
+        ? [
+            'Prescription:',
+            ...prescriptionsForRender.map(
+              (item) => `${item.form} ${item.medication} ${item.dose} ${item.frequency} ${item.duration}`.replace(/\s+/g, ' ')
+            ),
+          ]
+        : []),
+      ...(plan.encounter?.follow_up?.length ? [`Follow-up: ${plan.encounter.follow_up.join(' | ')}`] : []),
+    ];
+    const payload = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(payload);
+    } catch {
+      window.prompt('Copy clinical summary', payload);
+    }
+  };
+
   if (!isComplete || !state.pillars) return null;
 
   const pillars = [
@@ -204,6 +284,12 @@ export const PillarCard: React.FC = () => {
     { title: 'Prognosis', icon: TrendingUp, content: state.pillars.prognosis },
     { title: 'Prevention', icon: UserCheck, content: state.pillars.prevention },
   ];
+  const patientContextBits = [
+    state.profile.display_name ? state.profile.display_name : null,
+    state.profile.age ? `${state.profile.age}y` : null,
+    state.profile.sex ? state.profile.sex : null,
+    enteredWeight ? `${enteredWeight} kg` : null,
+  ].filter(Boolean) as string[];
 
   return (
     <div className="flex-1 px-2 py-7 space-y-7 animate-emergence">
@@ -219,6 +305,15 @@ export const PillarCard: React.FC = () => {
           Conclusion
         </h1>
         <p className="text-sm text-content-dim">Clinical synthesis complete</p>
+        {patientContextBits.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-2 pt-1">
+            {patientContextBits.map((bit) => (
+              <span key={bit} className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+                {bit}
+              </span>
+            ))}
+          </div>
+        )}
       </motion.div>
 
       <div className="flex flex-col gap-6 pb-24">
@@ -350,14 +445,21 @@ export const PillarCard: React.FC = () => {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1 }}
-          className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-8"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-8"
         >
+          <button
+            onClick={() => void copySummary()}
+            className="px-6 py-4 surface-raised rounded-2xl text-sm font-semibold tracking-wide transition-all active:scale-95 shadow-glass inline-flex items-center justify-center gap-2"
+          >
+            <Copy size={15} />
+            Copy Summary
+          </button>
           <button
             onClick={printEncounter}
             className="px-6 py-4 surface-raised rounded-2xl text-sm font-semibold tracking-wide transition-all active:scale-95 shadow-glass inline-flex items-center justify-center gap-2"
           >
             <Printer size={15} />
-            Print Prescription
+            Print Sheet
           </button>
           <button
             onClick={reset}
