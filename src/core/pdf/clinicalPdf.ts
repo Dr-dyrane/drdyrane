@@ -86,18 +86,23 @@ export interface VisitRecordPdfInput {
 }
 
 const COLORS = {
-  pageBg: [241, 245, 249] as [number, number, number],
+  pageBg: [244, 247, 252] as [number, number, number],
   sheetBg: [255, 255, 255] as [number, number, number],
-  heroBg: [37, 99, 235] as [number, number, number],
+  heroBg: [23, 78, 205] as [number, number, number],
+  heroAccent: [83, 149, 255] as [number, number, number],
   heroText: [255, 255, 255] as [number, number, number],
-  sectionBg: [248, 250, 252] as [number, number, number],
-  chipBg: [226, 232, 240] as [number, number, number],
+  sectionBg: [247, 249, 253] as [number, number, number],
+  chipBg: [233, 239, 248] as [number, number, number],
   heading: [30, 41, 59] as [number, number, number],
   text: [17, 24, 39] as [number, number, number],
   muted: [71, 85, 105] as [number, number, number],
-  tableHead: [219, 234, 254] as [number, number, number],
-  rowA: [248, 250, 252] as [number, number, number],
-  rowB: [241, 245, 249] as [number, number, number],
+  tableHead: [226, 238, 255] as [number, number, number],
+  rowA: [249, 251, 255] as [number, number, number],
+  rowB: [243, 248, 254] as [number, number, number],
+  orbOuter: [221, 236, 255] as [number, number, number],
+  orbMid: [191, 219, 255] as [number, number, number],
+  orbCore: [96, 165, 250] as [number, number, number],
+  watermarkText: [227, 234, 245] as [number, number, number],
 };
 
 const normalizeString = (value: string): string =>
@@ -131,6 +136,42 @@ const setTextColor = (doc: PdfDoc, color: [number, number, number]) => {
   doc.setTextColor(color[0], color[1], color[2]);
 };
 
+const drawOrbWatermark = (doc: PdfDoc, pageWidth: number, pageHeight: number) => {
+  const orbX = pageWidth - 78;
+  const orbY = 54;
+  setFill(doc, COLORS.orbOuter);
+  doc.circle(orbX, orbY, 18, 'F');
+  setFill(doc, COLORS.orbMid);
+  doc.circle(orbX, orbY, 12, 'F');
+  setFill(doc, COLORS.orbCore);
+  doc.circle(orbX, orbY, 6, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(40);
+  setTextColor(doc, COLORS.watermarkText);
+  doc.text('Dr Dyrane', pageWidth - 56, pageHeight - 72, {
+    align: 'right',
+  });
+};
+
+const formatStructuredRecord = (value?: Record<string, unknown>): string => {
+  if (!value || Object.keys(value).length === 0) return 'Not recorded.';
+  const rows = Object.entries(value)
+    .map(([key, item]) => {
+      const nextValue =
+        item === null || item === undefined
+          ? '-'
+          : typeof item === 'string'
+            ? item
+            : typeof item === 'number' || typeof item === 'boolean'
+              ? String(item)
+              : JSON.stringify(item);
+      return `${key}: ${nextValue}`;
+    })
+    .filter((row) => row.trim().length > 0);
+  return rows.length > 0 ? rows.join('\n') : 'Not recorded.';
+};
+
 const createFrame = (): PdfFrame => {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -159,6 +200,9 @@ const createFrame = (): PdfFrame => {
     doc.rect(0, 0, pageWidth, pageHeight, 'F');
     setFill(doc, COLORS.sheetBg);
     doc.roundedRect(20, 20, pageWidth - 40, pageHeight - 40, 18, 18, 'F');
+    setFill(doc, COLORS.sectionBg);
+    doc.roundedRect(20, 20, pageWidth - 40, 102, 18, 18, 'F');
+    drawOrbWatermark(doc, pageWidth, pageHeight);
     frame.cursorY = 56;
   };
 
@@ -178,6 +222,12 @@ const drawHeader = (
 
   setFill(doc, COLORS.heroBg);
   doc.roundedRect(contentX, frame.cursorY, contentWidth, 72, 16, 16, 'F');
+  setFill(doc, COLORS.heroAccent);
+  doc.circle(contentX + contentWidth - 20, frame.cursorY + 8, 38, 'F');
+  setFill(doc, COLORS.heroBg);
+  doc.circle(contentX + contentWidth - 26, frame.cursorY + 12, 28, 'F');
+  setFill(doc, COLORS.heroAccent);
+  doc.circle(contentX + contentWidth - 30, frame.cursorY + 16, 16, 'F');
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(18);
   setTextColor(doc, COLORS.heroText);
@@ -348,6 +398,10 @@ const drawFooters = (frame: PdfFrame, footnote: string) => {
     frame.doc.setFont('helvetica', 'normal');
     frame.doc.setFontSize(8.5);
     setTextColor(frame.doc, COLORS.muted);
+    setFill(frame.doc, COLORS.orbOuter);
+    frame.doc.circle(frame.contentX - 2, frame.pageHeight - 34, 4, 'F');
+    setFill(frame.doc, COLORS.orbCore);
+    frame.doc.circle(frame.contentX - 2, frame.pageHeight - 34, 2.1, 'F');
     frame.doc.text(footnote, frame.contentX, frame.pageHeight - 32);
     frame.doc.text(`Page ${page}/${pages}`, frame.pageWidth - frame.contentX, frame.pageHeight - 32, {
       align: 'right',
@@ -370,12 +424,12 @@ export const exportEncounterPdf = (input: EncounterPdfInput) => {
   const frame = createFrame();
   const generatedAt = formatTimestamp(input.generatedAt || Date.now());
   const patientMetaLine = buildPatientMetaLine(input.patient);
-  const chips = ['Prescription-ready summary', ...(input.chips || [])];
+  const chips = ['Encounter Summary', ...(input.chips || [])];
 
   drawHeader(
     frame,
-    'Dr Dyrane Clinical Encounter',
-    'Structured clinical summary for management and pharmacy continuity.',
+    'Dr Dyrane Encounter',
+    'Clinical encounter summary prepared for continuity of care.',
     [`Generated: ${generatedAt}`, patientMetaLine],
     chips
   );
@@ -407,13 +461,8 @@ export const exportEncounterPdf = (input: EncounterPdfInput) => {
   drawListSection(frame, 'Follow-Up', input.followUp || []);
   drawParagraphSection(frame, 'Prognosis', input.prognosis);
   drawParagraphSection(frame, 'Prevention', input.prevention);
-  drawParagraphSection(
-    frame,
-    'Clinical Notice',
-    'Clinical decision support output. Requires licensed clinician confirmation.'
-  );
 
-  drawFooters(frame, 'Dr Dyrane AI - Clinical support document');
+  drawFooters(frame, 'Dr Dyrane - Clinical Encounter');
   frame.doc.save(input.filename || toFileName('dr-dyrane-encounter', input.diagnosis));
 };
 
@@ -425,7 +474,7 @@ export const exportDrugProtocolPdf = (input: DrugProtocolPdfInput) => {
   drawHeader(
     frame,
     'Dr Dyrane Treatment Sheet',
-    'Searchable formulary export with dose-ready medication lines.',
+    'Prescription sheet with structured medication lines.',
     [`Generated: ${generatedAt}`, patientMetaLine],
     [input.protocolLabel, input.weightBasis]
   );
@@ -449,13 +498,7 @@ export const exportDrugProtocolPdf = (input: DrugProtocolPdfInput) => {
     }))
   );
 
-  drawParagraphSection(
-    frame,
-    'Formulary Notice',
-    'Formulary support output. Confirm with clinician judgment and local protocol before dispensing.'
-  );
-
-  drawFooters(frame, 'Dr Dyrane AI - Formulary support document');
+  drawFooters(frame, 'Dr Dyrane - Treatment Sheet');
   frame.doc.save(input.filename || toFileName('dr-dyrane-treatment', input.protocolLabel));
 };
 
@@ -475,10 +518,10 @@ export const exportVisitRecordPdf = (input: VisitRecordPdfInput) => {
   drawParagraphSection(frame, 'Complaint', input.complaint || 'Not recorded.');
   drawParagraphSection(frame, 'Record Notes', input.notes || 'None.');
 
-  drawParagraphSection(frame, 'SOAP - Subjective', JSON.stringify(input.soap.S || {}));
-  drawParagraphSection(frame, 'SOAP - Objective', JSON.stringify(input.soap.O || {}));
-  drawParagraphSection(frame, 'SOAP - Assessment', JSON.stringify(input.soap.A || {}));
-  drawParagraphSection(frame, 'SOAP - Plan', JSON.stringify(input.soap.P || {}));
+  drawParagraphSection(frame, 'SOAP - Subjective', formatStructuredRecord(input.soap.S));
+  drawParagraphSection(frame, 'SOAP - Objective', formatStructuredRecord(input.soap.O));
+  drawParagraphSection(frame, 'SOAP - Assessment', formatStructuredRecord(input.soap.A));
+  drawParagraphSection(frame, 'SOAP - Plan', formatStructuredRecord(input.soap.P));
 
   drawParagraphSection(frame, 'HPC', input.clerking?.hpc || 'Not recorded.');
   drawParagraphSection(frame, 'PMH', input.clerking?.pmh || 'Not recorded.');
@@ -486,7 +529,6 @@ export const exportVisitRecordPdf = (input: VisitRecordPdfInput) => {
   drawParagraphSection(frame, 'SH', input.clerking?.sh || 'Not recorded.');
   drawParagraphSection(frame, 'FH', input.clerking?.fh || 'Not recorded.');
 
-  drawFooters(frame, 'Dr Dyrane AI - Archived visit record');
+  drawFooters(frame, 'Dr Dyrane - Visit Record');
   frame.doc.save(input.filename || toFileName('dr-dyrane-visit', input.visitLabel));
 };
-
