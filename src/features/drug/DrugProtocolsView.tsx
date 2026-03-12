@@ -75,14 +75,6 @@ const isValidWeight = (weight: number): boolean => !Number.isNaN(weight) && weig
 
 const isValidAge = (age: number): boolean => !Number.isNaN(age) && age >= 0 && age <= 125;
 
-const escapeHtml = (value: string): string =>
-  value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-
 const formatTimestamp = (value: number): string =>
   new Date(value).toLocaleString(undefined, {
     weekday: 'short',
@@ -189,94 +181,28 @@ export const DrugProtocolsView: React.FC = () => {
       return `${drug.form} ${drug.name} ${dose} ${drug.frequency || '-'} ${drug.duration || '-'}`.replace(/\s+/g, ' ').trim();
     }) || [];
 
-  const printSelectedProtocol = () => {
+  const printSelectedProtocol = async () => {
     if (!selectedProtocol) return;
-    const generatedAt = formatTimestamp(Date.now());
-    const patientContext = [
-      state.profile.display_name ? `Name: ${state.profile.display_name}` : null,
-      validAge !== null ? `Age: ${validAge}` : null,
-      explicitWeight !== null ? `Weight: ${explicitWeight} kg` : null,
-      state.profile.sex ? `Sex: ${state.profile.sex}` : null,
-    ]
-      .filter(Boolean)
-      .join(' | ');
-    const rows = selectedProtocol.drugs
-      .map((drug) => {
-        const dose = buildDose(drug.factor, drug.max, drug.unit, effectiveWeight);
-        return `<tr>
-          <td>${escapeHtml(drug.form)}</td>
-          <td>${escapeHtml(drug.name)}</td>
-          <td>${escapeHtml(dose)}</td>
-          <td>${escapeHtml(drug.frequency || '-')}</td>
-          <td>${escapeHtml((drug.duration || '').trim() || '-')}</td>
-        </tr>`;
-      })
-      .join('');
-
-    const html = `
-      <html>
-      <head>
-        <title>Dr Dyrane Treatment Sheet</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; padding: 26px; color: #111; background: #f3f4f6; }
-          h1 { font-size: 22px; margin: 0; }
-          h2 { font-size: 14px; margin: 0 0 8px; letter-spacing: 0.02em; text-transform: uppercase; color: #3f4652; }
-          p { line-height: 1.45; margin: 0; }
-          table { width: 100%; border-collapse: separate; border-spacing: 0 6px; font-size: 12px; }
-          th, td { text-align: left; padding: 8px 8px; border: 0; }
-          tbody td { background: #f0f2f5; }
-          tbody td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-          tbody td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-          .sheet { max-width: 860px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 24px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12); }
-          .meta-row { margin-top: 8px; font-size: 12px; color: #4b5563; }
-          .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
-          .chip { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #eef2ff; color: #1f2937; font-size: 11px; }
-          .section { margin-top: 14px; background: #f8fafc; border-radius: 16px; padding: 14px; }
-          .note { margin-top: 16px; font-size: 11px; color: #6b7280; }
-          @media print {
-            body { background: #fff; padding: 0; }
-            .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="sheet">
-          <h1>Dr Dyrane Treatment Sheet</h1>
-          <div class="meta-row">Generated: ${escapeHtml(generatedAt)}</div>
-          ${patientContext ? `<div class="meta-row">${escapeHtml(patientContext)}</div>` : ''}
-          <div class="chips">
-            <span class="chip">${escapeHtml(selectedProtocol.label)}</span>
-            <span class="chip">Weight basis: ${escapeHtml(weightSource)}${
-              effectiveWeight ? ` (${escapeHtml(String(effectiveWeight))} kg)` : ''
-            }</span>
-          </div>
-
-          <div class="section">
-            <h2>Prescription</h2>
-            <table>
-              <thead>
-                <tr><th>Form</th><th>Medication</th><th>Dose</th><th>Frequency</th><th>Duration</th></tr>
-              </thead>
-              <tbody>${rows}</tbody>
-            </table>
-          </div>
-
-          <p class="note">Formulary support output. Confirm with clinician judgment and local protocol before dispensing.</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const printWin = window.open('', '_blank', 'noopener,noreferrer,width=980,height=900');
-    if (!printWin) {
-      window.print();
-      return;
-    }
-    printWin.document.write(html);
-    printWin.document.close();
-    printWin.focus();
-    printWin.print();
-    printWin.close();
+    const { exportDrugProtocolPdf } = await import('../../core/pdf/clinicalPdf');
+    const generatedAt = Date.now();
+    exportDrugProtocolPdf({
+      generatedAt,
+      protocolLabel: selectedProtocol.label,
+      weightBasis: `Weight basis: ${weightSource}${effectiveWeight ? ` (${effectiveWeight} kg)` : ''}`,
+      patient: {
+        displayName: state.profile.display_name,
+        age: validAge ?? state.profile.age,
+        sex: state.profile.sex,
+        weightKg: explicitWeight ?? state.profile.weight_kg ?? null,
+      },
+      rows: selectedProtocol.drugs.map((drug) => ({
+        form: drug.form,
+        medication: drug.name,
+        dose: buildDose(drug.factor, drug.max, drug.unit, effectiveWeight),
+        frequency: (drug.frequency || '-').trim() || '-',
+        duration: (drug.duration || '-').trim() || '-',
+      })),
+    });
   };
 
   const persistProfileContext = () => {
@@ -297,6 +223,7 @@ export const DrugProtocolsView: React.FC = () => {
     const lines = [
       `Dr Dyrane Treatment Sheet`,
       `Protocol: ${selectedProtocol.label}`,
+      `Generated: ${formatTimestamp(Date.now())}`,
       `Weight basis: ${weightSource}${effectiveWeight !== null ? ` (${effectiveWeight} kg)` : ''}`,
       'Prescription:',
       ...selectedRxLines.map((line, index) => `${index + 1}. ${line}`),
@@ -484,11 +411,11 @@ export const DrugProtocolsView: React.FC = () => {
                 Copy
               </button>
               <button
-                onClick={printSelectedProtocol}
+                onClick={() => void printSelectedProtocol()}
                 className="h-10 px-3 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center gap-1.5 interactive-tap"
               >
                 <Printer size={14} />
-                Print
+                Export PDF
               </button>
             </div>
           </div>

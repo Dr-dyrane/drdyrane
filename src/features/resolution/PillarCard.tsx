@@ -24,16 +24,6 @@ const getOrsBandDose = (weight: number): number => {
 
 const isValidWeight = (value: number): boolean => !Number.isNaN(value) && value > 0 && value <= 300;
 
-const formatTimestamp = (value: number): string =>
-  new Date(value).toLocaleString(undefined, {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-
 const resolveDoseFromWeight = (item: EncounterPrescription, weightKg: number | null): string => {
   const meta = item.weight_based;
   if (!meta) return item.dose;
@@ -83,14 +73,6 @@ export const PillarCard: React.FC = () => {
     [encounter?.prescriptions, enteredWeight]
   );
 
-  const escapeHtml = (value: string): string =>
-    value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
-
   const persistWeightToProfile = () => {
     const profileWeight = state.profile.weight_kg;
     if (enteredWeight === null) {
@@ -105,146 +87,29 @@ export const PillarCard: React.FC = () => {
     }
   };
 
-  const printEncounter = () => {
+  const printEncounter = async () => {
     if (!state.pillars) return;
+    const { exportEncounterPdf } = await import('../../core/pdf/clinicalPdf');
     const plan = state.pillars;
-    const generatedAt = formatTimestamp(Date.now());
-    const patientContext = [
-      state.profile.display_name ? `Name: ${state.profile.display_name}` : null,
-      state.profile.age ? `Age: ${state.profile.age}` : null,
-      state.profile.sex ? `Sex: ${state.profile.sex}` : null,
-      enteredWeight ? `Weight: ${enteredWeight} kg` : null,
-    ]
-      .filter(Boolean)
-      .join(' | ');
-    const investigations = (plan.encounter?.investigations || [])
-      .map((item) => `<li>${escapeHtml(item)}</li>`)
-      .join('');
-    const prescriptions = prescriptionsForRender
-      .map(
-        (item) =>
-          `<tr>
-            <td>${escapeHtml(item.medication)}</td>
-            <td>${escapeHtml(item.form)}</td>
-            <td>${escapeHtml(item.dose)}</td>
-            <td>${escapeHtml(item.frequency)}</td>
-            <td>${escapeHtml(item.duration)}</td>
-            <td>${escapeHtml(item.note || '')}</td>
-          </tr>`
-      )
-      .join('');
-    const counseling = (plan.encounter?.counseling || [])
-      .map((item) => `<li>${escapeHtml(item)}</li>`)
-      .join('');
-    const followUp = (plan.encounter?.follow_up || [])
-      .map((item) => `<li>${escapeHtml(item)}</li>`)
-      .join('');
-
-    const content = `
-      <html>
-      <head>
-        <title>Dr Dyrane Prescription Summary</title>
-        <style>
-          body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif; padding: 26px; color: #111; background: #f3f4f6; }
-          h1 { font-size: 22px; margin: 0; }
-          h2 { font-size: 14px; margin: 0 0 8px; letter-spacing: 0.02em; text-transform: uppercase; color: #3f4652; }
-          p { line-height: 1.45; white-space: pre-line; margin: 0; }
-          ul { margin: 0; padding-left: 18px; line-height: 1.45; }
-          table { width: 100%; border-collapse: separate; border-spacing: 0 6px; margin-top: 8px; font-size: 12px; }
-          th, td { text-align: left; padding: 8px 8px; border: 0; }
-          tbody td { background: #f0f2f5; }
-          tbody td:first-child { border-top-left-radius: 8px; border-bottom-left-radius: 8px; }
-          tbody td:last-child { border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
-          .sheet { max-width: 860px; margin: 0 auto; background: #fff; border-radius: 24px; padding: 24px; box-shadow: 0 20px 45px rgba(15, 23, 42, 0.12); }
-          .meta-row { margin-top: 8px; font-size: 12px; color: #4b5563; }
-          .chips { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px; }
-          .chip { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #eef2ff; color: #1f2937; font-size: 11px; }
-          .section { margin-top: 14px; background: #f8fafc; border-radius: 16px; padding: 14px; }
-          .note { margin-top: 16px; font-size: 11px; color: #6b7280; }
-          @media print {
-            body { background: #fff; padding: 0; }
-            .sheet { box-shadow: none; border-radius: 0; max-width: none; padding: 0; }
-          }
-        </style>
-      </head>
-      <body>
-        <div class="sheet">
-          <h1>Dr Dyrane Clinical Encounter</h1>
-          <div class="meta-row">Generated: ${escapeHtml(generatedAt)}</div>
-          ${patientContext ? `<div class="meta-row">${escapeHtml(patientContext)}</div>` : ''}
-          <div class="chips">
-            <span class="chip">Prescription-ready summary</span>
-            ${
-              hasWeightBasedRx
-                ? `<span class="chip">Dosing weight: ${
-                    enteredWeight ? `${escapeHtml(String(enteredWeight))} kg` : 'Not entered'
-                  }</span>`
-                : ''
-            }
-          </div>
-
-          <div class="section">
-            <h2>Diagnosis</h2>
-            <p>${escapeHtml(plan.diagnosis)}</p>
-          </div>
-
-          <div class="section">
-            <h2>Management</h2>
-            <p>${escapeHtml(plan.management)}</p>
-          </div>
-
-          ${
-            investigations
-              ? `<div class="section"><h2>Investigations</h2><ul>${investigations}</ul></div>`
-              : ''
-          }
-          ${
-            prescriptions
-              ? `<div class="section"><h2>Prescription</h2>
-                  <table>
-                    <thead><tr><th>Medication</th><th>Form</th><th>Dose</th><th>Frequency</th><th>Duration</th><th>Note</th></tr></thead>
-                    <tbody>${prescriptions}</tbody>
-                  </table>
-                </div>`
-              : ''
-          }
-          ${
-            counseling
-              ? `<div class="section"><h2>Pharmacy Counseling</h2><ul>${counseling}</ul></div>`
-              : ''
-          }
-          ${
-            followUp
-              ? `<div class="section"><h2>Follow-Up</h2><ul>${followUp}</ul></div>`
-              : ''
-          }
-
-          <div class="section">
-            <h2>Prognosis</h2>
-            <p>${escapeHtml(plan.prognosis)}</p>
-          </div>
-          <div class="section">
-            <h2>Prevention</h2>
-            <p>${escapeHtml(plan.prevention)}</p>
-          </div>
-
-          <p class="note">Clinical decision support output. Requires licensed clinician confirmation.</p>
-        </div>
-      </body>
-      </html>
-    `;
-
-    const printWin = window.open('', '_blank', 'noopener,noreferrer,width=900,height=980');
-    if (!printWin) {
-      window.print();
-      return;
-    }
-
-    printWin.document.write(content);
-    printWin.document.close();
-    printWin.focus();
-    printWin.print();
-    printWin.close();
+    exportEncounterPdf({
+      diagnosis: plan.diagnosis,
+      management: plan.management,
+      investigations: plan.encounter?.investigations || [],
+      prescriptions: prescriptionsForRender,
+      counseling: plan.encounter?.counseling || [],
+      followUp: plan.encounter?.follow_up || [],
+      prognosis: plan.prognosis,
+      prevention: plan.prevention,
+      patient: {
+        displayName: state.profile.display_name,
+        age: state.profile.age,
+        sex: state.profile.sex,
+        weightKg: enteredWeight ?? state.profile.weight_kg ?? null,
+      },
+      chips: hasWeightBasedRx
+        ? [`Dosing weight: ${enteredWeight ? `${enteredWeight} kg` : 'Not entered'}`]
+        : [],
+    });
   };
 
   const reset = () => {
@@ -455,11 +320,11 @@ export const PillarCard: React.FC = () => {
             Copy Summary
           </button>
           <button
-            onClick={printEncounter}
+            onClick={() => void printEncounter()}
             className="px-6 py-4 surface-raised rounded-2xl text-sm font-semibold tracking-wide transition-all active:scale-95 shadow-glass inline-flex items-center justify-center gap-2"
           >
             <Printer size={15} />
-            Print Sheet
+            Export PDF
           </button>
           <button
             onClick={reset}

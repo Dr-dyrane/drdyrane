@@ -13,34 +13,6 @@ interface VisitRecordModalProps {
   onOpenHx: (record: SessionRecord) => void;
 }
 
-const buildPrintableText = (record: SessionRecord): string => {
-  const clerking = record.clerking || record.snapshot?.clerking;
-  const lines = [
-    `Visit: ${record.visit_label}`,
-    `Date: ${new Date(record.timestamp).toLocaleString()}`,
-    `Status: ${record.status}`,
-    `Diagnosis: ${record.diagnosis}`,
-    `Complaint: ${record.complaint || 'Not recorded'}`,
-    '',
-    'SOAP',
-    `S: ${JSON.stringify(record.soap.S || {})}`,
-    `O: ${JSON.stringify(record.soap.O || {})}`,
-    `A: ${JSON.stringify(record.soap.A || {})}`,
-    `P: ${JSON.stringify(record.soap.P || {})}`,
-    '',
-    'Patient Clerking',
-    `HPC: ${clerking?.hpc || 'Not recorded'}`,
-    `PMH: ${clerking?.pmh || 'Not recorded'}`,
-    `DH: ${clerking?.dh || 'Not recorded'}`,
-    `SH: ${clerking?.sh || 'Not recorded'}`,
-    `FH: ${clerking?.fh || 'Not recorded'}`,
-    '',
-    'Record Notes',
-    record.notes || 'None',
-  ];
-  return lines.join('\n');
-};
-
 const clerkingFields = [
   { key: 'hpc', label: 'HPC' },
   { key: 'pmh', label: 'PMH' },
@@ -131,25 +103,20 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
     onClose();
   };
 
-  const printRecord = () => {
+  const printRecord = async () => {
     if (!record) return;
+    const { exportVisitRecordPdf } = await import('../../core/pdf/clinicalPdf');
     feedback('submit');
-    const payload = buildPrintableText({
-      ...record,
-      visit_label: visitLabel.trim() || record.visit_label,
+    exportVisitRecordPdf({
+      generatedAt: Date.now(),
+      visitLabel: visitLabel.trim() || record.visit_label,
+      status: record.status,
       diagnosis: diagnosis.trim() || record.diagnosis,
-      notes: notes.trim(),
+      complaint: record.complaint || 'Not recorded',
+      notes: notes.trim() || record.notes || 'None',
+      soap: record.soap,
+      clerking: record.clerking || record.snapshot?.clerking,
     });
-    const printWin = window.open('', '_blank', 'noopener,noreferrer,width=760,height=900');
-    if (printWin) {
-      printWin.document.write(`<pre style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; padding: 24px;">${payload}</pre>`);
-      printWin.document.close();
-      printWin.focus();
-      printWin.print();
-      printWin.close();
-    } else {
-      window.print();
-    }
   };
 
   const handleClose = () => {
@@ -347,13 +314,13 @@ export const VisitRecordModal: React.FC<VisitRecordModalProps> = ({
                       </span>
                     </button>
                     <button
-                      onClick={printRecord}
+                      onClick={() => void printRecord()}
                       className="h-[62px] rounded-2xl surface-strong text-content-primary focus-glow interactive-tap interactive-soft"
                       aria-label="Print visit record"
                     >
                       <span className="inline-flex flex-col items-center gap-1.5">
                         <Printer size={15} />
-                        <span className="text-[11px]">Print</span>
+                        <span className="text-[11px]">PDF</span>
                       </span>
                     </button>
                     <button

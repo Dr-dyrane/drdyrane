@@ -38,6 +38,54 @@ export const BottomNav: React.FC = () => {
     setMenuOpen(false);
   };
 
+  const exportPdfFromContext = useCallback(async () => {
+    const { exportEncounterPdf, exportVisitRecordPdf } = await import('../../core/pdf/clinicalPdf');
+    if (state.status === 'complete' && state.pillars) {
+      exportEncounterPdf({
+        diagnosis: state.pillars.diagnosis,
+        management: state.pillars.management,
+        investigations: state.pillars.encounter?.investigations || [],
+        prescriptions: state.pillars.encounter?.prescriptions || [],
+        counseling: state.pillars.encounter?.counseling || [],
+        followUp: state.pillars.encounter?.follow_up || [],
+        prognosis: state.pillars.prognosis,
+        prevention: state.pillars.prevention,
+        patient: {
+          displayName: state.profile.display_name,
+          age: state.profile.age,
+          sex: state.profile.sex,
+          weightKg: state.profile.weight_kg ?? null,
+        },
+      });
+      return;
+    }
+
+    if (state.view === 'history' && state.archives.length > 0) {
+      const latest = state.archives[0];
+      exportVisitRecordPdf({
+        visitLabel: latest.visit_label,
+        status: latest.status,
+        diagnosis: latest.diagnosis,
+        complaint: latest.complaint || 'Not recorded',
+        notes: latest.notes || 'None',
+        soap: latest.soap,
+        clerking: latest.clerking || latest.snapshot?.clerking,
+      });
+      return;
+    }
+
+    window.alert('PDF export is available after a completed consultation or from visit records.');
+  }, [
+    state.archives,
+    state.pillars,
+    state.profile.age,
+    state.profile.display_name,
+    state.profile.sex,
+    state.profile.weight_kg,
+    state.status,
+    state.view,
+  ]);
+
   const navItems = [
     { id: 'consult' as AppView, icon: Stethoscope, label: 'Consult' },
     { id: 'history' as AppView, icon: History, label: 'History' },
@@ -67,11 +115,11 @@ export const BottomNav: React.FC = () => {
       },
       {
         key: 'print',
-        label: 'Print',
+        label: 'PDF',
         icon: Printer,
         onClick: () => {
           feedback('submit');
-          window.print();
+          void exportPdfFromContext();
         },
       },
       {
@@ -98,6 +146,7 @@ export const BottomNav: React.FC = () => {
     ],
     [
       dispatch,
+      exportPdfFromContext,
       hasArchives,
       state.archives,
       feedback,

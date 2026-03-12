@@ -17,6 +17,7 @@ Track where documented vision and implementation differ, and what has been align
 - Added formal blueprint comparison in `docs/architecture/CHIEF_COMPLAINT_ENGINE_GAP_ANALYSIS.md`.
 - Added a dedicated `Drug` tab with searchable diagnosis protocols and print-ready treatment sheets sourced from `public/data/drug-protocols.json`.
 - Drug and consultation print sheets now use structured premium layout (patient context, generation timestamp, clean section cards).
+- Snapshot/browser print flow has been replaced by programmatic PDF export for consult, formulary, and visit record documents.
 
 ## Remaining Gaps
 - README references historical folder names and model strategy not fully matching runtime.
