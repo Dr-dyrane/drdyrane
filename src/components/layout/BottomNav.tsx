@@ -53,20 +53,12 @@ const TAB_REGISTRY: Record<AppView, SmartTab> = {
   about: { id: 'about', label: 'System', icon: LineChart },
 };
 
-const getSmartTabs = (view: AppView): SmartTab[] => {
-  switch (view) {
-    case 'consult':
-      return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
-    case 'history':
-      return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
-    case 'drug':
-      return [TAB_REGISTRY.history, TAB_REGISTRY.drug, TAB_REGISTRY.scan];
-    case 'scan':
-      return [TAB_REGISTRY.drug, TAB_REGISTRY.scan, TAB_REGISTRY.consult];
-    default:
-      return [TAB_REGISTRY.consult, TAB_REGISTRY.history, TAB_REGISTRY.drug];
-  }
-};
+const PRIMARY_TABS: SmartTab[] = [
+  TAB_REGISTRY.consult,
+  TAB_REGISTRY.history,
+  TAB_REGISTRY.drug,
+  TAB_REGISTRY.scan,
+];
 
 export const BottomNav: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -155,7 +147,7 @@ export const BottomNav: React.FC = () => {
   const hasCompletedEncounter = state.status === 'complete' && Boolean(state.pillars);
   const hasHistoryRecord = state.view === 'history' && hasArchives;
   const canExportPdf = hasCompletedEncounter || hasHistoryRecord;
-  const smartTabs = useMemo(() => getSmartTabs(state.view), [state.view]);
+  const smartTabs = useMemo(() => PRIMARY_TABS, []);
 
   const openProcess = useCallback(() => {
     setProcessOpen(true);
@@ -288,7 +280,7 @@ export const BottomNav: React.FC = () => {
         <div className="relative flex items-end justify-between gap-2 pointer-events-auto">
           <motion.div
             layout
-            className="ios-tabbar-surface rounded-full h-14 px-2 inline-flex items-center gap-1 shadow-float min-w-0"
+            className="ios-tabbar-surface rounded-full h-14 px-1.5 inline-flex items-center gap-0.5 shadow-float min-w-0"
           >
             {smartTabs.map((tab) => {
               const isActive = state.view === tab.id;
@@ -297,8 +289,8 @@ export const BottomNav: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => openView(tab.id)}
-                  className={`relative h-10 rounded-full inline-flex items-center gap-1.5 transition-all interactive-tap tap-compact ${
-                    isActive ? 'px-3.5 bg-surface-active text-content-active selected-elevation' : 'px-2.5 text-content-dim'
+                  className={`relative h-10 rounded-full inline-flex items-center gap-1 transition-all interactive-tap tap-compact ${
+                    isActive ? 'px-2.5 bg-surface-active text-content-active selected-elevation' : 'px-2 text-content-dim'
                   }`}
                   aria-label={`Open ${tab.label}`}
                 >

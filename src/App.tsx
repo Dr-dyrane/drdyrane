@@ -46,10 +46,15 @@ const MainApp: React.FC = () => {
 
     applyTheme();
     document.documentElement.setAttribute('data-text-scale', state.settings.text_scale);
+    document.documentElement.setAttribute(
+      'data-reduced-motion',
+      state.settings.reduced_motion ? 'true' : 'false'
+    );
+    document.documentElement.setAttribute('data-motion-style', state.settings.motion_style);
 
     if (state.theme !== 'system') return;
     return watchSystemTheme(applyTheme);
-  }, [state.theme, state.settings.text_scale]);
+  }, [state.theme, state.settings.motion_style, state.settings.reduced_motion, state.settings.text_scale]);
 
   useEffect(() => {
     if (launchPresentedRef.current) return;

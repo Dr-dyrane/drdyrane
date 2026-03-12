@@ -438,7 +438,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
                 <button
                   onClick={() => void pushToConsultation()}
-                  disabled={pushing}
+                  disabled={pushing || (!analysis && !contextNote.trim())}
                   className="h-11 rounded-2xl surface-strong text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
                 >
                   {pushing ? <Loader2 size={14} className="animate-spin" /> : <Send size={14} />}

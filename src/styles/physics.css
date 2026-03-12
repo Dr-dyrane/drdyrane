@@ -87,6 +87,8 @@
   --size-hit-target: 44px;
   --size-hit-target-lg: 56px;
   --ease-fluid: cubic-bezier(0.22, 1, 0.36, 1);
+  --tap-hover-y: -1px;
+  --tap-active-scale: 0.97;
 
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -225,11 +227,11 @@ select {
 }
 
 .interactive-tap:hover:not(:disabled) {
-  transform: translateY(-1px);
+  transform: translateY(var(--tap-hover-y));
 }
 
 .interactive-tap:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(var(--tap-active-scale));
 }
 
 .interactive-soft:hover:not(:disabled) {
@@ -716,6 +718,26 @@ select {
 
 .orb-glow {
   animation: orb-pulse 4s infinite ease-in-out;
+}
+
+[data-motion-style='subtle'] {
+  --tap-hover-y: 0px;
+  --tap-active-scale: 0.99;
+}
+
+[data-motion-style='expressive'] {
+  --tap-hover-y: -2px;
+  --tap-active-scale: 0.95;
+}
+
+[data-reduced-motion='true'] .option-live-smooth,
+[data-reduced-motion='true'] .interactive-tap,
+[data-reduced-motion='true'] .cta-live,
+[data-reduced-motion='true'] .fab-live,
+[data-reduced-motion='true'] .animate-emergence,
+[data-reduced-motion='true'] .orb-glow {
+  transition: none !important;
+  animation: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

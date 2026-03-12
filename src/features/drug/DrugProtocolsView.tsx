@@ -415,7 +415,7 @@ export const DrugProtocolsView: React.FC = () => {
           )}
 
           {!loading && !error && filteredProtocols.length > 0 && (
-            <div className="max-h-[54vh] overflow-y-auto no-scrollbar space-y-2 pr-1">
+            <div className="space-y-2">
               {filteredProtocols.map((entry) => (
                 <button
                   key={entry.value}
