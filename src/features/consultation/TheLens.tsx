@@ -120,7 +120,21 @@ export const TheLens: React.FC = () => {
       const redFlagText = analysis.red_flags.length > 0
         ? `Possible red flags: ${analysis.red_flags.join('; ')}.`
         : 'No immediate red flag visual cues detected.';
-      const visualInput = `Visual analysis summary: ${analysis.summary}. Findings: ${findingText}. ${redFlagText} Recommendation: ${analysis.recommendation}. Confidence: ${analysis.confidence}%.`;
+      const spotDxText = analysis.spot_diagnosis?.label
+        ? `Spot diagnosis: ${analysis.spot_diagnosis.label}${
+            analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
+          }.`
+        : 'Spot diagnosis not established from image alone.';
+      const differentialText =
+        analysis.differentials.length > 0
+          ? `Differentials: ${analysis.differentials
+              .map(
+                (entry) =>
+                  `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''} [${entry.likelihood}]`
+              )
+              .join('; ')}.`
+          : 'No ranked differentials available.';
+      const visualInput = `Visual analysis summary: ${analysis.summary}. Findings: ${findingText}. ${redFlagText} ${spotDxText} ${differentialText} Recommendation: ${analysis.recommendation}. Confidence: ${analysis.confidence}%.`;
       await returnToConsultation(visualInput);
     } catch (error) {
       console.error('Lens analysis failed:', error);

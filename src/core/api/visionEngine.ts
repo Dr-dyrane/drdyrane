@@ -4,6 +4,18 @@ export interface VisionAnalysisResult {
   red_flags: string[];
   confidence: number;
   recommendation: string;
+  spot_diagnosis?: {
+    label: string;
+    icd10?: string;
+    confidence: number;
+    rationale?: string;
+  };
+  differentials: Array<{
+    label: string;
+    icd10?: string;
+    likelihood: 'high' | 'medium' | 'low';
+    rationale?: string;
+  }>;
 }
 
 const sanitizeText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
@@ -17,6 +29,12 @@ const clampPercent = (value: unknown): number => {
   const num = typeof value === 'number' ? value : Number(value);
   if (Number.isNaN(num)) return 0;
   return Math.max(0, Math.min(100, Math.round(num)));
+};
+
+const sanitizeLikelihood = (value: unknown): 'high' | 'medium' | 'low' => {
+  const normalized = sanitizeText(value).toLowerCase();
+  if (normalized === 'high' || normalized === 'low') return normalized;
+  return 'medium';
 };
 
 export const analyzeClinicalImage = async (payload: {
@@ -36,6 +54,29 @@ export const analyzeClinicalImage = async (payload: {
   }
 
   const data = (await response.json()) as Record<string, unknown>;
+  const spotDiagnosisRaw =
+    data.spot_diagnosis && typeof data.spot_diagnosis === 'object'
+      ? (data.spot_diagnosis as Record<string, unknown>)
+      : null;
+  const spotDiagnosisLabel = sanitizeText(spotDiagnosisRaw?.label);
+  const differentialsRaw = Array.isArray(data.differentials)
+    ? (data.differentials as Array<Record<string, unknown>>)
+    : [];
+  const differentials = differentialsRaw
+    .map((entry) => {
+      const label = sanitizeText(entry?.label);
+      if (!label) return null;
+      const icd10 = sanitizeText(entry?.icd10);
+      const rationale = sanitizeText(entry?.rationale);
+      return {
+        label,
+        icd10: icd10 || undefined,
+        likelihood: sanitizeLikelihood(entry?.likelihood),
+        rationale: rationale || undefined,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .slice(0, 6);
 
   return {
     summary: sanitizeText(data.summary) || 'No conclusive visual finding.',
@@ -43,6 +84,14 @@ export const analyzeClinicalImage = async (payload: {
     red_flags: sanitizeList(data.red_flags, 6),
     confidence: clampPercent(data.confidence),
     recommendation: sanitizeText(data.recommendation) || 'Continue structured history collection.',
+    spot_diagnosis: spotDiagnosisLabel
+      ? {
+          label: spotDiagnosisLabel,
+          icd10: sanitizeText(spotDiagnosisRaw?.icd10) || undefined,
+          confidence: clampPercent(spotDiagnosisRaw?.confidence),
+          rationale: sanitizeText(spotDiagnosisRaw?.rationale) || undefined,
+        }
+      : undefined,
+    differentials,
   };
 };
-

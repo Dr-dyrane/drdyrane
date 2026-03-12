@@ -165,6 +165,62 @@ const sanitizeDiagnosticReviewRecord = (
           typeof record.analysis.recommendation === 'string'
             ? record.analysis.recommendation.trim()
             : 'Continue structured history collection.',
+        spot_diagnosis:
+          record.analysis.spot_diagnosis &&
+          typeof record.analysis.spot_diagnosis === 'object' &&
+          typeof record.analysis.spot_diagnosis.label === 'string' &&
+          record.analysis.spot_diagnosis.label.trim()
+            ? {
+                label: record.analysis.spot_diagnosis.label.trim(),
+                icd10:
+                  typeof record.analysis.spot_diagnosis.icd10 === 'string' &&
+                  record.analysis.spot_diagnosis.icd10.trim()
+                    ? record.analysis.spot_diagnosis.icd10.trim()
+                    : undefined,
+                confidence: Math.max(
+                  0,
+                  Math.min(
+                    100,
+                    Math.round(Number(record.analysis.spot_diagnosis.confidence) || 0)
+                  )
+                ),
+                rationale:
+                  typeof record.analysis.spot_diagnosis.rationale === 'string' &&
+                  record.analysis.spot_diagnosis.rationale.trim()
+                    ? record.analysis.spot_diagnosis.rationale.trim()
+                    : undefined,
+              }
+            : undefined,
+        differentials: Array.isArray(record.analysis.differentials)
+          ? record.analysis.differentials
+              .map((entry) => {
+                if (!entry || typeof entry !== 'object') return null;
+                const label =
+                  typeof entry.label === 'string' ? entry.label.trim() : '';
+                if (!label) return null;
+                const likelihoodRaw =
+                  typeof entry.likelihood === 'string'
+                    ? entry.likelihood.trim().toLowerCase()
+                    : '';
+                const likelihood = ['high', 'medium', 'low'].includes(likelihoodRaw)
+                  ? (likelihoodRaw as 'high' | 'medium' | 'low')
+                  : 'medium';
+                return {
+                  label,
+                  icd10:
+                    typeof entry.icd10 === 'string' && entry.icd10.trim()
+                      ? entry.icd10.trim()
+                      : undefined,
+                  likelihood,
+                  rationale:
+                    typeof entry.rationale === 'string' && entry.rationale.trim()
+                      ? entry.rationale.trim()
+                      : undefined,
+                };
+              })
+              .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+              .slice(0, 6)
+          : [],
       }
     : null;
 

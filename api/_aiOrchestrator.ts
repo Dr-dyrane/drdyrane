@@ -99,6 +99,18 @@ type VisionPayload = {
   red_flags?: string[];
   confidence?: number;
   recommendation?: string;
+  spot_diagnosis?: {
+    label?: string;
+    icd10?: string;
+    confidence?: number;
+    rationale?: string;
+  };
+  differentials?: Array<{
+    label?: string;
+    icd10?: string;
+    likelihood?: 'high' | 'medium' | 'low' | string;
+    rationale?: string;
+  }>;
 };
 
 const URGENCY_RANK: Record<NonNullable<ConsultPayload['urgency']>, number> = {
@@ -205,6 +217,7 @@ RESPONSE JSON:
 const VISION_SYSTEM_PROMPT = `You are a clinical visual triage assistant.
 Analyze the provided image conservatively and return strict JSON only.
 Do not provide a definitive diagnosis from image alone.
+You may provide a provisional "spot diagnosis" and differential list only when supported by visual + provided context.
 
 RESPONSE JSON:
 {
@@ -212,7 +225,21 @@ RESPONSE JSON:
   "findings": ["objective visual finding"],
   "red_flags": ["urgent concern if present"],
   "confidence": number,
-  "recommendation": "next best clinical step"
+  "recommendation": "next best clinical step",
+  "spot_diagnosis": {
+    "label": "provisional diagnosis label",
+    "icd10": "ICD-10 code if known",
+    "confidence": 0,
+    "rationale": "short reason"
+  },
+  "differentials": [
+    {
+      "label": "differential diagnosis label",
+      "icd10": "ICD-10 code if known",
+      "likelihood": "high|medium|low",
+      "rationale": "short reason"
+    }
+  ]
 }`;
 
 const normalizeEnvValue = (value: string | undefined): string =>
@@ -431,12 +458,46 @@ const normalizeOptionsPayload = (value: unknown): OptionsPayload => {
 
 const normalizeVisionPayload = (value: unknown): VisionPayload => {
   const source = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const spotRaw =
+    source.spot_diagnosis && typeof source.spot_diagnosis === 'object'
+      ? (source.spot_diagnosis as Record<string, unknown>)
+      : {};
+  const spotLabel = sanitizeText(spotRaw.label);
+  const differentialsRaw = Array.isArray(source.differentials)
+    ? (source.differentials as Array<Record<string, unknown>>)
+    : [];
   return {
     summary: sanitizeText(source.summary),
     findings: sanitizeList(source.findings, 8),
     red_flags: sanitizeList(source.red_flags, 6),
     confidence: clampPercent(source.confidence),
     recommendation: sanitizeText(source.recommendation),
+    spot_diagnosis: spotLabel
+      ? {
+          label: spotLabel,
+          icd10: sanitizeText(spotRaw.icd10) || undefined,
+          confidence: clampPercent(spotRaw.confidence),
+          rationale: sanitizeText(spotRaw.rationale) || undefined,
+        }
+      : undefined,
+    differentials: differentialsRaw
+      .map((entry) => {
+        const label = sanitizeText(entry.label);
+        if (!label) return null;
+        const likelihoodRaw = sanitizeText(entry.likelihood).toLowerCase();
+        const likelihood =
+          likelihoodRaw === 'high' || likelihoodRaw === 'low' || likelihoodRaw === 'medium'
+            ? (likelihoodRaw as 'high' | 'medium' | 'low')
+            : 'medium';
+        return {
+          label,
+          icd10: sanitizeText(entry.icd10) || undefined,
+          likelihood,
+          rationale: sanitizeText(entry.rationale) || undefined,
+        };
+      })
+      .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+      .slice(0, 6),
   };
 };
 

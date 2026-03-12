@@ -49,17 +49,17 @@ const SCAN_LENS_CONFIG: Record<ScanLens, LensPromptConfig> = {
   general: {
     contextHint: 'Analyze this clinical image and identify relevant findings with urgency signals.',
     lensPrompt:
-      'Review this clinical image for key findings, danger signs, and safe next-step recommendations.',
+      'Review this clinical image for key findings, danger signs, a provisional spot diagnosis, ranked differentials, and safe next-step recommendations.',
   },
   lab: {
     contextHint: 'Analyze this laboratory report image and identify clinically relevant abnormalities.',
     lensPrompt:
-      'Review this laboratory report image. Extract critical findings, dangerous abnormalities, and immediate next actions.',
+      'Review this laboratory report image. Extract critical findings, dangerous abnormalities, a provisional spot diagnosis, ranked differentials, and immediate next actions.',
   },
   radiology: {
     contextHint: 'Analyze this radiology image and identify key findings with urgency indicators.',
     lensPrompt:
-      'Review this radiology image for major findings, red flags, and safe next-step recommendations.',
+      'Review this radiology image for major findings, red flags, a provisional spot diagnosis, ranked differentials, and safe next-step recommendations.',
   },
 };
 
@@ -154,14 +154,25 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       const now = Date.now();
       const mergedReviews = [review, ...state.diagnostic_reviews.filter((item) => item.id !== review.id)];
       const hasRedFlags = Boolean(review.analysis && review.analysis.red_flags.length > 0);
-      const diagnosis = review.analysis?.summary || `${config.pageLabel} review pending interpretation`;
+      const spotDx = review.analysis?.spot_diagnosis?.label;
+      const spotCode = review.analysis?.spot_diagnosis?.icd10;
+      const diagnosis = spotDx
+        ? `${spotDx}${spotCode ? ` (ICD-10: ${spotCode})` : ''}`
+        : review.analysis?.summary || `${config.pageLabel} review pending interpretation`;
       const visitLabel = `${config.pageLabel} ${new Date(now).toLocaleDateString(undefined, {
         month: 'short',
         day: 'numeric',
       })}`;
+      const differentialSummary =
+        review.analysis?.differentials && review.analysis.differentials.length > 0
+          ? `Differentials: ${review.analysis.differentials
+              .map((entry) => `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''}`)
+              .join('; ')}`
+          : '';
       const noteParts = [
         review.context_note || '',
         review.analysis?.recommendation || '',
+        differentialSummary,
       ].filter(Boolean);
       const complaint = `${config.pageLabel} ${review.lens} review`;
       const archive: SessionRecord = {
@@ -392,6 +403,23 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   const handoffSummary = useMemo(() => {
     const lines: string[] = [`${config.pageLabel} review handoff:`];
     if (analysis) {
+      if (analysis.spot_diagnosis?.label) {
+        lines.push(
+          `Spot diagnosis: ${analysis.spot_diagnosis.label}${
+            analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
+          }.`
+        );
+      }
+      if (analysis.differentials && analysis.differentials.length > 0) {
+        lines.push(
+          `Differentials: ${analysis.differentials
+            .map(
+              (entry) =>
+                `${entry.label}${entry.icd10 ? ` (${entry.icd10})` : ''} [${entry.likelihood}]`
+            )
+            .join('; ')}.`
+        );
+      }
       lines.push(`Summary: ${analysis.summary}`);
       if (analysis.findings.length > 0) {
         lines.push(`Findings: ${analysis.findings.join('; ')}`);
@@ -632,6 +660,54 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
               </span>
             </div>
 
+            {analysis.spot_diagnosis?.label && (
+              <div className="surface-strong rounded-2xl p-3 space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <p className="text-[11px] text-content-dim uppercase tracking-wide">Spot Diagnosis</p>
+                  <span className="h-6 px-2.5 rounded-full surface-chip text-[10px] font-semibold inline-flex items-center">
+                    {formatNumber(analysis.spot_diagnosis.confidence)}%
+                  </span>
+                </div>
+                <p className="text-sm text-content-primary leading-relaxed font-semibold">
+                  {analysis.spot_diagnosis.label}
+                  {analysis.spot_diagnosis.icd10
+                    ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})`
+                    : ''}
+                </p>
+                {analysis.spot_diagnosis.rationale && (
+                  <p className="text-sm text-content-secondary leading-relaxed">
+                    {analysis.spot_diagnosis.rationale}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {analysis.differentials && analysis.differentials.length > 0 && (
+              <div className="surface-strong rounded-2xl p-3 space-y-2">
+                <p className="text-[11px] text-content-dim uppercase tracking-wide">Differentials</p>
+                <div className="space-y-2">
+                  {analysis.differentials.map((item, index) => (
+                    <div key={`${item.label}-${index}`} className="surface-chip rounded-xl px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm text-content-primary leading-snug font-medium">
+                          {item.label}
+                          {item.icd10 ? ` (ICD-10: ${item.icd10})` : ''}
+                        </p>
+                        <span className="text-[10px] text-content-secondary uppercase tracking-wide">
+                          {item.likelihood}
+                        </span>
+                      </div>
+                      {item.rationale && (
+                        <p className="text-xs text-content-secondary leading-relaxed mt-1">
+                          {item.rationale}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="surface-strong rounded-2xl p-3 space-y-2">
               <p className="text-[11px] text-content-dim uppercase tracking-wide">Summary</p>
               <p className="text-sm text-content-primary leading-relaxed">{analysis.summary}</p>
@@ -673,7 +749,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         {!analysis && (
           <section className="surface-raised rounded-[24px] p-4 pb-24">
             <p className="text-sm text-content-secondary leading-relaxed">
-              Upload or scan first, run AI review, then send structured findings back into consultation reasoning.
+              Upload or scan first, run AI review to get spot diagnosis + differentials, then send structured findings into consultation reasoning.
             </p>
           </section>
         )}

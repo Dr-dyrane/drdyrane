@@ -72,6 +72,18 @@ export interface DiagnosticReviewAnalysis {
   red_flags: string[];
   confidence: number;
   recommendation: string;
+  spot_diagnosis?: {
+    label: string;
+    icd10?: string;
+    confidence: number;
+    rationale?: string;
+  };
+  differentials?: Array<{
+    label: string;
+    icd10?: string;
+    likelihood: 'high' | 'medium' | 'low';
+    rationale?: string;
+  }>;
 }
 
 export interface DiagnosticReviewRecord {
