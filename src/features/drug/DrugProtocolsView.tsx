@@ -42,8 +42,15 @@ interface RenderedDrugLine {
   duration: string;
 }
 
-const normalize = (value: string): string =>
+const splitSearchBoundaries = (value: string): string =>
   value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
+    .replace(/([a-zA-Z])([0-9])/g, '$1 $2')
+    .replace(/([0-9])([a-zA-Z])/g, '$1 $2');
+
+const normalize = (value: string): string =>
+  splitSearchBoundaries(value)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
@@ -187,15 +194,26 @@ export const DrugProtocolsView: React.FC = () => {
     };
   }, []);
 
+  const protocolSearchIndex = useMemo(
+    () =>
+      protocols.map((entry) => {
+        const drugTerms = entry.drugs
+          .map((drug) => `${drug.name} ${drug.form}`)
+          .join(' ');
+        const searchable = normalize(`${entry.label} ${entry.value} ${drugTerms}`);
+        return { entry, searchable };
+      }),
+    [protocols]
+  );
+
   const filteredProtocols = useMemo(() => {
     const normalizedQuery = normalize(query);
     if (!normalizedQuery) return protocols;
-    return protocols.filter((entry) => {
-      const label = normalize(entry.label);
-      const value = normalize(entry.value);
-      return label.includes(normalizedQuery) || value.includes(normalizedQuery);
-    });
-  }, [protocols, query]);
+    const queryTokens = normalizedQuery.split(' ').filter(Boolean);
+    return protocolSearchIndex
+      .filter(({ searchable }) => queryTokens.every((token) => searchable.includes(token)))
+      .map(({ entry }) => entry);
+  }, [protocolSearchIndex, protocols, query]);
 
   const quickPickProtocols = useMemo(
     () =>
