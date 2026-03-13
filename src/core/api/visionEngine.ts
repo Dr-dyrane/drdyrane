@@ -38,6 +38,12 @@ export interface VisionAnalysisSupplement {
 
 const sanitizeText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
+export const VISION_UPLOAD_FILE_LIMIT_BYTES = 8 * 1024 * 1024;
+const VISION_REQUEST_LIMIT_BYTES = 3_200_000;
+const VISION_IMAGE_TARGET_BYTES = 2_200_000;
+const REQUEST_SAFETY_OVERHEAD_BYTES = 160_000;
+const IMAGE_DATA_URL_PATTERN = /^data:image\/[a-zA-Z0-9.+-]+;base64,/;
+
 const sanitizeList = (value: unknown, maxItems: number): string[] =>
   Array.isArray(value)
     ? value.map((item) => sanitizeText(item)).filter(Boolean).slice(0, maxItems)
@@ -95,6 +101,98 @@ const parseDifferentials = (
   return parsed.length > 0 ? parsed : undefined;
 };
 
+const estimateJsonBytes = (value: unknown): number => {
+  try {
+    return new Blob([JSON.stringify(value)]).size;
+  } catch {
+    return Number.MAX_SAFE_INTEGER;
+  }
+};
+
+const estimateDataUrlBytes = (dataUrl: string): number => {
+  const match = dataUrl.match(/^data:[^;]+;base64,(.+)$/);
+  if (!match) return Number.MAX_SAFE_INTEGER;
+  const base64 = match[1].replace(/\s+/g, '');
+  const padding = base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0;
+  return Math.max(0, Math.floor((base64.length * 3) / 4) - padding);
+};
+
+const loadImage = (dataUrl: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Unable to decode selected image.'));
+    image.src = dataUrl;
+  });
+
+const renderScaledJpeg = (
+  image: HTMLImageElement,
+  maxEdge: number,
+  quality: number
+): string => {
+  const longest = Math.max(image.naturalWidth, image.naturalHeight, 1);
+  const scale = longest > maxEdge ? maxEdge / longest : 1;
+  const width = Math.max(1, Math.round(image.naturalWidth * scale));
+  const height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Unable to optimize image.');
+  context.drawImage(image, 0, 0, width, height);
+  return canvas.toDataURL('image/jpeg', quality);
+};
+
+const fitImageDataUrlToBudget = async (
+  dataUrl: string,
+  targetBytes: number
+): Promise<{ dataUrl: string; bytes: number; changed: boolean }> => {
+  const initialBytes = estimateDataUrlBytes(dataUrl);
+  if (initialBytes <= targetBytes) {
+    return { dataUrl, bytes: initialBytes, changed: false };
+  }
+  if (typeof document === 'undefined') {
+    return { dataUrl, bytes: initialBytes, changed: false };
+  }
+
+  const image = await loadImage(dataUrl);
+  const edges = [1600, 1400, 1200, 1024, 896, 768, 640];
+  const qualities = [0.86, 0.78, 0.7, 0.62, 0.56, 0.5, 0.44];
+
+  let bestDataUrl = dataUrl;
+  let bestBytes = initialBytes;
+
+  for (const edge of edges) {
+    for (const quality of qualities) {
+      const candidate = renderScaledJpeg(image, edge, quality);
+      const candidateBytes = estimateDataUrlBytes(candidate);
+      if (candidateBytes < bestBytes) {
+        bestDataUrl = candidate;
+        bestBytes = candidateBytes;
+      }
+      if (candidateBytes <= targetBytes) {
+        return { dataUrl: candidate, bytes: candidateBytes, changed: true };
+      }
+    }
+  }
+
+  return { dataUrl: bestDataUrl, bytes: bestBytes, changed: bestDataUrl !== dataUrl };
+};
+
+const resolveVisionPayloadError = (status: number, body: string): string | null => {
+  const text = `${body || ''}`.toLowerCase();
+  if (
+    status === 413 ||
+    text.includes('entity too large') ||
+    text.includes('payload too large') ||
+    text.includes('request body too large') ||
+    text.includes('function payload too large')
+  ) {
+    return 'Image payload is too large. Crop/zoom the image and retry.';
+  }
+  return null;
+};
+
 export const analyzeClinicalImage = async (payload: {
   imageDataUrl: string;
   clinicalContext?: string;
@@ -114,18 +212,50 @@ export const analyzeClinicalImage = async (payload: {
 
   task.start('prepare', 'Encoding request');
   try {
-    task.succeed('prepare', 'Payload ready');
+    const incomingImageDataUrl = sanitizeText(payload.imageDataUrl);
+    if (!IMAGE_DATA_URL_PATTERN.test(incomingImageDataUrl)) {
+      throw new Error('Invalid image payload. Use a valid image file.');
+    }
+
+    const rawImageBytes = estimateDataUrlBytes(incomingImageDataUrl);
+    let requestPayload = { ...payload, imageDataUrl: incomingImageDataUrl };
+    let requestBytes = estimateJsonBytes(requestPayload);
+    let optimizedImageDataUrl = incomingImageDataUrl;
+
+    const targetImageBytes = Math.max(
+      420_000,
+      Math.min(VISION_IMAGE_TARGET_BYTES, VISION_REQUEST_LIMIT_BYTES - REQUEST_SAFETY_OVERHEAD_BYTES)
+    );
+
+    if (rawImageBytes > VISION_IMAGE_TARGET_BYTES || requestBytes > VISION_REQUEST_LIMIT_BYTES) {
+      task.start('prepare', 'Optimizing image size');
+      const optimized = await fitImageDataUrlToBudget(incomingImageDataUrl, targetImageBytes);
+      optimizedImageDataUrl = optimized.dataUrl;
+      requestPayload = { ...payload, imageDataUrl: optimizedImageDataUrl };
+      requestBytes = estimateJsonBytes(requestPayload);
+      if (requestBytes > VISION_REQUEST_LIMIT_BYTES) {
+        throw new Error('Image payload is too large. Crop/zoom the image and retry.');
+      }
+      task.succeed('prepare', optimized.changed ? 'Image optimized' : 'Payload ready');
+    } else {
+      task.succeed('prepare', 'Payload ready');
+    }
+
     task.start('vision_call', 'Contacting Dr engine');
     const response = await fetch('/api/vision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
     });
 
     if (!response.ok) {
       const body = await response.text().catch(() => '');
+      const payloadError = resolveVisionPayloadError(response.status, body);
       task.fail('vision_call', 'Request failed');
-      task.finishError('Vision call failed');
+      task.finishError(payloadError || 'Vision call failed');
+      if (payloadError) {
+        throw new Error(payloadError);
+      }
       throw new Error(`Vision API Error: ${body || response.status}`);
     }
     task.succeed('vision_call', 'Response received');

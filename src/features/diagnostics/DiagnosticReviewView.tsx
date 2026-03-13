@@ -17,6 +17,7 @@ import {
   analyzeClinicalImage,
   VisionAnalysisResult,
   VisionAnalysisSupplement,
+  VISION_UPLOAD_FILE_LIMIT_BYTES,
   synthesizeScanTreatment,
 } from '../../core/api/visionEngine';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
@@ -386,6 +387,10 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
     if (!file.type.startsWith('image/')) {
       setError('Image files only for Dr review.');
+      return;
+    }
+    if (file.size > VISION_UPLOAD_FILE_LIMIT_BYTES) {
+      setError('Image too large. Please use an image smaller than 8 MB.');
       return;
     }
 

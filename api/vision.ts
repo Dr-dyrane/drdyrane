@@ -21,6 +21,16 @@ const coerceBody = <T>(raw: unknown): T => {
   return {} as T;
 };
 
+const isPayloadTooLargeError = (message: string): boolean => {
+  const text = message.toLowerCase();
+  return (
+    text.includes('entity too large') ||
+    text.includes('payload too large') ||
+    text.includes('request body too large') ||
+    text.includes('function payload too large')
+  );
+};
+
 export default async function handler(req: ApiRequest, res: ApiResponse): Promise<void> {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST');
@@ -34,6 +44,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     res.status(200).json(response);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Vision proxy failure.';
-    res.status(500).json({ error: message });
+    const status = isPayloadTooLargeError(message) ? 413 : 500;
+    res.status(status).json({ error: message });
   }
 }

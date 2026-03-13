@@ -7,7 +7,7 @@ import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedbac
 import { resolveProfileAvatarWithFallback } from '../../core/storage/avatarStore';
 import { resolveTheme } from '../../core/theme/resolveTheme';
 import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
-import { analyzeClinicalImage } from '../../core/api/visionEngine';
+import { analyzeClinicalImage, VISION_UPLOAD_FILE_LIMIT_BYTES } from '../../core/api/visionEngine';
 import { ResponseOptions } from '../../core/types/clinical';
 import { buildLocalOptions } from '../../core/api/agent/localOptions';
 import {
@@ -25,7 +25,6 @@ const LOADING_PHASES = [
   'Selecting next question',
 ];
 const INPUT_CHAR_LIMIT = 1200;
-const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
 const DANGER_GATE_PATTERN =
   /danger signs?|breathlessness|confusion|persistent vomiting|bleeding|chest pain|fainting|breathing trouble/i;
 const DIRECT_BINARY_QUESTION_PATTERN = /^(is|are|do|did|have|has|can|could|will|would|should|any)\b/i;
@@ -328,7 +327,7 @@ export const StepRenderer: React.FC = () => {
         setInteractionError('Image files only for consult visual intake.');
         return;
       }
-      if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+      if (file.size > VISION_UPLOAD_FILE_LIMIT_BYTES) {
         setInteractionError('Image too large. Please use an image smaller than 8 MB.');
         return;
       }
