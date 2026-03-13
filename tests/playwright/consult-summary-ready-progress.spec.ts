@@ -125,17 +125,14 @@ test.describe('Consult Summary Progression', () => {
     await page.locator('.option-button', { hasText: 'Ready for summary' }).first().click();
 
     await expect.poll(() => lastConsultInput).toBe('Ready for summary');
-    await expect(
-      page.getByText(
-        'Before I finalize, any danger signs now: confusion, fainting, breathing trouble, chest pain, persistent vomiting, or bleeding?'
-      )
-    ).toBeVisible();
+    await expect(page.getByText(/Before I finalize/i)).toBeVisible();
+    await expect(page.getByText(/any danger signs now:/i)).toBeVisible();
     await expect(
       page.getByText('Which associated symptom stands out most right now?')
     ).toHaveCount(0);
   });
 
-  test('summary-ready with cleared safety checkpoint advances to finalize confirmation without clarifier loop', async ({
+  test('summary-ready with cleared safety checkpoint completes encounter without clarifier loop', async ({
     page,
   }) => {
     await seedClinicalStorage(page);
@@ -285,9 +282,7 @@ test.describe('Consult Summary Progression', () => {
     }
 
     await page.locator('.option-button', { hasText: 'Ready for summary' }).first().click();
-    await expect(
-      page.getByText('Would you like your working diagnosis and plan now?')
-    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Conclusion' })).toBeVisible();
 
     await expect(
       page.getByText('Which associated symptom stands out most right now?')

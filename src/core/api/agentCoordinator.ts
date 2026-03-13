@@ -879,8 +879,7 @@ export class AgentCoordinator {
       conversationResult.agent_state.phase
     );
     const patientRequestedSummary =
-      SUMMARY_READY_RESPONSE_PATTERN.test(input.trim().toLowerCase()) &&
-      this.hasSummaryReadySignal(nextConversation);
+      this.isSummaryReadyInput(input) && this.hasSummaryPromptContext(nextConversation);
     if (patientRequestedSummary && !conversationResult.lens_trigger) {
       const dangerSignsCovered =
         incomingCheckpoint.status === 'cleared' ||
@@ -1979,6 +1978,25 @@ export class AgentCoordinator {
     return malariaFastTrack || highCertaintyGeneral || summaryFastTrack;
   }
 
+  private isSummaryReadyInput(input: string): boolean {
+    const normalized = input.trim().toLowerCase().replace(/[_-]+/g, ' ');
+    if (!normalized) return false;
+    return SUMMARY_READY_RESPONSE_PATTERN.test(normalized);
+  }
+
+  private hasSummaryPromptContext(conversation: ClinicalState['conversation']): boolean {
+    const lastDoctorQuestion = this.getLatestDoctorQuestion(conversation).toLowerCase();
+    if (
+      SUMMARY_CLARIFY_QUESTION_PATTERN.test(lastDoctorQuestion) ||
+      /\bwould you like your working diagnosis and plan\b|\bworking diagnosis and plan\b/i.test(
+        lastDoctorQuestion
+      )
+    ) {
+      return true;
+    }
+    return this.hasSummaryReadySignal(conversation);
+  }
+
   private shouldForceSummaryAutoComplete(
     input: string,
     status: ClinicalState['status'],
@@ -1990,13 +2008,17 @@ export class AgentCoordinator {
     if (!Array.isArray(ddx) || ddx.length === 0) return false;
     if (checkpoint.status === 'escalate') return false;
 
-    const normalizedInput = input.trim().toLowerCase();
-    if (!normalizedInput) return false;
-    if (!this.hasSummaryReadySignal(conversation)) return false;
+    if (!this.isSummaryReadyInput(input)) return false;
+    if (!this.hasSummaryPromptContext(conversation)) return false;
 
     const patientTurns = conversation.filter((entry) => entry.role === 'patient').length;
     if (patientTurns < 2) return false;
-    return true;
+
+    if (checkpoint.status === 'pending' || checkpoint.status === 'cleared') {
+      return true;
+    }
+
+    return this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28);
   }
 
   private hasSummaryReadySignal(conversation: ClinicalState['conversation']): boolean {

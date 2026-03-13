@@ -123,6 +123,10 @@ test.describe('Consult Option Normalization', () => {
     await page.locator('.option-button', { hasText: 'Ready for summary' }).first().click();
 
     await expect.poll(() => capturedPatientInput).toBe('Ready for summary');
-    await expect(page.getByText('Any danger signs now: breathlessness, confusion, chest pain, persistent vomiting, or bleeding?')).toBeVisible();
+    await expect(
+      page.getByText(
+        /Before I finalize .*any danger signs now: confusion, fainting, breathing trouble, chest pain, persistent vomiting, or bleeding\?/i
+      )
+    ).toBeVisible();
   });
 });
