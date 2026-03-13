@@ -63,6 +63,10 @@ const MainApp: React.FC = () => {
   const { state, dispatch } = useClinical();
   const launchPresentedRef = useRef(false);
   const onboardingComplete = isProfileOnboardingComplete(state.profile);
+  const isConsultView = state.view === 'consult';
+  const mainTopPadding = isConsultView
+    ? 'pt-[calc(env(safe-area-inset-top)+4rem)]'
+    : 'pt-[calc(env(safe-area-inset-top)+4.35rem)]';
 
   useEffect(() => {
     const applyTheme = () => {
@@ -180,7 +184,9 @@ const MainApp: React.FC = () => {
         </Suspense>
 
         {/* Main Routing Context */}
-        <main className="relative z-10 flex-1 flex flex-col px-3 pt-[calc(env(safe-area-inset-top)+4.35rem)] pb-[calc(env(safe-area-inset-bottom)+7.25rem)] min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar">
+        <main
+          className={`relative z-10 flex-1 flex flex-col px-3 ${mainTopPadding} pb-[calc(env(safe-area-inset-bottom)+7.25rem)] min-h-0 overflow-y-auto overflow-x-hidden no-scrollbar`}
+        >
           <AnimatePresence mode="wait">
             {state.view === 'consult' && (
               <motion.div

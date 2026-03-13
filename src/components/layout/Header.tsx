@@ -18,11 +18,12 @@ export const Header: React.FC = () => {
   const unreadCount = state.settings.notifications_enabled
     ? state.notifications.filter((notification) => !notification.read).length
     : 0;
+  const isConsultView = state.view === 'consult';
   const viewLabelMap: Record<typeof state.view, string> = {
-    consult: 'Consultation',
+    consult: 'Consulting Room',
     history: 'Records',
     drug: 'Pharmacy',
-    scan: 'Investigation Scan',
+    scan: 'Scan',
     about: 'System',
   };
   const viewLabel = viewLabelMap[state.view];
@@ -38,9 +39,15 @@ export const Header: React.FC = () => {
           <img src={avatarSrc} alt="Profile avatar" className="h-full w-full object-cover" />
         </button>
 
-        <div className="flex-1 min-w-0 h-12 surface-raised rounded-2xl px-4 flex flex-col justify-center pointer-events-auto">
-          <p className="text-[11px] text-content-dim leading-none">{todayLabel}</p>
-          <p className="text-sm font-semibold text-content-primary leading-tight truncate">{viewLabel}</p>
+        <div
+          className={`flex-1 min-w-0 surface-raised rounded-2xl px-4 pointer-events-auto ${
+            isConsultView ? 'h-11 flex items-center' : 'h-12 flex flex-col justify-center'
+          }`}
+        >
+          {!isConsultView && <p className="text-[11px] text-content-dim leading-none">{todayLabel}</p>}
+          <p className="text-sm font-semibold text-content-primary leading-tight truncate">
+            {isConsultView ? `${viewLabel} · ${todayLabel}` : viewLabel}
+          </p>
         </div>
 
         <button
