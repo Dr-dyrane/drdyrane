@@ -1808,6 +1808,16 @@ export class AgentCoordinator {
     const resolvedResponseOptions = shouldDropIncomingGate
       ? null
       : newState.response_options;
+    const gateProgressRegressed =
+      Boolean(
+        resolvedQuestionGate &&
+          resolvedQuestionGate.active &&
+          this.state.question_gate?.active &&
+          resolvedQuestionGate.kind === this.state.question_gate.kind &&
+          resolvedQuestionGate.source_question === this.state.question_gate.source_question &&
+          resolvedQuestionGate.current_index < this.state.question_gate.current_index
+      );
+
     const monotonicQuestionGate =
       resolvedQuestionGate &&
       resolvedQuestionGate.active &&
@@ -1823,6 +1833,16 @@ export class AgentCoordinator {
             ),
           }
         : resolvedQuestionGate;
+
+    const incomingConversationLength = Array.isArray(newState.conversation)
+      ? newState.conversation.length
+      : null;
+    const currentConversationLength = this.state.conversation.length;
+    const conversationRegressed =
+      typeof incomingConversationLength === 'number' &&
+      incomingConversationLength < currentConversationLength;
+
+    const shouldKeepCurrentOptions = gateProgressRegressed || conversationRegressed;
 
     const mergedConversation = Array.isArray(newState.conversation)
       ? newState.conversation.length >= this.state.conversation.length
@@ -1866,9 +1886,15 @@ export class AgentCoordinator {
           ? monotonicQuestionGate
           : this.state.question_gate,
       response_options:
-        resolvedResponseOptions !== undefined
+        shouldKeepCurrentOptions
+          ? this.state.response_options
+          : resolvedResponseOptions !== undefined
           ? resolvedResponseOptions
           : this.state.response_options,
+      selected_options:
+        shouldKeepCurrentOptions || newState.selected_options === undefined
+          ? this.state.selected_options
+          : newState.selected_options,
       conversation: mergedConversation,
       agent_state: mergedAgentState,
     };

@@ -35,8 +35,8 @@ let initialized = false;
 const createWorker = (): Worker =>
   new Worker(new URL('../workers/sessionSync.worker.ts', import.meta.url), { type: 'module' });
 
-const MAX_CONVERSATION_MESSAGES = 240;
-const PRESERVED_CONVERSATION_HEAD = 24;
+const MAX_CONVERSATION_MESSAGES = 720;
+const PRESERVED_CONVERSATION_HEAD = 64;
 
 const getConversationEntryKey = (entry: ClinicalState['conversation'][number], index: number): string => {
   const id = (entry as { id?: unknown }).id;

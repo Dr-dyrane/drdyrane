@@ -8,6 +8,7 @@ import { resolveProfileAvatarWithFallback } from '../../core/storage/avatarStore
 import { resolveTheme } from '../../core/theme/resolveTheme';
 import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
 import { analyzeClinicalImage } from '../../core/api/visionEngine';
+import { ResponseOptions } from '../../core/types/clinical';
 import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
@@ -23,6 +24,9 @@ const LOADING_PHASES = [
 ];
 const INPUT_CHAR_LIMIT = 1200;
 const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
+const DANGER_GATE_PATTERN =
+  /danger signs?|breathlessness|confusion|persistent vomiting|bleeding|chest pain|fainting|breathing trouble/i;
+const DIRECT_BINARY_QUESTION_PATTERN = /^(is|are|do|did|have|has|can|could|will|would|should|any)\b/i;
 
 const readFileAsDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -31,6 +35,38 @@ const readFileAsDataUrl = (file: File): Promise<string> =>
     reader.onerror = () => reject(reader.error || new Error('Unable to read image file.'));
     reader.readAsDataURL(file);
   });
+
+const hasBinaryOptionShape = (options: ResponseOptions | null): boolean => {
+  if (!options || !Array.isArray(options.options) || options.options.length === 0) return false;
+  const texts = options.options.map((option) => option.text.toLowerCase());
+  const hasYes = texts.some((text) => text === 'yes');
+  const hasNoLike = texts.some((text) => text === 'no' || text === 'none of these');
+  return hasYes && hasNoLike;
+};
+
+const buildTimedGateOptions = (prompt: string, contextHint: string): ResponseOptions => {
+  const negativeLabel = DANGER_GATE_PATTERN.test(prompt) ? 'None of these' : 'No';
+  return {
+    mode: 'single',
+    ui_variant: 'segmented',
+    options: [
+      { id: 'yes', text: 'Yes', category: 'confirmation', priority: 10 },
+      { id: 'no', text: negativeLabel, category: 'confirmation', priority: 9 },
+      { id: 'unsure', text: 'Not sure', category: 'confirmation', priority: 8 },
+    ],
+    allow_custom_input: true,
+    context_hint: contextHint,
+  };
+};
+
+const isBinaryQuestionPrompt = (prompt: string): boolean => {
+  const normalized = prompt.trim().toLowerCase();
+  if (!normalized) return false;
+  if (normalized.includes(' how many ') || normalized.startsWith('how many')) return false;
+  if (normalized.includes(' how long ') || normalized.startsWith('how long')) return false;
+  if (normalized.startsWith('what ') || normalized.startsWith('which ')) return false;
+  return DIRECT_BINARY_QUESTION_PATTERN.test(normalized) || DANGER_GATE_PATTERN.test(normalized);
+};
 
 export const StepRenderer: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -460,7 +496,6 @@ export const StepRenderer: React.FC = () => {
     setSelectedOptionIds([]);
   };
 
-  const showInput = !state.response_options || state.response_options.allow_custom_input;
   const canGoBack =
     state.history.length > 0 || state.status !== 'idle' || state.conversation.length > 0;
   const currentMessage =
@@ -484,6 +519,23 @@ export const StepRenderer: React.FC = () => {
   const showResetControl = state.status !== 'idle' && !isIntakeView;
   const showActionRow = showBackControl || showResetControl;
   const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
+  const activeResponseOptions = React.useMemo(() => {
+    const sourceOptions = state.response_options;
+    const gatePrompt = activeGateSegment?.prompt || resolvedQuestion;
+    const shouldForceBinary = isTimedGateStep || isBinaryQuestionPrompt(gatePrompt);
+    if (!shouldForceBinary) return sourceOptions;
+
+    const timedHint = gateProgress ? `Step ${gateProgress}: Quick yes/no.` : 'Quick yes/no.';
+
+    if (!sourceOptions) {
+      return buildTimedGateOptions(gatePrompt, timedHint);
+    }
+    if (hasBinaryOptionShape(sourceOptions)) {
+      return sourceOptions;
+    }
+    return buildTimedGateOptions(gatePrompt, timedHint);
+  }, [activeGateSegment?.prompt, gateProgress, isTimedGateStep, resolvedQuestion, state.response_options]);
+  const showInput = !activeResponseOptions || activeResponseOptions.allow_custom_input;
 
   if (state.status === 'complete') return null;
 
@@ -798,7 +850,7 @@ export const StepRenderer: React.FC = () => {
 
               <div className="space-y-3 consult-answer-zone">
                 <ResponseOptionsPanel
-                  responseOptions={state.response_options}
+                  responseOptions={activeResponseOptions}
                   selectedOptionIds={selectedOptionIds}
                   onSelect={(optionId, event) => void handleOptionSelect(optionId, event)}
                   onSubmitSingle={() => void handleSingleSubmit()}
