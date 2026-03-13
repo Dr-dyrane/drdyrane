@@ -130,22 +130,8 @@ test.describe('Consult Media Intake', () => {
     await expect(page.getByText('How long have these mouth lesions been present?')).toBeVisible();
     await expect(page.locator('.option-button').first()).toBeVisible();
 
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const raw = localStorage.getItem('dr_dyrane.v2.session');
-            if (!raw) return 0;
-            try {
-              const parsed = JSON.parse(raw);
-              const reviews = parsed?.state?.diagnostic_reviews;
-              return Array.isArray(reviews) ? reviews.length : 0;
-            } catch {
-              return 0;
-            }
-          }),
-        { timeout: 6000 }
-      )
-      .toBeGreaterThan(0);
+    await page.getByRole('button', { name: 'Open Scan' }).click();
+    await expect(page.getByText('Review Output')).toBeVisible();
+    await expect(page.getByText('Likely recurrent aphthous stomatitis (provisional)')).toBeVisible();
   });
 });

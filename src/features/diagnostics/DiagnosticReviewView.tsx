@@ -13,7 +13,12 @@ import {
 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
-import { analyzeClinicalImage } from '../../core/api/visionEngine';
+import {
+  analyzeClinicalImage,
+  VisionAnalysisResult,
+  VisionAnalysisSupplement,
+  synthesizeScanTreatment,
+} from '../../core/api/visionEngine';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { DiagnosticReviewKind, DiagnosticReviewRecord, SessionRecord } from '../../core/types/clinical';
@@ -101,6 +106,56 @@ const createReviewDraft = (params: {
   };
 };
 
+const mergeUniqueList = (primary: string[] | undefined, secondary: string[] | undefined, maxItems: number): string[] | undefined => {
+  const merged = Array.from(
+    new Set([...(primary || []), ...(secondary || [])].map((item) => item.trim()).filter(Boolean))
+  ).slice(0, maxItems);
+  return merged.length > 0 ? merged : undefined;
+};
+
+const mergeDifferentials = (
+  primary: VisionAnalysisResult['differentials'],
+  secondary: VisionAnalysisSupplement['differentials']
+): VisionAnalysisResult['differentials'] => {
+  const map = new Map<string, NonNullable<VisionAnalysisResult['differentials']>[number]>();
+  for (const entry of primary || []) {
+    const key = entry.label.trim().toLowerCase();
+    if (!key) continue;
+    map.set(key, entry);
+  }
+  for (const entry of secondary || []) {
+    const key = entry.label.trim().toLowerCase();
+    if (!key) continue;
+    map.set(key, {
+      label: entry.label,
+      icd10: entry.icd10,
+      likelihood: entry.likelihood || 'medium',
+      rationale: entry.rationale,
+    });
+  }
+  const merged = Array.from(map.values()).slice(0, 6);
+  return merged.length > 0 ? merged : undefined;
+};
+
+const mergeVisionAnalysisWithSupplement = (
+  base: VisionAnalysisResult,
+  supplement: VisionAnalysisSupplement
+): VisionAnalysisResult => ({
+  ...base,
+  summary: supplement.summary || base.summary,
+  red_flags: mergeUniqueList(base.red_flags, supplement.red_flags, 8) || base.red_flags,
+  recommendation: supplement.recommendation || base.recommendation,
+  spot_diagnosis:
+    supplement.spot_diagnosis && supplement.spot_diagnosis.label
+      ? supplement.spot_diagnosis
+      : base.spot_diagnosis,
+  differentials: mergeDifferentials(base.differentials, supplement.differentials),
+  treatment_summary: supplement.treatment_summary || base.treatment_summary,
+  treatment_lines: mergeUniqueList(base.treatment_lines, supplement.treatment_lines, 10) || base.treatment_lines,
+  investigations: mergeUniqueList(base.investigations, supplement.investigations, 10) || base.investigations,
+  counseling: mergeUniqueList(base.counseling, supplement.counseling, 10) || base.counseling,
+});
+
 export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind }) => {
   const { state, dispatch } = useClinical();
   const [scanLens, setScanLens] = useState<ScanLens>('general');
@@ -144,6 +199,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
   const [error, setError] = useState<string>('');
   const [analyzing, setAnalyzing] = useState(false);
+  const [synthesizingPlan, setSynthesizingPlan] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -367,13 +423,31 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     }
 
     setAnalyzing(true);
+    setSynthesizingPlan(false);
     setError('');
     try {
-      const review = await analyzeClinicalImage({
+      const baseReview = await analyzeClinicalImage({
         imageDataUrl,
         clinicalContext: contextNote.trim() || promptConfig.contextHint,
         lensPrompt: promptConfig.lensPrompt,
       });
+
+      let mergedReview = baseReview;
+      try {
+        setSynthesizingPlan(true);
+        const supplement = await synthesizeScanTreatment({
+          analysis: baseReview,
+          clinicalContext: contextNote.trim() || promptConfig.contextHint,
+          lens: scanLens,
+        });
+        mergedReview = mergeVisionAnalysisWithSupplement(baseReview, supplement);
+      } catch (supplementError) {
+        const reason = supplementError instanceof Error ? supplementError.message : String(supplementError);
+        console.warn('[scan-plan] treatment synthesis skipped', { reason });
+      } finally {
+        setSynthesizingPlan(false);
+      }
+
       const analyzedReview = upsertReview({
         ...(activeReview ||
           createReviewDraft({
@@ -383,7 +457,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
             imageName: imageName || `${config.pageLabel.toLowerCase()}-${scanLens}-review.jpg`,
           })),
         context_note: contextNote.trim() || undefined,
-        analysis: review,
+        analysis: mergedReview,
         updated_at: Date.now(),
       });
       upsertReviewArchive(analyzedReview);
@@ -393,6 +467,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       setError(message);
       feedback('error');
     } finally {
+      setSynthesizingPlan(false);
       setAnalyzing(false);
     }
   }, [
@@ -682,7 +757,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                   className="h-11 rounded-2xl cta-live text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
                 >
                   {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                  {analyzing ? 'Reviewing...' : 'AI Review'}
+                  {analyzing ? (synthesizingPlan ? 'Finalizing Plan...' : 'Reviewing...') : 'AI Review'}
                 </button>
 
                 <button

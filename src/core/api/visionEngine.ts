@@ -22,6 +22,18 @@ export interface VisionAnalysisResult {
   counseling?: string[];
 }
 
+export interface VisionAnalysisSupplement {
+  summary?: string;
+  red_flags?: string[];
+  recommendation?: string;
+  spot_diagnosis?: VisionAnalysisResult['spot_diagnosis'];
+  differentials?: VisionAnalysisResult['differentials'];
+  treatment_summary?: string;
+  treatment_lines?: string[];
+  investigations?: string[];
+  counseling?: string[];
+}
+
 const sanitizeText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
 const sanitizeList = (value: unknown, maxItems: number): string[] =>
@@ -43,6 +55,44 @@ const sanitizeLikelihood = (value: unknown): 'high' | 'medium' | 'low' => {
   return 'medium';
 };
 
+const parseSpotDiagnosis = (
+  value: unknown
+): VisionAnalysisResult['spot_diagnosis'] => {
+  const spotRaw = value && typeof value === 'object'
+    ? (value as Record<string, unknown>)
+    : {};
+  const label = sanitizeText(spotRaw.label);
+  if (!label) return undefined;
+  return {
+    label,
+    icd10: sanitizeText(spotRaw.icd10) || undefined,
+    confidence: clampVisionConfidencePercent(spotRaw.confidence),
+    rationale: sanitizeText(spotRaw.rationale) || undefined,
+  };
+};
+
+const parseDifferentials = (
+  value: unknown
+): VisionAnalysisResult['differentials'] => {
+  const raw = Array.isArray(value)
+    ? (value as Array<Record<string, unknown>>)
+    : [];
+  const parsed = raw
+    .map((entry) => {
+      const label = sanitizeText(entry.label);
+      if (!label) return null;
+      return {
+        label,
+        icd10: sanitizeText(entry.icd10) || undefined,
+        likelihood: sanitizeLikelihood(entry.likelihood),
+        rationale: sanitizeText(entry.rationale) || undefined,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .slice(0, 6);
+  return parsed.length > 0 ? parsed : undefined;
+};
+
 export const analyzeClinicalImage = async (payload: {
   imageDataUrl: string;
   clinicalContext?: string;
@@ -60,30 +110,11 @@ export const analyzeClinicalImage = async (payload: {
   }
 
   const data = (await response.json()) as Record<string, unknown>;
-  const spotRaw =
-    data.spot_diagnosis && typeof data.spot_diagnosis === 'object'
-      ? (data.spot_diagnosis as Record<string, unknown>)
-      : {};
-  const spotLabel = sanitizeText(spotRaw.label);
-  const differentialsRaw = Array.isArray(data.differentials)
-    ? (data.differentials as Array<Record<string, unknown>>)
-    : [];
   const treatmentLines = sanitizeList(data.treatment_lines, 8);
   const investigations = sanitizeList(data.investigations, 8);
   const counseling = sanitizeList(data.counseling, 8);
-  const differentials = differentialsRaw
-    .map((entry) => {
-      const label = sanitizeText(entry.label);
-      if (!label) return null;
-      return {
-        label,
-        icd10: sanitizeText(entry.icd10) || undefined,
-        likelihood: sanitizeLikelihood(entry.likelihood),
-        rationale: sanitizeText(entry.rationale) || undefined,
-      };
-    })
-    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
-    .slice(0, 6);
+  const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
+  const differentials = parseDifferentials(data.differentials);
 
   return {
     summary: sanitizeText(data.summary) || 'No conclusive visual finding.',
@@ -91,15 +122,45 @@ export const analyzeClinicalImage = async (payload: {
     red_flags: sanitizeList(data.red_flags, 6),
     confidence: clampVisionConfidencePercent(data.confidence),
     recommendation: sanitizeText(data.recommendation) || 'Continue structured history collection.',
-    spot_diagnosis: spotLabel
-      ? {
-          label: spotLabel,
-          icd10: sanitizeText(spotRaw.icd10) || undefined,
-          confidence: clampVisionConfidencePercent(spotRaw.confidence),
-          rationale: sanitizeText(spotRaw.rationale) || undefined,
-        }
-      : undefined,
-    differentials: differentials.length > 0 ? differentials : undefined,
+    spot_diagnosis: spotDiagnosis,
+    differentials,
+    treatment_summary: sanitizeText(data.treatment_summary) || undefined,
+    treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
+    investigations: investigations.length > 0 ? investigations : undefined,
+    counseling: counseling.length > 0 ? counseling : undefined,
+  };
+};
+
+export const synthesizeScanTreatment = async (payload: {
+  analysis: VisionAnalysisResult;
+  clinicalContext?: string;
+  lens?: 'general' | 'lab' | 'radiology';
+}): Promise<VisionAnalysisSupplement> => {
+  const response = await fetch('/api/scan-plan', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new Error(`Scan Plan API Error: ${body || response.status}`);
+  }
+
+  const data = (await response.json()) as Record<string, unknown>;
+  const treatmentLines = sanitizeList(data.treatment_lines, 8);
+  const investigations = sanitizeList(data.investigations, 8);
+  const counseling = sanitizeList(data.counseling, 8);
+  const redFlags = sanitizeList(data.red_flags, 6);
+  const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
+  const differentials = parseDifferentials(data.differentials);
+
+  return {
+    summary: sanitizeText(data.summary) || undefined,
+    red_flags: redFlags.length > 0 ? redFlags : undefined,
+    recommendation: sanitizeText(data.recommendation) || undefined,
+    spot_diagnosis: spotDiagnosis,
+    differentials,
     treatment_summary: sanitizeText(data.treatment_summary) || undefined,
     treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
     investigations: investigations.length > 0 ? investigations : undefined,

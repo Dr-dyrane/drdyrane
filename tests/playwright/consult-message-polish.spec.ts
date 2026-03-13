@@ -72,39 +72,9 @@ test.describe('Consult Message Polish', () => {
 
     await expect(page.getByText('How long has this complaint been present?')).toBeVisible();
 
-    await expect
-      .poll(
-        () =>
-          page.evaluate(() => {
-            const raw = localStorage.getItem('dr_dyrane.v2.session');
-            if (!raw) return '';
-            try {
-              const parsed = JSON.parse(raw);
-              const conversation = Array.isArray(parsed?.state?.conversation)
-                ? parsed.state.conversation
-                : [];
-              const lastDoctor = [...conversation].reverse().find((entry) => entry?.role === 'doctor');
-              return String(lastDoctor?.content || '');
-            } catch {
-              return '';
-            }
-          }),
-        { timeout: 6000 }
-      )
-      .toContain('How long has this complaint been present?');
-
-    const latestDoctorMessage = await page.evaluate(() => {
-      const raw = localStorage.getItem('dr_dyrane.v2.session');
-      if (!raw) return '';
-      try {
-        const parsed = JSON.parse(raw);
-        const conversation = Array.isArray(parsed?.state?.conversation) ? parsed.state.conversation : [];
-        const lastDoctor = [...conversation].reverse().find((entry) => entry?.role === 'doctor');
-        return String(lastDoctor?.content || '');
-      } catch {
-        return '';
-      }
-    });
+    const latestDoctorBubble = page.locator('.consult-chat-bubble-doctor').last();
+    await expect(latestDoctorBubble).toContainText('How long has this complaint been present?');
+    const latestDoctorMessage = (await latestDoctorBubble.innerText()).trim();
     expect(/^noted\.?\s/i.test(latestDoctorMessage)).toBeFalsy();
   });
 });

@@ -38,6 +38,12 @@ export type VisionRequest = {
   lensPrompt?: string;
 };
 
+export type ScanPlanRequest = {
+  analysis?: VisionPayload | Record<string, unknown>;
+  clinicalContext?: string;
+  lens?: 'general' | 'lab' | 'radiology';
+};
+
 type ConsultPayload = {
   statement?: string;
   question?: string;
@@ -256,6 +262,36 @@ RESPONSE JSON:
   "treatment_lines": ["medication or intervention line"],
   "investigations": ["test"],
   "counseling": ["key counseling point"]
+}`;
+
+const SCAN_PLAN_SYSTEM_PROMPT = `You are Dr. Dyrane, generating a focused management plan from an already completed visual analysis.
+Return strict JSON only.
+Do not ask questions.
+Use ICD-10 labels when confident. If uncertain, keep provisional wording.
+Prioritize safe, practical treatment lines, investigations, counseling, and red-flag escalation.
+
+RESPONSE JSON:
+{
+  "spot_diagnosis": {
+    "label": "most likely diagnosis",
+    "icd10": "ICD-10 code if known",
+    "confidence": 0,
+    "rationale": "short rationale"
+  },
+  "differentials": [
+    {
+      "label": "differential",
+      "icd10": "ICD-10 code if known",
+      "likelihood": "high|medium|low",
+      "rationale": "short rationale"
+    }
+  ],
+  "treatment_summary": "concise treatment strategy",
+  "treatment_lines": ["definitive treatment line"],
+  "investigations": ["targeted test"],
+  "counseling": ["patient counseling point"],
+  "red_flags": ["urgent return warning"],
+  "recommendation": "single-sentence next best step"
 }`;
 
 const normalizeEnvValue = (value: string | undefined): string =>
@@ -2293,6 +2329,30 @@ const selectPrimaryProviderForVision = (body: VisionRequest): LlmProvider => {
   return 'openai';
 };
 
+const selectPrimaryProviderForScanPlan = (body: ScanPlanRequest): LlmProvider => {
+  const forced = normalizeProvider(process.env.LLM_SCAN_PROVIDER || process.env.LLM_PROVIDER);
+  if (forced) return forced;
+
+  const analysis = normalizeVisionPayload(body.analysis || {});
+  const corpus = [
+    sanitizeText(body.clinicalContext),
+    sanitizeText(analysis.summary),
+    ...(analysis.findings || []),
+    ...(analysis.red_flags || []),
+    sanitizeText(analysis.recommendation),
+    sanitizeText(analysis.spot_diagnosis?.label),
+    ...(analysis.differentials || []).map((entry) => sanitizeText(entry.label)),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (/(critical|unstable|must-not-miss|shock|stroke|sepsis|respiratory distress)/i.test(corpus)) {
+    return 'anthropic';
+  }
+  return 'openai';
+};
+
 const shouldForceCollaborativeConsult = (body: ConsultRequest): boolean => {
   const urgency = sanitizeText(body.state?.urgency).toLowerCase();
   if (urgency === 'critical' || urgency === 'high') return true;
@@ -2563,6 +2623,52 @@ Return only strict JSON for enrichment fields.`;
   return normalizeVisionPayload(parseFirstJsonObject(raw));
 };
 
+const executeScanPlanWithProvider = async (
+  provider: LlmProvider,
+  body: ScanPlanRequest
+): Promise<VisionPayload> => {
+  const normalizedAnalysis = normalizeVisionPayload(body.analysis || {});
+  const contextPrompt = sanitizeText(body.clinicalContext) || 'No extra clinical context provided.';
+  const lens = sanitizeText(body.lens) || 'general';
+  const userPrompt = `Lens: ${lens}
+Clinical context: ${contextPrompt}
+Base analysis: ${JSON.stringify({
+  summary: normalizedAnalysis.summary,
+  findings: normalizedAnalysis.findings || [],
+  red_flags: normalizedAnalysis.red_flags || [],
+  recommendation: normalizedAnalysis.recommendation,
+  spot_diagnosis: normalizedAnalysis.spot_diagnosis,
+  differentials: normalizedAnalysis.differentials || [],
+  treatment_summary: normalizedAnalysis.treatment_summary,
+  treatment_lines: normalizedAnalysis.treatment_lines || [],
+  investigations: normalizedAnalysis.investigations || [],
+  counseling: normalizedAnalysis.counseling || [],
+})}
+
+Generate a stronger treatment-focused plan as Dr. Dyrane.
+Return strict JSON only.`;
+
+  const raw =
+    provider === 'anthropic'
+      ? await callAnthropic({
+          maxTokens: 640,
+          systemPrompt: SCAN_PLAN_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: userPrompt }],
+          temperature: 0.15,
+        })
+      : await callOpenAI({
+          maxTokens: 640,
+          forceJson: true,
+          temperature: 0.15,
+          messages: [
+            { role: 'system', content: SCAN_PLAN_SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt },
+          ],
+        });
+
+  return normalizeVisionPayload(parseFirstJsonObject(raw));
+};
+
 export const runConsult = async (body: ConsultRequest): Promise<unknown> => {
   const primaryProvider = selectPrimaryProviderForConsult(body);
   const providerOrder = resolveProviderOrder(primaryProvider);
@@ -2589,6 +2695,32 @@ export const runOptions = async (body: OptionsRequest): Promise<unknown> => {
     (provider) => executeOptionsWithProvider(provider, body),
     mergeOptionsPayloads
   );
+};
+
+export const runScanPlan = async (body: ScanPlanRequest): Promise<unknown> => {
+  const normalizedAnalysis = normalizeVisionPayload(body.analysis || {});
+  const hasBaseEvidence =
+    sanitizeText(normalizedAnalysis.summary).length > 0 ||
+    (normalizedAnalysis.findings || []).length > 0 ||
+    (normalizedAnalysis.spot_diagnosis?.label || '').trim().length > 0;
+  if (!hasBaseEvidence) {
+    throw new Error('Scan plan requires a prior analysis summary, findings, or spot diagnosis.');
+  }
+
+  const providerOrder = resolveProviderOrder(selectPrimaryProviderForScanPlan(body));
+  const availableProviders = providerOrder.filter((provider) => hasProviderKey(provider));
+  if (availableProviders.length === 0) {
+    throw new Error('No LLM API key configured. Add ANTHROPIC_API_KEY or OPENAI_API_KEY.');
+  }
+
+  const payload = await runWithProviderFailover(availableProviders, (provider) =>
+    executeScanPlanWithProvider(provider, {
+      ...body,
+      analysis: normalizedAnalysis,
+    })
+  );
+
+  return normalizeVisionPayload(payload);
 };
 
 export const runVision = async (body: VisionRequest): Promise<unknown> => {
