@@ -3,9 +3,11 @@ import type { Connect } from 'vite';
 import {
   ConsultRequest,
   OptionsRequest,
+  ScanPlanRequest,
   VisionRequest,
   runConsult,
   runOptions,
+  runScanPlan,
   runVision,
 } from '../api/_aiOrchestrator';
 
@@ -103,6 +105,12 @@ const handleVision = async (req: IncomingMessage, res: ServerResponse): Promise<
   writeJson(res, 200, result);
 };
 
+const handleScanPlan = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  const body = await readJsonBody<ScanPlanRequest>(req);
+  const result = await runScanPlan(body);
+  writeJson(res, 200, result);
+};
+
 const routeMiddleware: Connect.NextHandleFunction = (req, res, next) => {
   const path = (req.url || '').split('?')[0];
   const method = req.method || 'GET';
@@ -119,6 +127,11 @@ const routeMiddleware: Connect.NextHandleFunction = (req, res, next) => {
 
   if (method === 'POST' && path === '/api/vision') {
     guardAndRun(req, res, 'vision', 24, 60_000, async () => handleVision(req, res));
+    return;
+  }
+
+  if (method === 'POST' && path === '/api/scan-plan') {
+    guardAndRun(req, res, 'scan-plan', 36, 60_000, async () => handleScanPlan(req, res));
     return;
   }
 
