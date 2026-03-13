@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ChevronLeft, Timer, X } from 'lucide-react';
+import { ArrowUp, ChevronLeft, ImagePlus, Loader2, Timer, X } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
 import { resolveProfileAvatarWithFallback } from '../../core/storage/avatarStore';
 import { resolveTheme } from '../../core/theme/resolveTheme';
 import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
+import { analyzeClinicalImage } from '../../core/api/visionEngine';
 import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
@@ -21,11 +22,21 @@ const LOADING_PHASES = [
   'Selecting next question',
 ];
 const INPUT_CHAR_LIMIT = 1200;
+const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(reader.error || new Error('Unable to read image file.'));
+    reader.readAsDataURL(file);
+  });
 
 export const StepRenderer: React.FC = () => {
   const { state, dispatch } = useClinical();
   const [val, setVal] = useState('');
   const [loading, setLoading] = useState(false);
+  const [analyzingImage, setAnalyzingImage] = useState(false);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
@@ -42,6 +53,8 @@ export const StepRenderer: React.FC = () => {
   const latestStateRef = useRef(state);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const scrollHostRef = useRef<HTMLElement | null>(null);
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const busy = loading || analyzingImage;
 
   useEffect(() => {
     latestStateRef.current = state;
@@ -179,6 +192,137 @@ export const StepRenderer: React.FC = () => {
     [dispatch]
   );
 
+  const buildVisualConsultInput = useCallback(
+    (analysis: Awaited<ReturnType<typeof analyzeClinicalImage>>): string => {
+      const chunks: string[] = [];
+      chunks.push(`Visual analysis summary: ${analysis.summary}.`);
+      if (analysis.findings.length > 0) {
+        chunks.push(`Findings: ${analysis.findings.join('; ')}.`);
+      }
+      if (analysis.spot_diagnosis?.label) {
+        chunks.push(
+          `Most likely diagnosis: ${analysis.spot_diagnosis.label}${
+            analysis.spot_diagnosis.icd10 ? ` (ICD-10: ${analysis.spot_diagnosis.icd10})` : ''
+          }.`
+        );
+      }
+      if (analysis.differentials && analysis.differentials.length > 0) {
+        chunks.push(
+          `Differentials: ${analysis.differentials
+            .slice(0, 3)
+            .map((entry) =>
+              entry.icd10 ? `${entry.label} (ICD-10: ${entry.icd10})` : entry.label
+            )
+            .join('; ')}.`
+        );
+      }
+      if (analysis.red_flags.length > 0) {
+        chunks.push(`Red flags: ${analysis.red_flags.join('; ')}.`);
+      } else {
+        chunks.push('No immediate visual red flags identified.');
+      }
+      chunks.push(`Recommendation: ${analysis.recommendation}.`);
+      chunks.push(`Confidence: ${analysis.confidence}%.`);
+      return chunks.join(' ');
+    },
+    []
+  );
+
+  const openImagePicker = useCallback(() => {
+    if (busy) return;
+    setInteractionError(null);
+    imageInputRef.current?.click();
+  }, [busy]);
+
+  const handleImageSelected = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      event.target.value = '';
+      if (!file || busy) return;
+
+      if (!file.type.startsWith('image/')) {
+        setInteractionError('Image files only for consult visual intake.');
+        return;
+      }
+      if (file.size > MAX_IMAGE_UPLOAD_BYTES) {
+        setInteractionError('Image too large. Please use an image smaller than 8 MB.');
+        return;
+      }
+
+      setAnalyzingImage(true);
+      setInteractionError(null);
+      setInputHint(null);
+
+      try {
+        const imageDataUrl = await readFileAsDataUrl(file);
+        const latestDoctorQuestion = [...latestStateRef.current.conversation]
+          .reverse()
+          .find((entry) => entry.role === 'doctor')?.content;
+        const analysis = await analyzeClinicalImage({
+          imageDataUrl,
+          clinicalContext:
+            latestStateRef.current.thinking || latestStateRef.current.agent_state.focus_area,
+          lensPrompt:
+            latestDoctorQuestion ||
+            'Review this image for clinically relevant morphology and urgent cues.',
+        });
+
+        const now = Date.now();
+        dispatch({
+          type: 'UPSERT_DIAGNOSTIC_REVIEW',
+          payload: {
+            id: `consult-vision-${now}-${Math.random().toString(36).slice(2, 8)}`,
+            kind: 'scan',
+            lens: 'general',
+            image_data_url: imageDataUrl,
+            image_name: file.name,
+            context_note: 'Captured from consult room media intake.',
+            analysis,
+            created_at: now,
+            updated_at: now,
+          },
+        });
+        if (latestStateRef.current.settings.notifications_enabled) {
+          dispatch({
+            type: 'ADD_NOTIFICATION',
+            payload: {
+              title: 'Consult image reviewed',
+              body: 'Visual findings were added to your scan records and consult context.',
+            },
+          });
+        }
+
+        signalFeedback('submit', {
+          hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
+          audioEnabled: latestStateRef.current.settings.audio_enabled,
+        });
+        const visualInput = buildVisualConsultInput(analysis);
+        const ok = await runInteraction(visualInput, false, 'Image review submitted');
+        if (ok) {
+          setInputHint('Image reviewed and added to consult context.');
+          signalFeedback('question', {
+            hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
+            audioEnabled: latestStateRef.current.settings.audio_enabled,
+          });
+        }
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        setInteractionError(
+          reason && reason !== 'undefined'
+            ? `Image intake failed: ${reason}`
+            : 'Image intake failed. Please retry.'
+        );
+        signalFeedback('error', {
+          hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
+          audioEnabled: latestStateRef.current.settings.audio_enabled,
+        });
+      } finally {
+        setAnalyzingImage(false);
+      }
+    },
+    [buildVisualConsultInput, busy, dispatch, runInteraction]
+  );
+
   const prepareInput = useCallback((raw: string): { value: string; wasTrimmed: boolean } => {
     const trimmed = raw.trim();
     if (!trimmed) return { value: '', wasTrimmed: false };
@@ -206,7 +350,7 @@ export const StepRenderer: React.FC = () => {
   const isTimedGateStep = typeof gateTimeoutSeconds === 'number' && gateTimeoutSeconds > 0;
 
   useEffect(() => {
-    if (!isTimedGateStep || loading || !state.response_options) {
+    if (!isTimedGateStep || busy || !state.response_options) {
       setGateCountdown(null);
       return;
     }
@@ -218,7 +362,7 @@ export const StepRenderer: React.FC = () => {
       });
     }, 1000);
     return () => window.clearInterval(intervalId);
-  }, [gateTimeoutSeconds, isTimedGateStep, loading, state.response_options]);
+  }, [busy, gateTimeoutSeconds, isTimedGateStep, state.response_options]);
 
   const handleInitialInput = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -227,7 +371,7 @@ export const StepRenderer: React.FC = () => {
     }
     const prepared = prepareInput(val);
     const trimmed = prepared.value;
-    if (!trimmed || loading) return;
+    if (!trimmed || busy) return;
     if (prepared.wasTrimmed) {
       setInputHint(`Long input trimmed to ${INPUT_CHAR_LIMIT} characters for stable response.`);
     }
@@ -250,7 +394,7 @@ export const StepRenderer: React.FC = () => {
       promptOnboardingFromNotifications();
       return;
     }
-    if (!state.response_options || loading) return;
+    if (!state.response_options || busy) return;
 
     const { mode, ui_variant: variant } = state.response_options;
     const rect = event?.currentTarget?.getBoundingClientRect();
@@ -293,7 +437,7 @@ export const StepRenderer: React.FC = () => {
       promptOnboardingFromNotifications();
       return;
     }
-    if (selectedOptionIds.length === 0 || loading) return;
+    if (selectedOptionIds.length === 0 || busy) return;
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -307,7 +451,7 @@ export const StepRenderer: React.FC = () => {
       promptOnboardingFromNotifications();
       return;
     }
-    if (selectedOptionIds.length === 0 || loading) return;
+    if (selectedOptionIds.length === 0 || busy) return;
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
@@ -336,36 +480,49 @@ export const StepRenderer: React.FC = () => {
     : null;
   const isClarifierMode = Boolean(state.question_gate?.active);
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
+  const showBackControl = canGoBack && !isIntakeView;
+  const showResetControl = state.status !== 'idle' && !isIntakeView;
+  const showActionRow = showBackControl || showResetControl;
   const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
 
   if (state.status === 'complete') return null;
 
   return (
     <div className="flex-1 flex flex-col justify-start min-h-0 px-2 consult-room-shell">
-      <div className="flex items-center justify-between px-1 z-20 pt-1 consult-room-actions">
-        <div className="w-10">
-          {canGoBack && (
-            <button
-              onClick={() => dispatch({ type: 'GO_BACK' })}
-              className="h-10 w-10 surface-raised text-content-dim hover:text-accent-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
-              aria-label="Go back"
-            >
-              <ChevronLeft size={20} />
-            </button>
-          )}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        data-testid="consult-image-input"
+        onChange={(event) => void handleImageSelected(event)}
+      />
+      {showActionRow && (
+        <div className="flex items-center justify-between px-1 z-20 pt-1 consult-room-actions">
+          <div className="w-10">
+            {showBackControl && (
+              <button
+                onClick={() => dispatch({ type: 'GO_BACK' })}
+                className="h-10 w-10 surface-raised text-content-dim hover:text-accent-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
+                aria-label="Go back"
+              >
+                <ChevronLeft size={20} />
+              </button>
+            )}
+          </div>
+          <div className="w-10">
+            {showResetControl && (
+              <button
+                onClick={() => dispatch({ type: 'RESET' })}
+                className="h-10 w-10 surface-raised text-content-dim hover:text-danger-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
+                aria-label="Reset consultation"
+              >
+                <X size={18} />
+              </button>
+            )}
+          </div>
         </div>
-        <div className="w-10">
-          {state.status !== 'idle' && (
-            <button
-              onClick={() => dispatch({ type: 'RESET' })}
-              className="h-10 w-10 surface-raised text-content-dim hover:text-danger-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
-              aria-label="Reset consultation"
-            >
-              <X size={18} />
-            </button>
-          )}
-        </div>
-      </div>
+      )}
 
       {isIntakeView && (
         <div className="consult-room-stage">
@@ -385,6 +542,20 @@ export const StepRenderer: React.FC = () => {
               </motion.span>
             )}
           </AnimatePresence>
+          <AnimatePresence mode="wait">
+            {analyzingImage && (
+              <motion.span
+                key="analyzing-image"
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                className="energy-chip px-3 h-7 rounded-full text-[11px] tracking-wide text-content-primary font-semibold inline-flex items-center mt-1 gap-1.5"
+              >
+                <Loader2 size={12} className="animate-spin" />
+                Reviewing image
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
       )}
 
@@ -398,19 +569,17 @@ export const StepRenderer: React.FC = () => {
             className="flex-1 flex flex-col items-center justify-start pt-4 px-2"
           >
             <div className="max-w-2xl w-full flex flex-col items-center">
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="w-full surface-raised rounded-[24px] px-4 py-4 shadow-glass mb-3"
+                className="w-full px-3 pb-2 text-sm text-content-secondary text-center leading-relaxed"
               >
-                <p className="text-[0.98rem] text-content-primary leading-relaxed">
-                  {state.conversation.length > 0
-                    ? 'Anything else you noticed before this started?'
-                    : 'Welcome to the consulting room. Tell me in your own words what is bothering you.'}
-                </p>
-              </motion.div>
+                {state.conversation.length > 0
+                  ? 'Anything else you noticed before this started?'
+                  : 'Describe your concern in your own words.'}
+              </motion.p>
 
-              <form onSubmit={handleInitialInput} className="space-y-4 w-full">
+              <form onSubmit={handleInitialInput} className="space-y-3 w-full">
                 <div className="relative surface-raised rounded-[24px] p-3 shadow-glass">
                   <textarea
                     autoFocus
@@ -419,21 +588,21 @@ export const StepRenderer: React.FC = () => {
                     onChange={(e) => setVal(e.target.value)}
                     maxLength={INPUT_CHAR_LIMIT}
                     placeholder="Describe your main concern..."
-                    disabled={loading}
+                    disabled={busy}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         void handleInitialInput();
                       }
                     }}
-                    className="w-full surface-strong p-3 rounded-2xl text-[15px] text-left text-content-primary placeholder-content-dim transition-all resize-none focus-glow"
+                    className="w-full surface-strong p-3 pl-14 pr-14 rounded-2xl text-[15px] text-left text-content-primary placeholder-content-dim transition-all resize-none focus-glow"
                   />
                   <p className="mt-2 px-1 text-[11px] text-content-dim text-right">
                     {val.length}/{INPUT_CHAR_LIMIT}
                   </p>
 
                   <AnimatePresence>
-                    {val.trim() && !loading && (
+                    {val.trim() && !busy && (
                       <motion.button
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -448,11 +617,20 @@ export const StepRenderer: React.FC = () => {
                       </motion.button>
                     )}
                   </AnimatePresence>
+                  <button
+                    type="button"
+                    aria-label="Attach image"
+                    onClick={openImagePicker}
+                    disabled={busy}
+                    className="absolute left-3 bottom-3 h-11 w-11 flex items-center justify-center surface-strong rounded-2xl text-content-secondary focus-glow interactive-tap disabled:opacity-50"
+                  >
+                    {analyzingImage ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
+                  </button>
                 </div>
                 {inputHint && (
                   <p className="px-2 text-[12px] text-content-dim text-center">{inputHint}</p>
                 )}
-                {interactionError && !loading && (
+                {interactionError && !busy && (
                   <div className="surface-raised rounded-2xl px-4 py-3 shadow-glass">
                     <p className="text-[12px] leading-relaxed text-content-secondary">{interactionError}</p>
                     <div className="mt-2 flex items-center justify-end gap-2">
@@ -555,8 +733,25 @@ export const StepRenderer: React.FC = () => {
                   </div>
                 </motion.div>
               )}
+              {analyzingImage && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex justify-start items-end gap-2 pt-1"
+                >
+                  <img
+                    src={doctorAvatarSrc}
+                    alt="Doctor avatar"
+                    className="h-8 w-8 rounded-full object-cover shrink-0 surface-chip"
+                    loading="lazy"
+                  />
+                  <div className="consult-chat-bubble consult-chat-bubble-doctor">
+                    <p className="text-[11px] text-content-dim">Reviewing image findings...</p>
+                  </div>
+                </motion.div>
+              )}
 
-              {!loading && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
+              {!busy && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
                 <div className="pt-1">
                   <div className="flex items-center justify-center gap-2 flex-wrap">
                     {gateProgress && (
@@ -579,7 +774,7 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
-              {interactionError && !loading && (
+              {interactionError && !busy && (
                 <div className="surface-raised rounded-2xl px-4 py-3 shadow-glass">
                   <p className="text-[12px] leading-relaxed text-content-secondary">{interactionError}</p>
                   <div className="mt-2 flex items-center justify-end gap-2">
@@ -621,6 +816,7 @@ export const StepRenderer: React.FC = () => {
                       onChange={(e) => setVal(e.target.value)}
                       maxLength={INPUT_CHAR_LIMIT}
                       placeholder="Type your response..."
+                      disabled={busy}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
@@ -629,7 +825,20 @@ export const StepRenderer: React.FC = () => {
                       }}
                       className="flex-1 surface-strong p-3 rounded-xl text-sm text-content-primary placeholder-content-dim transition-all resize-none no-scrollbar text-left focus-glow"
                     />
-                    {val.trim() && !loading && (
+                    <button
+                      type="button"
+                      onClick={openImagePicker}
+                      disabled={busy}
+                      className="h-11 w-11 flex items-center justify-center surface-strong rounded-xl text-content-secondary focus-glow interactive-tap disabled:opacity-50"
+                      aria-label="Attach image"
+                    >
+                      {analyzingImage ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <ImagePlus size={16} />
+                      )}
+                    </button>
+                    {val.trim() && !busy && (
                       <button
                         onClick={() => void handleInitialInput()}
                         className="h-11 w-11 flex items-center justify-center cta-live-icon rounded-xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95"

@@ -72,7 +72,7 @@ const SYMPTOM_CHANGE_QUESTION_PATTERN = /\bchanged since\b|\bhow has\b|\bbetter|
 const SUMMARY_CLARIFY_QUESTION_PATTERN =
   /\bwhat other detail should i clarify before i summarize your working diagnosis\b|\bworking diagnosis and plan\b/i;
 const SUMMARY_READY_RESPONSE_PATTERN =
-  /\bready for summary\b|\bno\b|\bnone\b|\bnothing else\b|\bno more\b|\bthat'?s all\b|\bdone\b|\byes\b/i;
+  /\bready for summary\b|\bnothing else\b|\bno more\b|\bthat'?s all\b|\bdone\b|\bproceed\b|^(?:no|none)$/i;
 const CHECKPOINT_DANGER_SIGNAL_PATTERN =
   /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
 const PATTERN_QUESTION_PATTERN =
@@ -1567,6 +1567,9 @@ export class AgentCoordinator {
     question: string,
     conversation: ClinicalState['conversation']
   ): boolean {
+    if (SUMMARY_CLARIFY_QUESTION_PATTERN.test(question)) {
+      return this.hasRecentlyAnsweredIntent(conversation, SUMMARY_CLARIFY_QUESTION_PATTERN, 24);
+    }
     if (PATTERN_QUESTION_PATTERN.test(question)) {
       return this.hasRecentlyAnsweredIntent(conversation, PATTERN_QUESTION_PATTERN, 24);
     }

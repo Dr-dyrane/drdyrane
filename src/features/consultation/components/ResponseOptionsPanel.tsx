@@ -371,20 +371,19 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
       )}
 
       {shouldPaginateOptions && optionPages.length > 1 && (
-        <div className="flex items-center justify-center gap-2">
+        <div className="flex items-center justify-center gap-2" aria-label="Option pages">
           {optionPages.map((_, pageIndex) => (
             <button
               key={`options-page-${pageIndex}`}
               onClick={() => setActivePage(pageIndex)}
               disabled={loading}
-              className={`h-7 px-2.5 rounded-full text-[11px] font-medium transition-all ${
+              aria-label={`Show option page ${pageIndex + 1}`}
+              className={`h-2.5 w-2.5 rounded-full transition-all ${
                 pageIndex === activePage
-                  ? 'bg-surface-active text-content-active'
-                  : 'surface-chip text-content-secondary'
+                  ? 'bg-surface-active scale-110'
+                  : 'surface-chip opacity-75'
               }`}
-            >
-              {pageIndex + 1}
-            </button>
+            />
           ))}
         </div>
       )}
