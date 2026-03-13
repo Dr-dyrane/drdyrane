@@ -78,6 +78,9 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
     { label: 'Single-question enforced', value: invariantAudit.counts.single_question_enforced },
     { label: 'Repeat intent blocked', value: invariantAudit.counts.intent_repeat_blocked },
     { label: 'Progression corrected', value: invariantAudit.counts.intent_progression_corrected },
+    { label: 'Gate progress preserved', value: invariantAudit.counts.gate_progress_preserved },
+    { label: 'Conversation preserved', value: invariantAudit.counts.conversation_regression_blocked },
+    { label: 'Gate dropped (chat-first)', value: invariantAudit.counts.gate_dropped_chat_first },
     { label: 'Options corrected', value: invariantAudit.counts.options_corrected },
     { label: 'Selections cleared', value: invariantAudit.counts.selections_cleared },
   ] as const;

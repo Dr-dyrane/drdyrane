@@ -3,6 +3,9 @@ export type InvariantEventType =
   | 'single_question_enforced'
   | 'intent_repeat_blocked'
   | 'intent_progression_corrected'
+  | 'gate_progress_preserved'
+  | 'conversation_regression_blocked'
+  | 'gate_dropped_chat_first'
   | 'options_corrected'
   | 'selections_cleared';
 
@@ -27,6 +30,9 @@ const createEmptyCounts = (): Record<InvariantEventType, number> => ({
   single_question_enforced: 0,
   intent_repeat_blocked: 0,
   intent_progression_corrected: 0,
+  gate_progress_preserved: 0,
+  conversation_regression_blocked: 0,
+  gate_dropped_chat_first: 0,
   options_corrected: 0,
   selections_cleared: 0,
 });

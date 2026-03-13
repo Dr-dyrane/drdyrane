@@ -1553,15 +1553,26 @@ export class AgentCoordinator {
     const latestQuestion = activePrompt || this.getLatestDoctorQuestion(conversation);
     if (!latestQuestion) return responseOptions;
 
+    const questionIntent = this.detectQuestionIntent(latestQuestion) || 'none';
+    const incomingOptionIntent = this.detectOptionIntent(responseOptions) || 'none';
     const aligned = this.ensureOptionIntentAlignment(latestQuestion, responseOptions, profile);
     if (aligned !== responseOptions) {
-      recordInvariantEvent('options_corrected', `aligned:${latestQuestion.slice(0, 120)}`);
+      const alignedOptionIntent = this.detectOptionIntent(aligned) || 'none';
+      recordInvariantEvent(
+        'options_corrected',
+        `aligned:${questionIntent}:${incomingOptionIntent}->${alignedOptionIntent}`
+      );
     }
     if (!this.isOptionIntentMismatch(latestQuestion, aligned)) {
       return aligned;
     }
-    recordInvariantEvent('options_corrected', `fallback:${latestQuestion.slice(0, 120)}`);
-    return buildLocalOptions(latestQuestion, profile);
+    const fallback = buildLocalOptions(latestQuestion, profile);
+    const fallbackOptionIntent = this.detectOptionIntent(fallback) || 'none';
+    recordInvariantEvent(
+      'options_corrected',
+      `fallback:${questionIntent}:${this.detectOptionIntent(aligned) || 'none'}->${fallbackOptionIntent}`
+    );
+    return fallback;
   }
 
   private ensureProgressiveQuestion(
@@ -2058,39 +2069,45 @@ export class AgentCoordinator {
   }
 
   updateState(newState: Partial<ClinicalState>): void {
+    const previousGate = this.state.question_gate;
     const shouldDropIncomingGate =
       HYBRID_CHAT_FIRST_MODE &&
       Boolean(newState.question_gate?.active) &&
       newState.question_gate?.kind !== 'safety_checkpoint';
-    const resolvedQuestionGate = shouldDropIncomingGate ? null : newState.question_gate;
+
+    if (shouldDropIncomingGate && newState.question_gate?.active) {
+      recordInvariantEvent(
+        'gate_dropped_chat_first',
+        `${newState.question_gate.kind || 'gate'}:${newState.question_gate.current_index}`
+      );
+    }
+
+    const incomingQuestionGate = shouldDropIncomingGate ? null : newState.question_gate;
     const resolvedResponseOptions = shouldDropIncomingGate
       ? null
       : newState.response_options;
+
     const gateProgressRegressed =
       Boolean(
-        resolvedQuestionGate &&
-          resolvedQuestionGate.active &&
-          this.state.question_gate?.active &&
-          resolvedQuestionGate.kind === this.state.question_gate.kind &&
-          resolvedQuestionGate.source_question === this.state.question_gate.source_question &&
-          resolvedQuestionGate.current_index < this.state.question_gate.current_index
+        incomingQuestionGate &&
+          incomingQuestionGate.active &&
+          previousGate?.active &&
+          incomingQuestionGate.kind === previousGate.kind &&
+          incomingQuestionGate.source_question === previousGate.source_question &&
+          incomingQuestionGate.current_index < previousGate.current_index
       );
 
-    const monotonicQuestionGate =
-      resolvedQuestionGate &&
-      resolvedQuestionGate.active &&
-      this.state.question_gate?.active &&
-      resolvedQuestionGate.kind === this.state.question_gate.kind &&
-      resolvedQuestionGate.source_question === this.state.question_gate.source_question &&
-      resolvedQuestionGate.current_index < this.state.question_gate.current_index
-        ? {
-            ...resolvedQuestionGate,
-            current_index: Math.min(
-              this.state.question_gate.current_index,
-              Math.max(0, resolvedQuestionGate.segments.length - 1)
-            ),
-          }
-        : resolvedQuestionGate;
+    if (gateProgressRegressed && previousGate) {
+      recordInvariantEvent(
+        'gate_progress_preserved',
+        `${incomingQuestionGate?.kind || 'gate'}:${incomingQuestionGate?.current_index}->${previousGate.current_index}`
+      );
+    }
+
+    const resolvedQuestionGate =
+      gateProgressRegressed && previousGate
+        ? previousGate
+        : incomingQuestionGate;
 
     const incomingConversationLength = Array.isArray(newState.conversation)
       ? newState.conversation.length
@@ -2099,6 +2116,13 @@ export class AgentCoordinator {
     const conversationRegressed =
       typeof incomingConversationLength === 'number' &&
       incomingConversationLength < currentConversationLength;
+
+    if (conversationRegressed) {
+      recordInvariantEvent(
+        'conversation_regression_blocked',
+        `${incomingConversationLength}->${currentConversationLength}`
+      );
+    }
 
     const shouldKeepCurrentOptions = gateProgressRegressed || conversationRegressed;
 
@@ -2136,8 +2160,8 @@ export class AgentCoordinator {
         }
       : this.state.agent_state;
     const effectiveQuestionGate =
-      monotonicQuestionGate !== undefined
-        ? monotonicQuestionGate
+      resolvedQuestionGate !== undefined
+        ? resolvedQuestionGate
         : this.state.question_gate;
     const effectiveProfile = newState.profile || this.state.profile;
     const baseResponseOptions =
@@ -2166,8 +2190,8 @@ export class AgentCoordinator {
       ...this.state,
       ...newState,
       question_gate:
-        monotonicQuestionGate !== undefined
-          ? monotonicQuestionGate
+        resolvedQuestionGate !== undefined
+          ? resolvedQuestionGate
           : this.state.question_gate,
       response_options: invariantResponseOptions,
       selected_options: invariantSelectedOptions,
