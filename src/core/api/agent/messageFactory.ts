@@ -10,8 +10,14 @@ const FILLER_STATEMENT_PATTERN = /^(noted|ok(?:ay)?|alright|understood)\.?$/i;
 const normalizeStatement = (statement?: string): string | undefined => {
   const trimmed = (statement || '').trim();
   if (!trimmed) return undefined;
-  if (/[.!?:;]$/.test(trimmed)) return trimmed;
-  return `${trimmed}.`;
+  const declarative = trimmed
+    .replace(/\?+/g, '.')
+    .replace(/\s+\./g, '.')
+    .replace(/\.{2,}/g, '.')
+    .trim();
+  if (!declarative) return undefined;
+  if (/[.!:;]$/.test(declarative)) return declarative;
+  return `${declarative}.`;
 };
 
 export const createPatientMessage = (input: string): ConversationMessage => ({

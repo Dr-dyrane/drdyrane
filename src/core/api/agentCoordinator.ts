@@ -1479,10 +1479,14 @@ export class AgentCoordinator {
   ): string {
     const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
     const hardBlockIntentRepeat = this.shouldHardBlockIntentRepeat(sanitized, conversation);
+    const immediateRepeat = this.isImmediateRepeatedIntent(sanitized, conversation);
+    const loopRisk = this.hasRecentIntentLoopRisk(sanitized, conversation);
     const recentQuestions = getRecentDoctorQuestions(conversation, 8);
     const lastQuestion = recentQuestions[recentQuestions.length - 1];
     const shouldFallback =
       hardBlockIntentRepeat ||
+      immediateRepeat ||
+      loopRisk ||
       isLikelyRepeatedQuestion(sanitized, recentQuestions) ||
       isLikelyAnsweredTopicQuestion(sanitized, conversation) ||
       isRecentlyAnsweredQuestionIntent(sanitized, conversation) ||
@@ -1638,6 +1642,57 @@ export class AgentCoordinator {
       return this.hasRecentlyAnsweredIntent(conversation, SYMPTOM_CHANGE_QUESTION_PATTERN, 24);
     }
     return false;
+  }
+
+  private isImmediateRepeatedIntent(
+    question: string,
+    conversation: ClinicalState['conversation']
+  ): boolean {
+    const intent = this.detectQuestionIntent(question);
+    if (!intent || REPEAT_INTENT_EXEMPT.has(intent)) return false;
+
+    for (let i = conversation.length - 1; i >= 0; i -= 1) {
+      const entry = conversation[i];
+      if (entry.role !== 'doctor') continue;
+      const lastAskedQuestion = (entry.metadata?.question || entry.content || '').trim();
+      if (!lastAskedQuestion) return false;
+      const lastIntent = this.detectQuestionIntent(lastAskedQuestion);
+      const sameIntent = lastIntent === intent;
+      const sameQuestion = this.isNearDuplicateQuestion(question, lastAskedQuestion);
+      if (!sameIntent && !sameQuestion) return false;
+
+      for (let j = i + 1; j < conversation.length; j += 1) {
+        const followup = conversation[j];
+        if (followup.role === 'doctor') break;
+        if (
+          followup.role === 'patient' &&
+          this.isSubstantivePatientResponse(followup.content || '')
+        ) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    return false;
+  }
+
+  private hasRecentIntentLoopRisk(
+    question: string,
+    conversation: ClinicalState['conversation']
+  ): boolean {
+    const intent = this.detectQuestionIntent(question);
+    if (!intent || REPEAT_INTENT_EXEMPT.has(intent)) return false;
+    if (!this.hasAnsweredIntent(conversation, intent)) return false;
+
+    const recentDoctorIntents = conversation
+      .slice(-14)
+      .filter((entry) => entry.role === 'doctor')
+      .map((entry) => this.detectQuestionIntent((entry.metadata?.question || entry.content || '').trim()))
+      .filter((value): value is QuestionIntent => Boolean(value));
+
+    const occurrences = recentDoctorIntents.filter((value) => value === intent).length;
+    return occurrences >= 2;
   }
 
   private hasRecentlyAnsweredIntent(
