@@ -189,6 +189,7 @@ export const StepRenderer: React.FC = () => {
       lastInput?: string,
       preDelayMs: number = 0
     ): Promise<boolean> => {
+      const sessionAtStart = latestStateRef.current.sessionId;
       setLoading(true);
       setInteractionError(null);
       setLastAttempt({ input, isOptionSelection, lastInput, preDelayMs });
@@ -201,6 +202,9 @@ export const StepRenderer: React.FC = () => {
           latestStateRef.current,
           isOptionSelection
         );
+        if (latestStateRef.current.sessionId !== sessionAtStart) {
+          return false;
+        }
         dispatch({
           type: 'SET_AGENT_RESPONSE',
           payload: result,
@@ -209,6 +213,9 @@ export const StepRenderer: React.FC = () => {
         setInputHint(null);
         return true;
       } catch (error) {
+        if (latestStateRef.current.sessionId !== sessionAtStart) {
+          return false;
+        }
         console.error('Interaction error:', error);
         const reason = error instanceof Error ? error.message : String(error);
         setInteractionError(
