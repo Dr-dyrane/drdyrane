@@ -1,4 +1,8 @@
 export type DrErrorContext = 'consult' | 'scan' | 'generic';
+export interface UserFacingError {
+  message: string;
+  details?: string;
+}
 
 const sanitizeText = (value: unknown): string => (typeof value === 'string' ? value.trim() : '');
 
@@ -44,16 +48,20 @@ const isTimeoutFailure = (text: string): boolean => /timeout|timed out|aborted/i
 const isRouteNotFound = (text: string): boolean =>
   /\b404\b|not found|cannot post|cannot get|no route matched|<!doctype html|<html/i.test(text);
 
-export const toUserFriendlyErrorMessage = (
-  error: unknown,
-  context: DrErrorContext = 'generic'
-): string => {
+const extractNormalizedErrorText = (error: unknown): string => {
   const rawMessage =
     error instanceof Error
       ? sanitizeText(error.message)
       : sanitizeText(error) || 'Request failed unexpectedly.';
   const decoded = tryExtractJsonError(rawMessage);
-  const normalized = stripTransportPrefixes(decoded);
+  return stripTransportPrefixes(decoded);
+};
+
+export const toUserFriendlyErrorMessage = (
+  error: unknown,
+  context: DrErrorContext = 'generic'
+): string => {
+  const normalized = extractNormalizedErrorText(error);
   const lower = normalized.toLowerCase();
 
   if (!normalized || normalized === 'undefined') {
@@ -99,4 +107,17 @@ export const toUserFriendlyErrorMessage = (
       ? 'Review interrupted. Please retry.'
       : 'Consultation interrupted. Please retry.'
     : normalized;
+};
+
+export const buildUserFacingError = (
+  error: unknown,
+  context: DrErrorContext = 'generic'
+): UserFacingError => {
+  const message = toUserFriendlyErrorMessage(error, context);
+  const rawDetails = extractNormalizedErrorText(error).replace(/\s+/g, ' ').trim();
+  if (!rawDetails || rawDetails === message) {
+    return { message };
+  }
+  const details = rawDetails.length > 280 ? `${rawDetails.slice(0, 280).trim()}...` : rawDetails;
+  return { message, details };
 };

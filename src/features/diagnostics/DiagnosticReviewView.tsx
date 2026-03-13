@@ -8,12 +8,11 @@ import {
   Printer,
   Send,
   Sparkles,
-  TriangleAlert,
   X,
 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
-import { toUserFriendlyErrorMessage } from '../../core/errors/userMessage';
+import { buildUserFacingError, UserFacingError } from '../../core/errors/userMessage';
 import {
   analyzeClinicalImage,
   VisionAnalysisResult,
@@ -24,6 +23,7 @@ import {
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { AiActivityTimeline } from '../../components/shared/AiActivityTimeline';
+import { InlineErrorBlade } from '../../components/shared/InlineErrorBlade';
 import { DiagnosticReviewKind, DiagnosticReviewRecord, SessionRecord } from '../../core/types/clinical';
 import { beginAiTask } from '../../core/services/aiActivity';
 
@@ -203,7 +203,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     return '#ef4444';
   }, [confidenceDisplay]);
 
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<UserFacingError | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [synthesizingPlan, setSynthesizingPlan] = useState(false);
   const [pushing, setPushing] = useState(false);
@@ -218,6 +218,18 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       }),
     [state.settings.audio_enabled, state.settings.haptics_enabled]
   );
+
+  const clearError = useCallback(() => {
+    setError(null);
+  }, []);
+
+  const showMessageError = useCallback((message: string) => {
+    setError({ message });
+  }, []);
+
+  const showUnknownError = useCallback((errorValue: unknown, context: 'consult' | 'scan' = 'scan') => {
+    setError(buildUserFacingError(errorValue, context));
+  }, []);
 
   const upsertReview = useCallback(
     (review: DiagnosticReviewRecord): DiagnosticReviewRecord => {
@@ -330,7 +342,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
           setCameraReady(true);
         }
       } catch (cameraError) {
-        setError(toUserFriendlyErrorMessage(cameraError, 'scan'));
+        showUnknownError(cameraError, 'scan');
         setScannerOpen(false);
       }
     };
@@ -341,7 +353,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       cancelled = true;
       stopCameraStream();
     };
-  }, [scannerOpen]);
+  }, [scannerOpen, showUnknownError]);
 
   useEffect(() => {
     if (!activeReview) return;
@@ -373,9 +385,9 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   }, [imageDataUrl]);
 
   const openFilePicker = useCallback(() => {
-    setError('');
+    clearError();
     fileInputRef.current?.click();
-  }, []);
+  }, [clearError]);
 
   const onFileSelected = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -383,11 +395,11 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setError('Image files only for Dr review.');
+      showMessageError('Image files only for Dr review.');
       return;
     }
     if (file.size > VISION_UPLOAD_FILE_LIMIT_BYTES) {
-      setError('Image too large. Please use an image smaller than 8 MB.');
+      showMessageError('Image too large. Please use an image smaller than 8 MB.');
       return;
     }
 
@@ -402,17 +414,17 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       });
       upsertReview(nextReview);
       upsertReviewArchive(nextReview);
-      setError('');
+      clearError();
       feedback('select');
     } catch (readError) {
-      setError(toUserFriendlyErrorMessage(readError, 'scan'));
+      showUnknownError(readError, 'scan');
     }
   };
 
   const captureScan = () => {
     const video = videoRef.current;
     if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-      setError('Camera is not ready yet.');
+      showMessageError('Camera is not ready yet.');
       return;
     }
 
@@ -424,7 +436,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
     const context = canvas.getContext('2d');
     if (!context) {
-      setError('Unable to capture camera frame.');
+      showMessageError('Unable to capture camera frame.');
       return;
     }
 
@@ -439,20 +451,20 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     });
     upsertReview(nextReview);
     upsertReviewArchive(nextReview);
-    setError('');
+    clearError();
     setScannerOpen(false);
     feedback('submit');
   };
 
   const runAnalysis = useCallback(async () => {
     if (!imageDataUrl) {
-      setError('Upload or scan an image first.');
+      showMessageError('Upload or scan an image first.');
       return;
     }
 
     setAnalyzing(true);
     setSynthesizingPlan(false);
-    setError('');
+    clearError();
     try {
       const baseReview = await analyzeClinicalImage({
         imageDataUrl,
@@ -495,7 +507,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       upsertReviewArchive(analyzedReview);
       feedback('question');
     } catch (analysisError) {
-      setError(toUserFriendlyErrorMessage(analysisError, 'scan'));
+      showUnknownError(analysisError, 'scan');
       feedback('error');
     } finally {
       setSynthesizingPlan(false);
@@ -503,6 +515,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     }
   }, [
     activeReview,
+    clearError,
     config.pageLabel,
     contextNote,
     feedback,
@@ -512,6 +525,8 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     promptConfig.contextHint,
     promptConfig.lensPrompt,
     scanLens,
+    showMessageError,
+    showUnknownError,
     upsertReview,
     upsertReviewArchive,
   ]);
@@ -552,12 +567,12 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
   const pushToConsultation = useCallback(async () => {
     if (!analysis && !contextNote.trim()) {
-      setError('Run Dr review or add a note before sending to consultation.');
+      showMessageError('Run Dr review or add a note before sending to consultation.');
       return;
     }
 
     setPushing(true);
-    setError('');
+    clearError();
     const handoffTask = beginAiTask({
       scope: 'scan',
       title: 'Consult handoff',
@@ -595,10 +610,11 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       handoffTask.finishSuccess('Handoff complete');
       feedback('submit');
     } catch (handoffError) {
-      const message = toUserFriendlyErrorMessage(handoffError, 'consult');
+      const mapped = buildUserFacingError(handoffError, 'consult');
+      const message = mapped.message;
       handoffTask.fail(currentNode, 'Handoff failed');
       handoffTask.finishError(message);
-      setError(message);
+      setError(mapped);
       feedback('error');
     } finally {
       setPushing(false);
@@ -606,17 +622,19 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   }, [
     activeReview,
     analysis,
+    clearError,
     contextNote,
     dispatch,
     feedback,
     handoffSummary,
+    showMessageError,
     state,
     upsertReviewArchive,
   ]);
 
   const exportReviewPdf = useCallback(async () => {
     if (!analysis) {
-      setError('Run Dr review before printing.');
+      showMessageError('Run Dr review before printing.');
       return;
     }
     const { exportDiagnosticReviewPdf } = await import('../../core/pdf/clinicalPdf');
@@ -660,6 +678,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     feedback,
     imageDataUrl,
     scanLens,
+    showMessageError,
     state.profile,
   ]);
 
@@ -691,7 +710,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     const handleScanner = (event: Event) => {
       if (!matchesKind(event)) return;
       applyFocusFromEvent(event);
-      setError('');
+      clearError();
       setScannerOpen(true);
       feedback('select');
     };
@@ -726,7 +745,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       window.removeEventListener('drdyrane:diagnostic:send-consult', handleSend);
       window.removeEventListener('drdyrane:diagnostic:print-review', handlePrint);
     };
-  }, [exportReviewPdf, feedback, openFilePicker, pushToConsultation, runAnalysis]);
+  }, [clearError, exportReviewPdf, feedback, openFilePicker, pushToConsultation, runAnalysis]);
 
   return (
     <>
@@ -750,7 +769,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
             </button>
             <button
               onClick={() => {
-                setError('');
+                clearError();
                 setScannerOpen(true);
                 feedback('select');
               }}
@@ -831,10 +850,11 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
           )}
 
           {error && (
-            <p className="text-xs text-danger-primary inline-flex items-start gap-1.5">
-              <TriangleAlert size={13} className="mt-0.5" />
-              {error}
-            </p>
+            <InlineErrorBlade
+              message={error.message}
+              details={error.details}
+              onDismiss={clearError}
+            />
           )}
         </section>
 

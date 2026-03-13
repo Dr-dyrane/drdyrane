@@ -10,7 +10,7 @@ import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
 import { analyzeClinicalImage, VISION_UPLOAD_FILE_LIMIT_BYTES } from '../../core/api/visionEngine';
 import { ResponseOptions } from '../../core/types/clinical';
 import { buildLocalOptions } from '../../core/api/agent/localOptions';
-import { toUserFriendlyErrorMessage } from '../../core/errors/userMessage';
+import { buildUserFacingError, UserFacingError } from '../../core/errors/userMessage';
 import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
@@ -19,6 +19,7 @@ import {
 import { Orb } from './Orb';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
 import { AiActivityTimeline } from '../../components/shared/AiActivityTimeline';
+import { InlineErrorBlade } from '../../components/shared/InlineErrorBlade';
 
 const LOADING_PHASES = [
   'Analyzing history',
@@ -119,7 +120,7 @@ export const StepRenderer: React.FC = () => {
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
-  const [interactionError, setInteractionError] = useState<string | null>(null);
+  const [interactionError, setInteractionError] = useState<UserFacingError | null>(null);
   const [lastAttempt, setLastAttempt] = useState<{
     input: string | string[];
     isOptionSelection: boolean;
@@ -258,7 +259,7 @@ export const StepRenderer: React.FC = () => {
           return false;
         }
         console.error('Interaction error:', error);
-        setInteractionError(toUserFriendlyErrorMessage(error, 'consult'));
+        setInteractionError(buildUserFacingError(error, 'consult'));
         signalFeedback('error', {
           hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
           audioEnabled: latestStateRef.current.settings.audio_enabled,
@@ -320,11 +321,11 @@ export const StepRenderer: React.FC = () => {
       if (!file || busy) return;
 
       if (!file.type.startsWith('image/')) {
-        setInteractionError('Image files only for consult visual intake.');
+        setInteractionError({ message: 'Image files only for consult visual intake.' });
         return;
       }
       if (file.size > VISION_UPLOAD_FILE_LIMIT_BYTES) {
-        setInteractionError('Image too large. Please use an image smaller than 8 MB.');
+        setInteractionError({ message: 'Image too large. Please use an image smaller than 8 MB.' });
         return;
       }
 
@@ -387,7 +388,7 @@ export const StepRenderer: React.FC = () => {
           });
         }
       } catch (error) {
-        setInteractionError(toUserFriendlyErrorMessage(error, 'scan'));
+        setInteractionError(buildUserFacingError(error, 'scan'));
         signalFeedback('error', {
           hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
           audioEnabled: latestStateRef.current.settings.audio_enabled,
@@ -729,25 +730,12 @@ export const StepRenderer: React.FC = () => {
                   <p className="px-2 text-[12px] text-content-dim text-center">{inputHint}</p>
                 )}
                 {interactionError && !busy && (
-                  <div className="surface-raised rounded-2xl px-4 py-3 shadow-glass">
-                    <p className="text-[12px] leading-relaxed text-content-secondary">{interactionError}</p>
-                    <div className="mt-2 flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setInteractionError(null)}
-                        className="h-9 px-3 rounded-xl surface-strong text-content-secondary text-xs font-semibold interactive-tap"
-                      >
-                        Dismiss
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleRetryLastAttempt()}
-                        className="h-9 px-3 rounded-xl cta-live text-xs font-semibold interactive-tap"
-                      >
-                        Retry
-                      </button>
-                    </div>
-                  </div>
+                  <InlineErrorBlade
+                    message={interactionError.message}
+                    details={interactionError.details}
+                    onDismiss={() => setInteractionError(null)}
+                    onRetry={() => void handleRetryLastAttempt()}
+                  />
                 )}
               </form>
             </div>
@@ -829,25 +817,12 @@ export const StepRenderer: React.FC = () => {
               )}
 
               {interactionError && !busy && (
-                <div className="surface-raised rounded-2xl px-4 py-3 shadow-glass">
-                  <p className="text-[12px] leading-relaxed text-content-secondary">{interactionError}</p>
-                  <div className="mt-2 flex items-center justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setInteractionError(null)}
-                      className="h-9 px-3 rounded-xl surface-strong text-content-secondary text-xs font-semibold interactive-tap"
-                    >
-                      Dismiss
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => void handleRetryLastAttempt()}
-                      className="h-9 px-3 rounded-xl cta-live text-xs font-semibold interactive-tap"
-                    >
-                      Retry
-                    </button>
-                  </div>
-                </div>
+                <InlineErrorBlade
+                  message={interactionError.message}
+                  details={interactionError.details}
+                  onDismiss={() => setInteractionError(null)}
+                  onRetry={() => void handleRetryLastAttempt()}
+                />
               )}
 
               <div className="space-y-3 consult-answer-zone">
