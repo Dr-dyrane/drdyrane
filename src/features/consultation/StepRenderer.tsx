@@ -20,6 +20,7 @@ const LOADING_PHASES = [
   'Narrowing differential',
   'Selecting next question',
 ];
+const INPUT_CHAR_LIMIT = 1200;
 
 export const StepRenderer: React.FC = () => {
   const { state, dispatch } = useClinical();
@@ -28,6 +29,14 @@ export const StepRenderer: React.FC = () => {
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
+  const [inputHint, setInputHint] = useState<string | null>(null);
+  const [interactionError, setInteractionError] = useState<string | null>(null);
+  const [lastAttempt, setLastAttempt] = useState<{
+    input: string | string[];
+    isOptionSelection: boolean;
+    lastInput?: string;
+    preDelayMs?: number;
+  } | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
   const latestStateRef = useRef(state);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
@@ -106,8 +115,10 @@ export const StepRenderer: React.FC = () => {
       isOptionSelection: boolean,
       lastInput?: string,
       preDelayMs: number = 0
-    ) => {
+    ): Promise<boolean> => {
       setLoading(true);
+      setInteractionError(null);
+      setLastAttempt({ input, isOptionSelection, lastInput, preDelayMs });
       try {
         if (preDelayMs > 0) {
           await new Promise((resolve) => window.setTimeout(resolve, preDelayMs));
@@ -122,18 +133,47 @@ export const StepRenderer: React.FC = () => {
           payload: result,
           ...(lastInput ? { lastInput } : {}),
         });
+        setInputHint(null);
+        return true;
       } catch (error) {
         console.error('Interaction error:', error);
+        const reason = error instanceof Error ? error.message : String(error);
+        setInteractionError(
+          reason && reason !== 'undefined'
+            ? `Consultation interrupted: ${reason}`
+            : 'Consultation interrupted. Please retry.'
+        );
         signalFeedback('error', {
           hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
           audioEnabled: latestStateRef.current.settings.audio_enabled,
         });
+        return false;
       } finally {
         setLoading(false);
       }
     },
     [dispatch]
   );
+
+  const prepareInput = useCallback((raw: string): { value: string; wasTrimmed: boolean } => {
+    const trimmed = raw.trim();
+    if (!trimmed) return { value: '', wasTrimmed: false };
+    if (trimmed.length <= INPUT_CHAR_LIMIT) return { value: trimmed, wasTrimmed: false };
+    return {
+      value: trimmed.slice(0, INPUT_CHAR_LIMIT).trim(),
+      wasTrimmed: true,
+    };
+  }, []);
+
+  const handleRetryLastAttempt = useCallback(async () => {
+    if (!lastAttempt || loading) return;
+    await runInteraction(
+      lastAttempt.input,
+      lastAttempt.isOptionSelection,
+      lastAttempt.lastInput,
+      lastAttempt.preDelayMs || 0
+    );
+  }, [lastAttempt, loading, runInteraction]);
 
   const activeGateSegment = state.question_gate?.active
     ? state.question_gate.segments[state.question_gate.current_index]
@@ -161,15 +201,21 @@ export const StepRenderer: React.FC = () => {
     if (!isProfileOnboardingComplete(state.profile)) {
       promptOnboardingFromNotifications();
     }
-    const trimmed = val.trim();
+    const prepared = prepareInput(val);
+    const trimmed = prepared.value;
     if (!trimmed || loading) return;
+    if (prepared.wasTrimmed) {
+      setInputHint(`Long input trimmed to ${INPUT_CHAR_LIMIT} characters for stable response.`);
+    }
 
     signalFeedback('submit', {
       hapticsEnabled: state.settings.haptics_enabled,
       audioEnabled: state.settings.audio_enabled,
     });
-    await runInteraction(trimmed, false, trimmed);
-    setVal('');
+    const ok = await runInteraction(trimmed, false, trimmed);
+    if (ok) {
+      setVal('');
+    }
   };
 
   const handleOptionSelect = async (
@@ -347,6 +393,7 @@ export const StepRenderer: React.FC = () => {
                     rows={2}
                     value={val}
                     onChange={(e) => setVal(e.target.value)}
+                    maxLength={INPUT_CHAR_LIMIT}
                     placeholder="Describe your main concern..."
                     disabled={loading}
                     onKeyDown={(e) => {
@@ -357,6 +404,9 @@ export const StepRenderer: React.FC = () => {
                     }}
                     className="w-full surface-strong p-3 rounded-2xl text-[15px] text-left text-content-primary placeholder-content-dim transition-all resize-none focus-glow"
                   />
+                  <p className="mt-2 px-1 text-[11px] text-content-dim text-right">
+                    {val.length}/{INPUT_CHAR_LIMIT}
+                  </p>
 
                   <AnimatePresence>
                     {val.trim() && !loading && (
@@ -375,6 +425,30 @@ export const StepRenderer: React.FC = () => {
                     )}
                   </AnimatePresence>
                 </div>
+                {inputHint && (
+                  <p className="px-2 text-[12px] text-content-dim text-center">{inputHint}</p>
+                )}
+                {interactionError && !loading && (
+                  <div className="surface-raised rounded-2xl px-4 py-3 shadow-glass">
+                    <p className="text-[12px] leading-relaxed text-content-secondary">{interactionError}</p>
+                    <div className="mt-2 flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setInteractionError(null)}
+                        className="h-9 px-3 rounded-xl surface-strong text-content-secondary text-xs font-semibold interactive-tap"
+                      >
+                        Dismiss
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleRetryLastAttempt()}
+                        className="h-9 px-3 rounded-xl cta-live text-xs font-semibold interactive-tap"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
               </form>
             </div>
           </motion.div>
@@ -481,6 +555,28 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
+              {interactionError && !loading && (
+                <div className="surface-raised rounded-2xl px-4 py-3 shadow-glass">
+                  <p className="text-[12px] leading-relaxed text-content-secondary">{interactionError}</p>
+                  <div className="mt-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInteractionError(null)}
+                      className="h-9 px-3 rounded-xl surface-strong text-content-secondary text-xs font-semibold interactive-tap"
+                    >
+                      Dismiss
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleRetryLastAttempt()}
+                      className="h-9 px-3 rounded-xl cta-live text-xs font-semibold interactive-tap"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="space-y-3 consult-answer-zone">
                 <ResponseOptionsPanel
                   responseOptions={state.response_options}
@@ -499,6 +595,7 @@ export const StepRenderer: React.FC = () => {
                       rows={1}
                       value={val}
                       onChange={(e) => setVal(e.target.value)}
+                      maxLength={INPUT_CHAR_LIMIT}
                       placeholder="Type your response..."
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -517,6 +614,16 @@ export const StepRenderer: React.FC = () => {
                         <ArrowUp size={16} />
                       </button>
                     )}
+                  </div>
+                )}
+                {showInput && (
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-[11px] text-content-dim">
+                      {inputHint || 'Press Enter to send. Shift+Enter for new line.'}
+                    </p>
+                    <p className="text-[11px] text-content-dim">
+                      {val.length}/{INPUT_CHAR_LIMIT}
+                    </p>
                   </div>
                 )}
               </div>

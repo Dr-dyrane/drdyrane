@@ -87,6 +87,51 @@ const HEAD_PAIN_DETAIL_PROMPT = 'Within head/pain pattern, which symptom stands 
 const AIRWAY_DETAIL_PROMPT = 'Within airway/throat pattern, which symptom stands out most?';
 const GUT_DETAIL_PROMPT = 'Within stomach/gut pattern, which symptom stands out most?';
 const GENERAL_DETAIL_PROMPT = 'Within energy/general pattern, which symptom stands out most?';
+const SUMMARY_FINALIZE_PROMPT = 'Would you like your working diagnosis and plan now?';
+const FINAL_SAFETY_PROMPT =
+  'Before I finalize, any danger signs now: confusion, fainting, breathing trouble, chest pain, persistent vomiting, or bleeding?';
+
+type QuestionIntent =
+  | 'duration'
+  | 'yes_no'
+  | 'most_limiting'
+  | 'symptom_change'
+  | 'pattern'
+  | 'danger_signs'
+  | 'summary';
+
+const QUESTION_INTENT_PATTERNS: Record<QuestionIntent, RegExp> = {
+  duration: /\bhow long|since when|when did\b/i,
+  yes_no: /^(is|are|do|did|have|has|can|could|will|would|should|any)\b/i,
+  most_limiting: /\bmost limiting\b|\bstands?\s*out\b/i,
+  symptom_change: /\bchanged since\b|\bhow has\b|\bbetter|worse|improved\b/i,
+  pattern:
+    /\bpattern\b|\bintermittent\b|\bconstant\b|\bday\b|\bnight\b|\bcyclic(al)?\b|\bnocturnal\b|\bevening chills?\b|\bmorning relief\b/i,
+  danger_signs:
+    /\bdanger signs?\b|any\s+red flags?\b|any\s+.*\b(breathlessness|confusion|persistent vomiting|bleeding)\b/i,
+  summary: /\bsummary\b|\bworking diagnosis\b|\bfinalize\b|\bplan\b/i,
+};
+
+const QUESTION_INTENT_ORDER: Record<QuestionIntent, number> = {
+  duration: 1,
+  yes_no: 2,
+  most_limiting: 3,
+  symptom_change: 4,
+  pattern: 5,
+  danger_signs: 6,
+  summary: 7,
+};
+
+const REPEAT_INTENT_EXEMPT = new Set<QuestionIntent>(['duration', 'yes_no']);
+
+type OptionIntent = 'danger_signs' | 'timeline' | 'summary' | 'yes_no' | null;
+const OPTION_INTENT_HINT_PATTERNS = {
+  yes_no: /\byes\b|\bno\b|\bnot sure\b/i,
+  timeline: /\bstarted today\b|\b1-2 days\b|\b3-4 days\b|\b5-7 days\b|\bweek\b/i,
+  danger_signs:
+    /\bnone of these\b|\bbreathlessness\b|\bconfusion\b|\bchest pain\b|\bpersistent vomiting\b|\bbleeding\b/i,
+  summary: /\bready for summary\b|\badd one detail\b/i,
+};
 
 export class AgentCoordinator {
   private state: ClinicalState;
@@ -647,10 +692,19 @@ export class AgentCoordinator {
     patientMessage: ConversationMessage,
     profileForTurn: ClinicalState['profile']
   ): Promise<Partial<ClinicalState>> {
-    const nextSegment = gate.segments[nextIndex];
+    const maxIndex = Math.max(0, gate.segments.length - 1);
+    const safeIndex = Math.max(gate.current_index, Math.min(nextIndex, maxIndex));
+    const nextSegment = gate.segments[safeIndex];
+    if (!nextSegment) {
+      return this.finalizeGateToConversation(
+        'Stacked symptom survey summary: Unable to continue gate step; resuming conversation.',
+        patientMessage,
+        profileForTurn
+      );
+    }
     const nextGate: QuestionGateState = {
       ...gate,
-      current_index: nextIndex,
+      current_index: safeIndex,
     };
 
     const stagedDoctor = createDoctorMessage(nextSegment.prompt, 'Noted');
@@ -667,7 +721,7 @@ export class AgentCoordinator {
       stagedOptionsBase && typeof nextSegment.timeout_seconds === 'number' && nextSegment.timeout_seconds > 0
         ? this.buildTimedBinaryOptions(
             nextSegment.prompt,
-            `Step ${nextIndex + 1} of ${gate.segments.length}: Quick yes/no.`
+            `Step ${safeIndex + 1} of ${gate.segments.length}: Quick yes/no.`
           )
         : stagedOptionsBase;
     const conversation = [...this.state.conversation, patientMessage, stagedDoctor];
@@ -878,10 +932,15 @@ export class AgentCoordinator {
         nextSoap,
         stateForTurn.profile
       );
+      const alignedResolvedOptions = this.ensureOptionIntentAlignment(
+        aiQuestion,
+        resolvedOptions,
+        stateForTurn.profile
+      );
 
       questionGate =
         !HYBRID_CHAT_FIRST_MODE && ENABLE_STACKED_SYMPTOM_GATE
-          ? this.buildStackedSymptomSurvey(aiQuestion, resolvedOptions)
+          ? this.buildStackedSymptomSurvey(aiQuestion, alignedResolvedOptions)
           : null;
       if (questionGate) {
         const firstSegment = questionGate.segments[0];
@@ -896,9 +955,14 @@ export class AgentCoordinator {
           nextSoap,
           stateForTurn.profile
         );
+        responseOptions = this.ensureOptionIntentAlignment(
+          firstPrompt,
+          responseOptions,
+          stateForTurn.profile
+        );
         responseOptions = this.buildAssistiveOptions(responseOptions, firstPrompt);
       } else {
-        responseOptions = this.buildAssistiveOptions(resolvedOptions, aiQuestion);
+        responseOptions = this.buildAssistiveOptions(alignedResolvedOptions, aiQuestion);
       }
     }
 
@@ -1139,18 +1203,20 @@ export class AgentCoordinator {
     profile: ClinicalState['profile']
   ): Promise<ResponseOptions> {
     const localFallback = buildLocalOptions(question, profile);
-    if (isStructuredLocalQuestion(question)) {
-      return localFallback;
-    }
+    const structuredQuestion = isStructuredLocalQuestion(question);
     try {
       const aiOptions = await generateResponseOptions(question, agentState, currentSOAP);
-      if (!isOptionSetRelevant(question, aiOptions)) {
-        return localFallback;
+      const alignedOptions = this.ensureOptionIntentAlignment(question, aiOptions, profile);
+      if (!isOptionSetRelevant(question, alignedOptions)) {
+        return this.ensureOptionIntentAlignment(question, localFallback, profile);
       }
-      return aiOptions;
+      if (structuredQuestion && alignedOptions.options.length === 0) {
+        return this.ensureOptionIntentAlignment(question, localFallback, profile);
+      }
+      return alignedOptions;
     } catch (error) {
       console.error('Option resolution fallback:', error);
-      return localFallback;
+      return this.ensureOptionIntentAlignment(question, localFallback, profile);
     }
   }
 
@@ -1202,6 +1268,155 @@ export class AgentCoordinator {
     };
   }
 
+  private hasSingleQuestion(question: string): boolean {
+    const normalized = (question || '').trim();
+    if (!normalized) return false;
+    const marks = normalized.match(/\?/g) || [];
+    return marks.length === 1 && normalized.endsWith('?');
+  }
+
+  private detectQuestionIntent(question: string): QuestionIntent | null {
+    const normalized = (question || '').trim();
+    if (!normalized) return null;
+    const priorityOrder: QuestionIntent[] = [
+      'danger_signs',
+      'summary',
+      'duration',
+      'pattern',
+      'most_limiting',
+      'symptom_change',
+      'yes_no',
+    ];
+    for (const intent of priorityOrder) {
+      if (QUESTION_INTENT_PATTERNS[intent].test(normalized)) return intent;
+    }
+    return null;
+  }
+
+  private getQuestionIntentOrder(intent: QuestionIntent | null): number {
+    if (!intent) return 0;
+    return QUESTION_INTENT_ORDER[intent] || 0;
+  }
+
+  private detectOptionIntent(options: ResponseOptions | null): OptionIntent {
+    if (!options || !Array.isArray(options.options)) return null;
+    const textBlob = options.options.map((option) => (option.text || '').toLowerCase()).join(' | ');
+    if (OPTION_INTENT_HINT_PATTERNS.danger_signs.test(textBlob)) return 'danger_signs';
+    if (OPTION_INTENT_HINT_PATTERNS.timeline.test(textBlob)) return 'timeline';
+    if (OPTION_INTENT_HINT_PATTERNS.summary.test(textBlob)) return 'summary';
+    if (OPTION_INTENT_HINT_PATTERNS.yes_no.test(textBlob)) return 'yes_no';
+    return null;
+  }
+
+  private hasAnsweredIntent(
+    conversation: ClinicalState['conversation'],
+    intent: QuestionIntent
+  ): boolean {
+    return this.hasRecentlyAnsweredIntent(conversation, QUESTION_INTENT_PATTERNS[intent], 40);
+  }
+
+  private getMaxIntentOrder(conversation: ClinicalState['conversation']): number {
+    let maxOrder = 0;
+    const window = conversation.slice(-24);
+    for (const entry of window) {
+      if (entry.role !== 'doctor') continue;
+      const askedQuestion = (entry.metadata?.question || entry.content || '').trim();
+      const intent = this.detectQuestionIntent(askedQuestion);
+      const order = this.getQuestionIntentOrder(intent);
+      if (order > maxOrder) maxOrder = order;
+    }
+    return maxOrder;
+  }
+
+  private getProgressiveInvariantFallback(
+    phase: ClinicalState['agent_state']['phase'],
+    conversation: ClinicalState['conversation']
+  ): string {
+    if (this.hasSummaryReadySignal(conversation)) {
+      if (!this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28)) {
+        return FINAL_SAFETY_PROMPT;
+      }
+      return SUMMARY_FINALIZE_PROMPT;
+    }
+
+    const sequence: Array<{ intent: QuestionIntent; question: string }> = [
+      { intent: 'most_limiting', question: 'Which one symptom is most limiting right now?' },
+      { intent: 'symptom_change', question: 'How has that symptom changed since it began?' },
+      { intent: 'pattern', question: 'What pattern do you notice most: day, night, intermittent, or constant?' },
+      {
+        intent: 'danger_signs',
+        question:
+          'Any danger signs now: breathlessness, confusion, chest pain, persistent vomiting, or bleeding?',
+      },
+      { intent: 'summary', question: SUMMARY_FINALIZE_PROMPT },
+    ];
+
+    for (const step of sequence) {
+      if (!this.hasAnsweredIntent(conversation, step.intent)) {
+        return step.question;
+      }
+    }
+
+    return this.getContextAwareFallbackQuestion(phase, conversation) || SUMMARY_FINALIZE_PROMPT;
+  }
+
+  private enforceTurnInvariantQuestion(
+    question: string,
+    phase: ClinicalState['agent_state']['phase'],
+    conversation: ClinicalState['conversation']
+  ): string {
+    const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
+    const intent = this.detectQuestionIntent(sanitized);
+    const maxObservedOrder = this.getMaxIntentOrder(conversation);
+    const intentOrder = this.getQuestionIntentOrder(intent);
+
+    if (!this.hasSingleQuestion(sanitized)) {
+      return this.getProgressiveInvariantFallback(phase, conversation);
+    }
+
+    if (intent && !REPEAT_INTENT_EXEMPT.has(intent) && this.hasAnsweredIntent(conversation, intent)) {
+      return this.getProgressiveInvariantFallback(phase, conversation);
+    }
+
+    const terminalStatus = this.state.status === 'complete' || this.state.status === 'emergency';
+    if (intentOrder > 0 && intentOrder + 1 < maxObservedOrder && !terminalStatus) {
+      return this.getProgressiveInvariantFallback(phase, conversation);
+    }
+
+    if (this.hasSummaryReadySignal(conversation) && intent === 'summary') {
+      if (!this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28)) {
+        return FINAL_SAFETY_PROMPT;
+      }
+      return SUMMARY_FINALIZE_PROMPT;
+    }
+
+    return sanitized;
+  }
+
+  private ensureOptionIntentAlignment(
+    question: string,
+    responseOptions: ResponseOptions,
+    profile: ClinicalState['profile']
+  ): ResponseOptions {
+    const questionIntent = this.detectQuestionIntent(question);
+    const optionIntent = this.detectOptionIntent(responseOptions);
+    if (!questionIntent) return responseOptions;
+
+    let mismatch = false;
+    if (questionIntent === 'danger_signs') {
+      mismatch = Boolean(optionIntent && optionIntent !== 'danger_signs' && optionIntent !== 'yes_no');
+    } else if (questionIntent === 'duration') {
+      mismatch = Boolean(optionIntent && optionIntent !== 'timeline');
+    } else if (questionIntent === 'yes_no') {
+      mismatch = Boolean(optionIntent && !['yes_no', 'danger_signs'].includes(optionIntent));
+    } else if (questionIntent === 'summary') {
+      mismatch = Boolean(optionIntent && !['summary', 'yes_no'].includes(optionIntent));
+    }
+
+    if (!mismatch) return responseOptions;
+    return buildLocalOptions(question, profile);
+  }
+
   private ensureProgressiveQuestion(
     question: string,
     conversation: ClinicalState['conversation'],
@@ -1219,15 +1434,19 @@ export class AgentCoordinator {
       isLoopingGenericPrompt(sanitized, conversation) ||
       this.isNearDuplicateQuestion(sanitized, lastQuestion);
     if (!shouldFallback) {
-      return sanitized;
+      return this.enforceTurnInvariantQuestion(sanitized, phase, conversation);
     }
     const contextualFallback = this.getContextAwareFallbackQuestion(phase, conversation);
     const candidate =
       contextualFallback || getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
     if (this.isNearDuplicateQuestion(candidate, lastQuestion)) {
-      return 'What one detail should I clarify before I summarize your working diagnosis?';
+      return this.enforceTurnInvariantQuestion(
+        this.getProgressiveInvariantFallback(phase, conversation),
+        phase,
+        conversation
+      );
     }
-    return candidate;
+    return this.enforceTurnInvariantQuestion(candidate, phase, conversation);
   }
 
   private normalizeQuestionFingerprint(question: string): string {
@@ -1586,6 +1805,21 @@ export class AgentCoordinator {
     const resolvedResponseOptions = shouldDropIncomingGate
       ? null
       : newState.response_options;
+    const monotonicQuestionGate =
+      resolvedQuestionGate &&
+      resolvedQuestionGate.active &&
+      this.state.question_gate?.active &&
+      resolvedQuestionGate.kind === this.state.question_gate.kind &&
+      resolvedQuestionGate.source_question === this.state.question_gate.source_question &&
+      resolvedQuestionGate.current_index < this.state.question_gate.current_index
+        ? {
+            ...resolvedQuestionGate,
+            current_index: Math.min(
+              this.state.question_gate.current_index,
+              Math.max(0, resolvedQuestionGate.segments.length - 1)
+            ),
+          }
+        : resolvedQuestionGate;
 
     const mergedConversation = Array.isArray(newState.conversation)
       ? newState.conversation.length >= this.state.conversation.length
@@ -1625,8 +1859,8 @@ export class AgentCoordinator {
       ...this.state,
       ...newState,
       question_gate:
-        resolvedQuestionGate !== undefined
-          ? resolvedQuestionGate
+        monotonicQuestionGate !== undefined
+          ? monotonicQuestionGate
           : this.state.question_gate,
       response_options:
         resolvedResponseOptions !== undefined
