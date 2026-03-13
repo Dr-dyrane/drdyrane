@@ -5,6 +5,8 @@ import {
   sanitizeQuestion,
 } from './questionFlow';
 
+const FILLER_STATEMENT_PATTERN = /^(noted|ok(?:ay)?|alright|understood)\.?$/i;
+
 const normalizeStatement = (statement?: string): string | undefined => {
   const trimmed = (statement || '').trim();
   if (!trimmed) return undefined;
@@ -25,20 +27,28 @@ export const createDoctorMessage = (
 ): ConversationMessage => {
   const sanitizedQuestion = sanitizeQuestion(question) || getFallbackQuestion();
   const normalizedStatement = normalizeStatement(statement);
+  const statementForMessage =
+    normalizedStatement && FILLER_STATEMENT_PATTERN.test(normalizedStatement)
+      ? undefined
+      : normalizedStatement;
   return {
     id: crypto.randomUUID(),
     role: 'doctor',
-    content: [normalizedStatement, sanitizedQuestion].filter(Boolean).join(' '),
+    content: [statementForMessage, sanitizedQuestion].filter(Boolean).join(' '),
     timestamp: Date.now(),
     metadata: {
-      statement: normalizedStatement,
+      statement: statementForMessage,
       question: sanitizedQuestion,
     },
   };
 };
 
 export const buildDoctorMessageFromResult = (message: ConversationMessage): ConversationMessage => {
-  const statement = normalizeStatement(message.metadata?.statement);
+  const normalizedStatement = normalizeStatement(message.metadata?.statement);
+  const statement =
+    normalizedStatement && FILLER_STATEMENT_PATTERN.test(normalizedStatement)
+      ? undefined
+      : normalizedStatement;
   const candidateQuestion =
     message.metadata?.question?.trim() || extractQuestionFromContent(message.content);
   const question = sanitizeQuestion(candidateQuestion || getFallbackQuestion()) || getFallbackQuestion();
