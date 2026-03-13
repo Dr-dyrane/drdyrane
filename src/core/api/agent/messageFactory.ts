@@ -5,6 +5,13 @@ import {
   sanitizeQuestion,
 } from './questionFlow';
 
+const normalizeStatement = (statement?: string): string | undefined => {
+  const trimmed = (statement || '').trim();
+  if (!trimmed) return undefined;
+  if (/[.!?:;]$/.test(trimmed)) return trimmed;
+  return `${trimmed}.`;
+};
+
 export const createPatientMessage = (input: string): ConversationMessage => ({
   id: crypto.randomUUID(),
   role: 'patient',
@@ -17,20 +24,21 @@ export const createDoctorMessage = (
   statement?: string
 ): ConversationMessage => {
   const sanitizedQuestion = sanitizeQuestion(question) || getFallbackQuestion();
+  const normalizedStatement = normalizeStatement(statement);
   return {
     id: crypto.randomUUID(),
     role: 'doctor',
-    content: [statement, sanitizedQuestion].filter(Boolean).join(' '),
+    content: [normalizedStatement, sanitizedQuestion].filter(Boolean).join(' '),
     timestamp: Date.now(),
     metadata: {
-      statement: statement || undefined,
+      statement: normalizedStatement,
       question: sanitizedQuestion,
     },
   };
 };
 
 export const buildDoctorMessageFromResult = (message: ConversationMessage): ConversationMessage => {
-  const statement = message.metadata?.statement?.trim();
+  const statement = normalizeStatement(message.metadata?.statement);
   const candidateQuestion =
     message.metadata?.question?.trim() || extractQuestionFromContent(message.content);
   const question = sanitizeQuestion(candidateQuestion || getFallbackQuestion()) || getFallbackQuestion();

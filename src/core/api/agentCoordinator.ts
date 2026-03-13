@@ -222,8 +222,7 @@ export class AgentCoordinator {
       selectedOptionIds.includes(option.id)
     );
 
-    const optionTexts = selectedOptions.map((option) => option.text).join(', ');
-    const normalizedOptionInput = optionTexts.trim() || selectedOptionIds.join(', ');
+    const normalizedOptionInput = this.buildOptionSelectionInput(selectedOptionIds, selectedOptions);
 
     if (this.state.question_gate?.active) {
       if (HYBRID_CHAT_FIRST_MODE && this.state.question_gate.kind !== 'safety_checkpoint') {
@@ -239,6 +238,54 @@ export class AgentCoordinator {
     }
 
     return this.processPatientInput(normalizedOptionInput);
+  }
+
+  private buildOptionSelectionInput(
+    selectedOptionIds: string[],
+    selectedOptions: ResponseOptions['options']
+  ): string {
+    if (!Array.isArray(selectedOptions) || selectedOptions.length === 0) {
+      return selectedOptionIds
+        .map((id) => id.replace(/[-_]+/g, ' ').trim())
+        .filter(Boolean)
+        .join(', ');
+    }
+
+    const normalizedTexts = selectedOptions
+      .map((option) => this.normalizeSelectedOptionText(option))
+      .filter(Boolean);
+
+    const deduped = Array.from(new Set(normalizedTexts));
+    if (deduped.length > 0) {
+      return deduped.join(', ');
+    }
+
+    return selectedOptionIds
+      .map((id) => id.replace(/[-_]+/g, ' ').trim())
+      .filter(Boolean)
+      .join(', ');
+  }
+
+  private normalizeSelectedOptionText(
+    option: ResponseOptions['options'][number]
+  ): string {
+    const id = (option.id || '').toLowerCase();
+    const category = (option.category || '').toLowerCase();
+    const text = (option.text || '').trim();
+
+    if (id === 'yes') return 'Yes';
+    if (id === 'no') {
+      return /none of these/i.test(text) ? 'None of these' : 'No';
+    }
+    if (id === 'unsure') return 'Not sure';
+
+    if (category === 'summary' || id.startsWith('summary-')) {
+      if (id.includes('ready')) return 'Ready for summary';
+      if (id.includes('add') || id.includes('detail')) return 'Add one detail';
+      if (id.includes('not-sure') || id.includes('unsure')) return 'Not sure';
+    }
+
+    return text || id.replace(/[-_]+/g, ' ').trim();
   }
 
   private applyProfileCapture(input: string): ClinicalState {

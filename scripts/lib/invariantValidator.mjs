@@ -29,7 +29,7 @@ const OPTION_HINT_PATTERNS = {
 };
 
 const SUMMARY_READY_INPUT_PATTERN =
-  /\bready for summary\b|\bno\b|\bnone\b|\bnothing else\b|\bno more\b|\bthat'?s all\b|\bdone\b/i;
+  /\bready for summary\b|\bnothing else\b|\bno more\b|\bthat'?s all\b|\bdone\b|\bproceed\b|^(?:no|none)$/i;
 const REPEAT_INTENT_EXEMPT = new Set(['duration', 'yes_no']);
 
 const isSubstantiveAnswer = (value) => {
