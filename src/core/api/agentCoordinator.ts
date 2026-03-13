@@ -73,7 +73,7 @@ const SYMPTOM_CHANGE_QUESTION_PATTERN = /\bchanged since\b|\bhow has\b|\bbetter|
 const SUMMARY_CLARIFY_QUESTION_PATTERN =
   /\bwhat other detail should i clarify before i summarize your working diagnosis\b|\bworking diagnosis and plan\b/i;
 const SUMMARY_READY_RESPONSE_PATTERN =
-  /\bready for summary\b|\bnothing else\b|\bno more\b|\bthat'?s all\b|\bdone\b|\bproceed\b|^(?:no|none)$/i;
+  /\bready for summary\b|\bsummary[-\s]?ready\b|\bnothing else\b|\bno more\b|\bthat'?s all\b|\bdone\b|\bproceed\b|^(?:no|none)$/i;
 const CHECKPOINT_DANGER_SIGNAL_PATTERN =
   /\b(confusion|faint|collapse|seizure|breathless|shortness of breath|unable to breathe|chest pain|persistent vomiting|cannot keep.*down|bleeding|very drowsy)\b/i;
 const PATTERN_QUESTION_PATTERN =
@@ -873,14 +873,34 @@ export class AgentCoordinator {
     };
 
     let doctorMessage = buildDoctorMessageFromResult(conversationResult.message);
-    const aiQuestion = this.ensureProgressiveQuestion(
+    let aiQuestion = this.ensureProgressiveQuestion(
       doctorMessage.metadata?.question || getFallbackQuestion(),
       nextConversation,
       conversationResult.agent_state.phase
     );
+    const patientRequestedSummary =
+      SUMMARY_READY_RESPONSE_PATTERN.test(input.trim().toLowerCase()) &&
+      this.hasSummaryReadySignal(nextConversation);
+    if (patientRequestedSummary && !conversationResult.lens_trigger) {
+      const dangerSignsCovered =
+        incomingCheckpoint.status === 'cleared' ||
+        this.hasRecentlyAnsweredIntent(nextConversation, DANGER_SIGNS_QUESTION_PATTERN, 28);
+      aiQuestion = dangerSignsCovered ? SUMMARY_FINALIZE_PROMPT : FINAL_SAFETY_PROMPT;
+    }
     doctorMessage = createDoctorMessage(aiQuestion, conversationResult.message.metadata?.statement);
 
-    const autoComplete = this.shouldAutoCompleteEncounter(
+    const forcedSummaryAutoComplete = this.shouldForceSummaryAutoComplete(
+      input,
+      conversationResult.status,
+      conversationResult.ddx,
+      nextConversation,
+      incomingCheckpoint
+    );
+    if (forcedSummaryAutoComplete) {
+      recordInvariantEvent('intent_progression_corrected', 'summary_fast_track');
+    }
+
+    const autoComplete = forcedSummaryAutoComplete || this.shouldAutoCompleteEncounter(
       conversationResult.status,
       conversationResult.ddx,
       conversationResult.probability,
@@ -1957,6 +1977,26 @@ export class AgentCoordinator {
       dangerSignsCovered;
 
     return malariaFastTrack || highCertaintyGeneral || summaryFastTrack;
+  }
+
+  private shouldForceSummaryAutoComplete(
+    input: string,
+    status: ClinicalState['status'],
+    ddx: string[],
+    conversation: ClinicalState['conversation'],
+    checkpoint: ClinicalState['agent_state']['must_not_miss_checkpoint']
+  ): boolean {
+    if (status === 'emergency' || status === 'lens') return false;
+    if (!Array.isArray(ddx) || ddx.length === 0) return false;
+    if (checkpoint.status === 'escalate') return false;
+
+    const normalizedInput = input.trim().toLowerCase();
+    if (!normalizedInput) return false;
+    if (!this.hasSummaryReadySignal(conversation)) return false;
+
+    const patientTurns = conversation.filter((entry) => entry.role === 'patient').length;
+    if (patientTurns < 2) return false;
+    return true;
   }
 
   private hasSummaryReadySignal(conversation: ClinicalState['conversation']): boolean {
