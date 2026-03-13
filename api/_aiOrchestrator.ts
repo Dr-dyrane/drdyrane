@@ -1,7 +1,7 @@
 const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 const OPENAI_CHAT_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
 
-const FALLBACK_ANTHROPIC_MODELS = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022'];
+const FALLBACK_ANTHROPIC_MODELS = ['claude-3-5-haiku-20241022'];
 const FALLBACK_OPENAI_MODELS = ['gpt-4.1', 'gpt-4.1-mini', 'gpt-4o-mini'];
 const FALLBACK_OPENAI_VISION_MODELS = ['gpt-4o-mini', 'gpt-4.1-mini'];
 
