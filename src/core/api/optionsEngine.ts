@@ -1,5 +1,6 @@
 import { ClinicalState, ResponseOptions } from '../types/clinical';
 import { getPromptCache, recordPromptUsage, setPromptCache } from '../storage/promptCache';
+import { beginAiTask } from '../services/aiActivity';
 import {
   buildNumericScaleOptions,
   isNumericScaleOptionSet,
@@ -246,6 +247,17 @@ export const generateResponseOptions = async (
   agentState: ClinicalState['agent_state'],
   currentSOAP: ClinicalState['soap']
 ): Promise<ResponseOptions> => {
+  const activity = beginAiTask({
+    scope: 'consult',
+    title: 'Response options',
+    nodes: [
+      { id: 'prepare', label: 'Preparing question context' },
+      { id: 'options_call', label: 'Calling options model' },
+      { id: 'normalize', label: 'Normalizing option layout' },
+    ],
+  });
+  activity.start('prepare', 'Building options request');
+
   const optionsCacheKey = [
     'options',
     lastQuestion.trim().toLowerCase(),
@@ -257,12 +269,18 @@ export const generateResponseOptions = async (
 
   const cached = getPromptCache<ResponseOptions>(optionsCacheKey);
   if (cached) {
+    activity.succeed('prepare', 'Context ready');
+    activity.skip('options_call', 'Cached options');
+    activity.succeed('normalize', 'Using normalized cache');
+    activity.finishSuccess('Options ready');
     return normalizeResponseOptions(cached, lastQuestion);
   }
 
   recordPromptUsage('options', optionsCacheKey);
 
   try {
+    activity.succeed('prepare', 'Context ready');
+    activity.start('options_call', 'Waiting for options model');
     const response = await fetch('/api/options', {
       method: 'POST',
       headers: {
@@ -286,16 +304,23 @@ export const generateResponseOptions = async (
           parsedError = rawError.trim();
         }
       }
+      activity.fail('options_call', 'Options API failed');
+      activity.finishError(parsedError || `HTTP ${response.status}`);
       throw new Error(`Options API Error: ${parsedError || response.status}`);
     }
+    activity.succeed('options_call', 'Model options received');
+    activity.start('normalize', 'Applying UI safeguards');
 
     const optionsResponse = await response.json();
     const normalized = normalizeResponseOptions(optionsResponse, lastQuestion);
     setPromptCache(optionsCacheKey, normalized, OPTIONS_CACHE_TTL_MS);
+    activity.succeed('normalize', 'Options prepared');
+    activity.finishSuccess('Options ready');
     return normalized;
 
   } catch (error) {
     console.error('Options Engine Error:', error);
+    activity.finishError(error instanceof Error ? error.message : 'Options generation failed');
     throw error instanceof Error ? error : new Error('Options generation failed.');
   }
 };

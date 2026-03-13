@@ -2,6 +2,7 @@ import { ClinicalState, ConversationMessage, AgentState } from '../types/clinica
 import { getPromptCache, recordPromptUsage, setPromptCache } from '../storage/promptCache';
 import { normalizePercentage } from './agent/clinicalMath';
 import { buildEncounterDossier } from './agent/encounterMemory';
+import { beginAiTask } from '../services/aiActivity';
 
 const CONVERSATION_CACHE_TTL_MS = 1000 * 12;
 
@@ -26,6 +27,17 @@ export const callConversationEngine = async (
   lens_trigger: string | null;
   status: ClinicalState['status'];
 }> => {
+  const activity = beginAiTask({
+    scope: 'consult',
+    title: 'Clinical reasoning',
+    nodes: [
+      { id: 'prepare', label: 'Preparing encounter context' },
+      { id: 'consult_call', label: 'Calling consult model' },
+      { id: 'structure', label: 'Structuring response' },
+    ],
+  });
+  activity.start('prepare', 'Collecting memory and SOAP');
+
   const memoryDossier = buildEncounterDossier(state);
   const turnThreadMarker = `${state.sessionId}:${state.conversation.length}`;
   const conversationCacheKey = [
@@ -53,6 +65,10 @@ export const callConversationEngine = async (
   }>(conversationCacheKey);
 
   if (cached) {
+    activity.succeed('prepare', 'Context ready');
+    activity.skip('consult_call', 'Cached response');
+    activity.succeed('structure', 'Loaded from cache');
+    activity.finishSuccess('Clinical response ready');
     return {
       ...cached,
       message: { ...cached.message, id: crypto.randomUUID(), timestamp: Date.now() },
@@ -62,6 +78,8 @@ export const callConversationEngine = async (
   recordPromptUsage('conversation', conversationCacheKey);
 
   try {
+    activity.succeed('prepare', 'Context ready');
+    activity.start('consult_call', 'Waiting for model');
     const response = await fetch('/api/consult', {
       method: 'POST',
       headers: {
@@ -107,8 +125,12 @@ export const callConversationEngine = async (
           parsedError = rawError.trim();
         }
       }
+      activity.fail('consult_call', 'Consult API failed');
+      activity.finishError(parsedError || `HTTP ${response.status}`);
       throw new Error(`Conversation API Error: ${parsedError || response.status}`);
     }
+    activity.succeed('consult_call', 'Model response received');
+    activity.start('structure', 'Normalizing output');
 
     const aiResponse = await response.json();
     const checkpointRaw =
@@ -179,10 +201,13 @@ export const callConversationEngine = async (
       status: aiResponse.status
     };
     setPromptCache(conversationCacheKey, normalizedResult, CONVERSATION_CACHE_TTL_MS);
+    activity.succeed('structure', 'Response ready');
+    activity.finishSuccess('Clinical response ready');
     return normalizedResult;
 
   } catch (error) {
     console.error("Conversation Engine Error:", error);
+    activity.finishError(error instanceof Error ? error.message : 'Conversation error');
     throw error;
   }
 };

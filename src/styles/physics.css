@@ -380,6 +380,80 @@ select {
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
 }
 
+@keyframes ai-progress-pulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.62;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.92);
+    opacity: 0.62;
+  }
+}
+
+.ai-progress-dot {
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.ai-progress-dot-pending {
+  background: color-mix(in srgb, var(--color-content-dim) 52%, transparent);
+}
+
+.ai-progress-dot-active {
+  background: var(--color-accent-primary);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-accent-primary) 54%, transparent);
+  animation: ai-progress-pulse 1s ease-in-out infinite;
+}
+
+.ai-progress-dot-success {
+  background: var(--color-neon-mint);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-neon-mint) 48%, transparent);
+}
+
+.ai-progress-dot-error {
+  background: var(--color-danger-primary);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--color-danger-primary) 44%, transparent);
+}
+
+.ai-progress-dot-skipped {
+  background: color-mix(in srgb, var(--color-content-dim) 36%, transparent);
+}
+
+.ai-progress-badge {
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ai-progress-badge-active {
+  background: color-mix(in srgb, var(--color-accent-primary) 22%, transparent);
+  color: var(--color-content-primary);
+}
+
+.ai-progress-badge-success {
+  background: color-mix(in srgb, var(--color-neon-mint) 20%, transparent);
+  color: var(--color-content-primary);
+}
+
+.ai-progress-badge-error {
+  background: color-mix(in srgb, var(--color-danger-primary) 18%, transparent);
+  color: var(--color-content-primary);
+}
+
 .cta-live {
   position: relative;
   overflow: hidden;

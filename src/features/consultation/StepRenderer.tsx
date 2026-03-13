@@ -17,6 +17,7 @@ import {
 } from '../../core/notifications/onboardingNotification';
 import { Orb } from './Orb';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
+import { AiActivityTimeline } from '../../components/shared/AiActivityTimeline';
 
 const LOADING_PHASES = [
   'Analyzing history',
@@ -348,6 +349,8 @@ export const StepRenderer: React.FC = () => {
           lensPrompt:
             latestDoctorQuestion ||
             'Review this image for clinically relevant morphology and urgent cues.',
+          activityScope: 'consult',
+          activityTitle: 'Consult image review',
         });
 
         const now = Date.now();
@@ -655,33 +658,12 @@ export const StepRenderer: React.FC = () => {
           <div className="consult-room-presence">
             <Orb loading={loading} prominence="hero" />
           </div>
-          <AnimatePresence mode="wait">
-            {loading && (
-              <motion.span
-                key={LOADING_PHASES[loadingPhaseIndex]}
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="energy-chip px-3 h-7 rounded-full text-[11px] tracking-wide text-content-primary font-semibold inline-flex items-center mt-1"
-              >
-                {LOADING_PHASES[loadingPhaseIndex]}
-              </motion.span>
-            )}
-          </AnimatePresence>
-          <AnimatePresence mode="wait">
-            {analyzingImage && (
-              <motion.span
-                key="analyzing-image"
-                initial={{ opacity: 0, y: 4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -4 }}
-                className="energy-chip px-3 h-7 rounded-full text-[11px] tracking-wide text-content-primary font-semibold inline-flex items-center mt-1 gap-1.5"
-              >
-                <Loader2 size={12} className="animate-spin" />
-                Reviewing image
-              </motion.span>
-            )}
-          </AnimatePresence>
+          <AiActivityTimeline
+            scope="consult"
+            maxTasks={2}
+            className="w-full max-w-2xl mt-2"
+            showCompletedWithinMs={22000}
+          />
         </div>
       )}
 
@@ -831,51 +813,7 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
-              {loading && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex justify-start items-end gap-2 pt-1"
-                >
-                  <img
-                    src={doctorAvatarSrc}
-                    alt="Doctor avatar"
-                    className="h-8 w-8 rounded-full object-cover shrink-0 surface-chip"
-                    loading="lazy"
-                  />
-                  <div className="consult-chat-bubble consult-chat-bubble-doctor">
-                    <p className="text-[11px] text-content-dim">{LOADING_PHASES[loadingPhaseIndex]}</p>
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <span className="h-1.5 w-1.5 rounded-full bg-content-dim animate-pulse" />
-                      <span
-                        className="h-1.5 w-1.5 rounded-full bg-content-dim animate-pulse"
-                        style={{ animationDelay: '120ms' }}
-                      />
-                      <span
-                        className="h-1.5 w-1.5 rounded-full bg-content-dim animate-pulse"
-                        style={{ animationDelay: '240ms' }}
-                      />
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-              {analyzingImage && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex justify-start items-end gap-2 pt-1"
-                >
-                  <img
-                    src={doctorAvatarSrc}
-                    alt="Doctor avatar"
-                    className="h-8 w-8 rounded-full object-cover shrink-0 surface-chip"
-                    loading="lazy"
-                  />
-                  <div className="consult-chat-bubble consult-chat-bubble-doctor">
-                    <p className="text-[11px] text-content-dim">Reviewing image findings...</p>
-                  </div>
-                </motion.div>
-              )}
+              <AiActivityTimeline scope="consult" maxTasks={2} showCompletedWithinMs={22000} />
 
               {!busy && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
                 <div className="pt-1">

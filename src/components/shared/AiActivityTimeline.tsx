@@ -1,0 +1,90 @@
+import React from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Loader2 } from 'lucide-react';
+import { AiActivityScope, AiActivityTaskStatus, useAiActivity } from '../../core/services/aiActivity';
+
+interface AiActivityTimelineProps {
+  scope: AiActivityScope;
+  className?: string;
+  maxTasks?: number;
+  showCompletedWithinMs?: number;
+}
+
+const TASK_STATUS_LABEL: Record<AiActivityTaskStatus, string> = {
+  active: 'Running',
+  success: 'Done',
+  error: 'Issue',
+};
+
+const getBadgeClass = (status: AiActivityTaskStatus): string => {
+  if (status === 'error') return 'ai-progress-badge ai-progress-badge-error';
+  if (status === 'success') return 'ai-progress-badge ai-progress-badge-success';
+  return 'ai-progress-badge ai-progress-badge-active';
+};
+
+const getNodeDotClass = (status: string): string => {
+  if (status === 'success') return 'ai-progress-dot ai-progress-dot-success';
+  if (status === 'error') return 'ai-progress-dot ai-progress-dot-error';
+  if (status === 'skipped') return 'ai-progress-dot ai-progress-dot-skipped';
+  if (status === 'active') return 'ai-progress-dot ai-progress-dot-active';
+  return 'ai-progress-dot ai-progress-dot-pending';
+};
+
+export const AiActivityTimeline: React.FC<AiActivityTimelineProps> = ({
+  scope,
+  className,
+  maxTasks = 2,
+  showCompletedWithinMs = 18000,
+}) => {
+  const taskFeed = useAiActivity(scope, showCompletedWithinMs);
+  const tasks = taskFeed.slice(0, Math.max(1, maxTasks));
+  const hasActiveTask = tasks.some((task) => task.status === 'active');
+
+  if (tasks.length === 0) return null;
+
+  return (
+    <section className={`surface-raised rounded-[22px] p-3 shadow-glass space-y-2 min-w-0 ${className || ''}`}>
+      <div className="flex items-center justify-between gap-2 min-w-0">
+        <p className="text-[11px] text-content-dim uppercase tracking-wide">AI Progress</p>
+        <span className="h-7 px-2.5 rounded-full surface-chip text-[10px] text-content-secondary inline-flex items-center gap-1.5 shrink-0">
+          {hasActiveTask && <Loader2 size={11} className="animate-spin text-accent-primary" />}
+          {hasActiveTask ? 'Thinking' : 'Complete'}
+        </span>
+      </div>
+
+      <div className="space-y-2 min-w-0">
+        <AnimatePresence initial={false}>
+          {tasks.map((task) => (
+            <motion.div
+              key={task.id}
+              layout
+              initial={{ opacity: 0, y: 4 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -4 }}
+              transition={{ duration: 0.2 }}
+              className="surface-strong rounded-2xl p-2.5 space-y-1.5 min-w-0"
+            >
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <p className="text-xs text-content-primary font-semibold truncate">{task.title}</p>
+                <span className={getBadgeClass(task.status)}>{TASK_STATUS_LABEL[task.status]}</span>
+              </div>
+
+              <div className="space-y-1 min-w-0">
+                {task.nodes.map((node) => (
+                  <div key={`${task.id}-${node.id}`} className="flex items-center gap-2 min-w-0">
+                    <span className={getNodeDotClass(node.status)} />
+                    <p className="text-[11px] text-content-secondary truncate">{node.label}</p>
+                    {node.detail && (
+                      <p className="text-[10px] text-content-dim truncate min-w-0">{node.detail}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+    </section>
+  );
+};
+

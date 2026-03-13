@@ -1,3 +1,5 @@
+import { AiActivityScope, beginAiTask } from '../services/aiActivity';
+
 export interface VisionAnalysisResult {
   summary: string;
   findings: string[];
@@ -97,74 +99,127 @@ export const analyzeClinicalImage = async (payload: {
   imageDataUrl: string;
   clinicalContext?: string;
   lensPrompt?: string;
+  activityScope?: AiActivityScope;
+  activityTitle?: string;
 }): Promise<VisionAnalysisResult> => {
-  const response = await fetch('/api/vision', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+  const task = beginAiTask({
+    scope: payload.activityScope || 'scan',
+    title: payload.activityTitle || 'Clinical image review',
+    nodes: [
+      { id: 'prepare', label: 'Preparing image payload' },
+      { id: 'vision_call', label: 'Running vision model' },
+      { id: 'structure', label: 'Structuring clinical output' },
+    ],
   });
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Vision API Error: ${body || response.status}`);
+  task.start('prepare', 'Encoding request');
+  try {
+    task.succeed('prepare', 'Payload ready');
+    task.start('vision_call', 'Contacting AI provider');
+    const response = await fetch('/api/vision', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      task.fail('vision_call', 'Request failed');
+      task.finishError('Vision call failed');
+      throw new Error(`Vision API Error: ${body || response.status}`);
+    }
+    task.succeed('vision_call', 'Response received');
+    task.start('structure', 'Normalizing output');
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const treatmentLines = sanitizeList(data.treatment_lines, 8);
+    const investigations = sanitizeList(data.investigations, 8);
+    const counseling = sanitizeList(data.counseling, 8);
+    const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
+    const differentials = parseDifferentials(data.differentials);
+    const result = {
+      summary: sanitizeText(data.summary) || 'No conclusive visual finding.',
+      findings: sanitizeList(data.findings, 8),
+      red_flags: sanitizeList(data.red_flags, 6),
+      confidence: clampVisionConfidencePercent(data.confidence),
+      recommendation: sanitizeText(data.recommendation) || 'Continue structured history collection.',
+      spot_diagnosis: spotDiagnosis,
+      differentials,
+      treatment_summary: sanitizeText(data.treatment_summary) || undefined,
+      treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
+      investigations: investigations.length > 0 ? investigations : undefined,
+      counseling: counseling.length > 0 ? counseling : undefined,
+    };
+    task.succeed('structure', 'Structured output ready');
+    task.finishSuccess('Review complete');
+    return result;
+  } catch (error) {
+    task.finishError(error instanceof Error ? error.message : 'Vision analysis failed');
+    throw error;
   }
-
-  const data = (await response.json()) as Record<string, unknown>;
-  const treatmentLines = sanitizeList(data.treatment_lines, 8);
-  const investigations = sanitizeList(data.investigations, 8);
-  const counseling = sanitizeList(data.counseling, 8);
-  const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
-  const differentials = parseDifferentials(data.differentials);
-
-  return {
-    summary: sanitizeText(data.summary) || 'No conclusive visual finding.',
-    findings: sanitizeList(data.findings, 8),
-    red_flags: sanitizeList(data.red_flags, 6),
-    confidence: clampVisionConfidencePercent(data.confidence),
-    recommendation: sanitizeText(data.recommendation) || 'Continue structured history collection.',
-    spot_diagnosis: spotDiagnosis,
-    differentials,
-    treatment_summary: sanitizeText(data.treatment_summary) || undefined,
-    treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
-    investigations: investigations.length > 0 ? investigations : undefined,
-    counseling: counseling.length > 0 ? counseling : undefined,
-  };
 };
 
 export const synthesizeScanTreatment = async (payload: {
   analysis: VisionAnalysisResult;
   clinicalContext?: string;
   lens?: 'general' | 'lab' | 'radiology';
+  activityScope?: AiActivityScope;
+  activityTitle?: string;
 }): Promise<VisionAnalysisSupplement> => {
-  const response = await fetch('/api/scan-plan', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
+  const task = beginAiTask({
+    scope: payload.activityScope || 'scan',
+    title: payload.activityTitle || 'Treatment synthesis',
+    nodes: [
+      { id: 'prepare', label: 'Preparing clinical context' },
+      { id: 'plan_call', label: 'Generating management plan' },
+      { id: 'structure', label: 'Structuring plan output' },
+    ],
   });
+  task.start('prepare', 'Compiling findings');
 
-  if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`Scan Plan API Error: ${body || response.status}`);
+  try {
+    task.succeed('prepare', 'Context prepared');
+    task.start('plan_call', 'Contacting AI planner');
+    const response = await fetch('/api/scan-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      task.fail('plan_call', 'Request failed');
+      task.finishError('Plan synthesis failed');
+      throw new Error(`Scan Plan API Error: ${body || response.status}`);
+    }
+    task.succeed('plan_call', 'Plan response received');
+    task.start('structure', 'Normalizing plan');
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const treatmentLines = sanitizeList(data.treatment_lines, 8);
+    const investigations = sanitizeList(data.investigations, 8);
+    const counseling = sanitizeList(data.counseling, 8);
+    const redFlags = sanitizeList(data.red_flags, 6);
+    const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
+    const differentials = parseDifferentials(data.differentials);
+
+    const result = {
+      summary: sanitizeText(data.summary) || undefined,
+      red_flags: redFlags.length > 0 ? redFlags : undefined,
+      recommendation: sanitizeText(data.recommendation) || undefined,
+      spot_diagnosis: spotDiagnosis,
+      differentials,
+      treatment_summary: sanitizeText(data.treatment_summary) || undefined,
+      treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
+      investigations: investigations.length > 0 ? investigations : undefined,
+      counseling: counseling.length > 0 ? counseling : undefined,
+    };
+    task.succeed('structure', 'Plan ready');
+    task.finishSuccess('Management synthesis complete');
+    return result;
+  } catch (error) {
+    task.finishError(error instanceof Error ? error.message : 'Plan synthesis failed');
+    throw error;
   }
-
-  const data = (await response.json()) as Record<string, unknown>;
-  const treatmentLines = sanitizeList(data.treatment_lines, 8);
-  const investigations = sanitizeList(data.investigations, 8);
-  const counseling = sanitizeList(data.counseling, 8);
-  const redFlags = sanitizeList(data.red_flags, 6);
-  const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
-  const differentials = parseDifferentials(data.differentials);
-
-  return {
-    summary: sanitizeText(data.summary) || undefined,
-    red_flags: redFlags.length > 0 ? redFlags : undefined,
-    recommendation: sanitizeText(data.recommendation) || undefined,
-    spot_diagnosis: spotDiagnosis,
-    differentials,
-    treatment_summary: sanitizeText(data.treatment_summary) || undefined,
-    treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
-    investigations: investigations.length > 0 ? investigations : undefined,
-    counseling: counseling.length > 0 ? counseling : undefined,
-  };
 };
 

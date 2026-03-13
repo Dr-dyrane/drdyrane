@@ -21,7 +21,9 @@ import {
 } from '../../core/api/visionEngine';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
+import { AiActivityTimeline } from '../../components/shared/AiActivityTimeline';
 import { DiagnosticReviewKind, DiagnosticReviewRecord, SessionRecord } from '../../core/types/clinical';
+import { beginAiTask } from '../../core/services/aiActivity';
 
 type DiagnosticEventKind = DiagnosticReviewKind | 'lab' | 'radiology';
 type ScanLens = 'general' | 'lab' | 'radiology';
@@ -455,6 +457,8 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         imageDataUrl,
         clinicalContext: contextNote.trim() || promptConfig.contextHint,
         lensPrompt: promptConfig.lensPrompt,
+        activityScope: 'scan',
+        activityTitle: `${config.pageLabel} visual review`,
       });
 
       let mergedReview = baseReview;
@@ -464,6 +468,8 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
           analysis: baseReview,
           clinicalContext: contextNote.trim() || promptConfig.contextHint,
           lens: scanLens,
+          activityScope: 'scan',
+          activityTitle: `${config.pageLabel} management synthesis`,
         });
         mergedReview = mergeVisionAnalysisWithSupplement(baseReview, supplement);
       } catch (supplementError) {
@@ -552,9 +558,26 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
     setPushing(true);
     setError('');
+    const handoffTask = beginAiTask({
+      scope: 'scan',
+      title: 'Consult handoff',
+      nodes: [
+        { id: 'prepare', label: 'Preparing structured handoff' },
+        { id: 'consult_call', label: 'Sending to consult engine' },
+        { id: 'sync', label: 'Syncing consultation state' },
+      ],
+    });
+    let currentNode: 'prepare' | 'consult_call' | 'sync' = 'prepare';
+    handoffTask.start('prepare', 'Compiling scan summary');
 
     try {
+      handoffTask.succeed('prepare', 'Summary ready');
+      currentNode = 'consult_call';
+      handoffTask.start('consult_call', 'Waiting for consult response');
       const result = await processAgentInteraction(handoffSummary, state);
+      handoffTask.succeed('consult_call', 'Consult response received');
+      currentNode = 'sync';
+      handoffTask.start('sync', 'Applying state updates');
       if (activeReview) {
         upsertReviewArchive({
           ...activeReview,
@@ -568,9 +591,13 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         lastInput: handoffSummary,
       });
       dispatch({ type: 'SET_VIEW', payload: 'consult' });
+      handoffTask.succeed('sync', 'Consultation updated');
+      handoffTask.finishSuccess('Handoff complete');
       feedback('submit');
     } catch (handoffError) {
       const message = handoffError instanceof Error ? handoffError.message : 'Unable to send review to consultation.';
+      handoffTask.fail(currentNode, 'Handoff failed');
+      handoffTask.finishError(message);
       setError(message);
       feedback('error');
     } finally {
@@ -795,6 +822,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                   Send to Consult
                 </button>
               </div>
+              <AiActivityTimeline scope="scan" maxTasks={3} showCompletedWithinMs={22000} />
             </>
           ) : (
             <p className="text-xs text-content-dim leading-relaxed">
