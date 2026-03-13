@@ -1416,9 +1416,17 @@ export class AgentCoordinator {
     const intent = this.detectQuestionIntent(sanitized);
     const maxObservedOrder = this.getMaxIntentOrder(conversation);
     const intentOrder = this.getQuestionIntentOrder(intent);
+    const summaryReady = this.hasSummaryReadySignal(conversation);
 
     if (!this.hasSingleQuestion(sanitized)) {
       return this.getProgressiveInvariantFallback(phase, conversation);
+    }
+
+    if (summaryReady && intent !== 'danger_signs' && intent !== 'summary') {
+      if (!this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28)) {
+        return FINAL_SAFETY_PROMPT;
+      }
+      return SUMMARY_FINALIZE_PROMPT;
     }
 
     if (intent && !REPEAT_INTENT_EXEMPT.has(intent) && this.hasAnsweredIntent(conversation, intent)) {
@@ -1430,7 +1438,7 @@ export class AgentCoordinator {
       return this.getProgressiveInvariantFallback(phase, conversation);
     }
 
-    if (this.hasSummaryReadySignal(conversation) && intent === 'summary') {
+    if (summaryReady && intent === 'summary') {
       if (!this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28)) {
         return FINAL_SAFETY_PROMPT;
       }
