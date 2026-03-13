@@ -4,6 +4,7 @@ import { useClinical } from '../../core/context/ClinicalContext';
 import { Activity, AlertTriangle, Gauge, ListChecks, X } from 'lucide-react';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { normalizePercentage } from '../../core/api/agent/clinicalMath';
+import { getInvariantAuditSnapshot } from '../../core/api/agent/invariantAudit';
 
 interface ClinicalProcessModalProps {
   isOpen: boolean;
@@ -71,6 +72,16 @@ const urgencyTone = (urgency: 'low' | 'medium' | 'high' | 'critical') => {
 export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOpen, onClose }) => {
   const { state } = useClinical();
   const timeline = state.conversation.slice(-12);
+  const invariantAudit = getInvariantAuditSnapshot();
+  const invariantRows = [
+    { label: 'Duplicate question blocked', value: invariantAudit.counts.duplicate_question_blocked },
+    { label: 'Single-question enforced', value: invariantAudit.counts.single_question_enforced },
+    { label: 'Repeat intent blocked', value: invariantAudit.counts.intent_repeat_blocked },
+    { label: 'Progression corrected', value: invariantAudit.counts.intent_progression_corrected },
+    { label: 'Options corrected', value: invariantAudit.counts.options_corrected },
+    { label: 'Selections cleared', value: invariantAudit.counts.selections_cleared },
+  ] as const;
+  const recentInvariantEvents = invariantAudit.events.slice(0, 4);
   const confidence = normalizePercentage(
     state.probability || state.agent_state.confidence || 0,
     0
@@ -215,6 +226,41 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
                         >
                           <p className="text-sm text-content-primary leading-relaxed">{action}</p>
                         </motion.div>
+                      ))}
+                    </div>
+                  )}
+                </section>
+
+                <section className="surface-strong rounded-[24px] p-4 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-content-dim">Runtime Invariants</span>
+                    <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
+                      {invariantAudit.total} interventions
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {invariantRows.map((row) => (
+                      <div key={row.label} className="surface-raised rounded-2xl px-3 py-2.5">
+                        <p className="text-[11px] text-content-dim leading-tight">{row.label}</p>
+                        <p className="text-sm text-content-primary mt-1">{row.value}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {recentInvariantEvents.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-content-dim">Recent guard events</p>
+                      {recentInvariantEvents.map((event) => (
+                        <div key={event.id} className="surface-raised rounded-2xl px-3 py-2">
+                          <p className="text-[11px] text-content-secondary">{event.type.replace(/_/g, ' ')}</p>
+                          <p className="text-[11px] text-content-dim mt-0.5">
+                            {new Date(event.timestamp).toLocaleTimeString([], {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                            {event.detail ? ` · ${event.detail}` : ''}
+                          </p>
+                        </div>
                       ))}
                     </div>
                   )}

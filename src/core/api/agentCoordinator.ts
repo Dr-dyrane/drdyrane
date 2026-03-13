@@ -18,6 +18,7 @@ import {
   getFallbackQuestion,
   sanitizeQuestion,
 } from './agent/questionFlow';
+import { recordInvariantEvent, resetInvariantAudit } from './agent/invariantAudit';
 import {
   extractProfileUpdates,
   getProfileDelta,
@@ -1428,6 +1429,7 @@ export class AgentCoordinator {
     const summaryReady = this.hasSummaryReadySignal(conversation);
 
     if (!this.hasSingleQuestion(sanitized)) {
+      recordInvariantEvent('single_question_enforced', sanitized.slice(0, 140));
       return this.getProgressiveInvariantFallback(phase, conversation);
     }
 
@@ -1439,11 +1441,13 @@ export class AgentCoordinator {
     }
 
     if (intent && !REPEAT_INTENT_EXEMPT.has(intent) && this.hasAnsweredIntent(conversation, intent)) {
+      recordInvariantEvent('intent_repeat_blocked', `${intent}:${sanitized.slice(0, 120)}`);
       return this.getProgressiveInvariantFallback(phase, conversation);
     }
 
     const terminalStatus = this.state.status === 'complete' || this.state.status === 'emergency';
     if (intentOrder > 0 && intentOrder + 1 < maxObservedOrder && !terminalStatus) {
+      recordInvariantEvent('intent_progression_corrected', `${intent || 'unknown'}:${sanitized.slice(0, 120)}`);
       return this.getProgressiveInvariantFallback(phase, conversation);
     }
 
@@ -1531,9 +1535,13 @@ export class AgentCoordinator {
     if (!latestQuestion) return responseOptions;
 
     const aligned = this.ensureOptionIntentAlignment(latestQuestion, responseOptions, profile);
+    if (aligned !== responseOptions) {
+      recordInvariantEvent('options_corrected', `aligned:${latestQuestion.slice(0, 120)}`);
+    }
     if (!this.isOptionIntentMismatch(latestQuestion, aligned)) {
       return aligned;
     }
+    recordInvariantEvent('options_corrected', `fallback:${latestQuestion.slice(0, 120)}`);
     return buildLocalOptions(latestQuestion, profile);
   }
 
@@ -1548,18 +1556,31 @@ export class AgentCoordinator {
     const loopRisk = this.hasRecentIntentLoopRisk(sanitized, conversation);
     const recentQuestions = getRecentDoctorQuestions(conversation, 8);
     const lastQuestion = recentQuestions[recentQuestions.length - 1];
+    const fallbackReasons: string[] = [];
+    if (hardBlockIntentRepeat) fallbackReasons.push('hard_repeat');
+    if (immediateRepeat) fallbackReasons.push('immediate_repeat');
+    if (loopRisk) fallbackReasons.push('loop_risk');
+    if (isLikelyRepeatedQuestion(sanitized, recentQuestions)) fallbackReasons.push('near_duplicate');
+    if (isLikelyAnsweredTopicQuestion(sanitized, conversation)) fallbackReasons.push('answered_topic');
+    if (isRecentlyAnsweredQuestionIntent(sanitized, conversation)) fallbackReasons.push('answered_intent');
+    if (isLoopingGenericPrompt(sanitized, conversation)) fallbackReasons.push('generic_loop');
+    if (this.isNearDuplicateQuestion(sanitized, lastQuestion)) fallbackReasons.push('duplicate_last');
     const shouldFallback =
       hardBlockIntentRepeat ||
       immediateRepeat ||
       loopRisk ||
-      isLikelyRepeatedQuestion(sanitized, recentQuestions) ||
-      isLikelyAnsweredTopicQuestion(sanitized, conversation) ||
-      isRecentlyAnsweredQuestionIntent(sanitized, conversation) ||
-      isLoopingGenericPrompt(sanitized, conversation) ||
-      this.isNearDuplicateQuestion(sanitized, lastQuestion);
+      fallbackReasons.includes('near_duplicate') ||
+      fallbackReasons.includes('answered_topic') ||
+      fallbackReasons.includes('answered_intent') ||
+      fallbackReasons.includes('generic_loop') ||
+      fallbackReasons.includes('duplicate_last');
     if (!shouldFallback) {
       return this.enforceTurnInvariantQuestion(sanitized, phase, conversation);
     }
+    recordInvariantEvent(
+      'duplicate_question_blocked',
+      `${fallbackReasons.join(',') || 'fallback'}:${sanitized.slice(0, 120)}`
+    );
     const contextualFallback = this.getContextAwareFallbackQuestion(phase, conversation);
     const candidate =
       contextualFallback || getPhaseFallbackQuestion(phase, conversation.length, recentQuestions);
@@ -2075,6 +2096,9 @@ export class AgentCoordinator {
         ? this.state.selected_options
         : newState.selected_options;
     const invariantSelectedOptions = optionsCorrected ? [] : baseSelectedOptions;
+    if (optionsCorrected && baseSelectedOptions.length > 0) {
+      recordInvariantEvent('selections_cleared', `count:${baseSelectedOptions.length}`);
+    }
 
     this.state = {
       ...this.state,
@@ -2096,6 +2120,7 @@ let interactionQueue: Promise<void> = Promise.resolve();
 
 export const getAgentCoordinator = (state: ClinicalState): AgentCoordinator => {
   if (!agentCoordinator || agentCoordinator.getState().sessionId !== state.sessionId) {
+    resetInvariantAudit();
     agentCoordinator = new AgentCoordinator(state);
   }
   return agentCoordinator;
