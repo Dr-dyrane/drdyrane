@@ -29,6 +29,7 @@ export const StepRenderer: React.FC = () => {
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
+  const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
   const [interactionError, setInteractionError] = useState<string | null>(null);
   const [lastAttempt, setLastAttempt] = useState<{
@@ -40,6 +41,7 @@ export const StepRenderer: React.FC = () => {
   const lastDoctorMessageId = useRef<string | null>(null);
   const latestStateRef = useRef(state);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollHostRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     latestStateRef.current = state;
@@ -82,6 +84,7 @@ export const StepRenderer: React.FC = () => {
   }, [state.response_options, state.status]);
 
   useEffect(() => {
+    if (!stickToBottom) return;
     transcriptEndRef.current?.scrollIntoView({
       behavior: state.settings.reduced_motion ? 'auto' : 'smooth',
       block: 'end',
@@ -90,8 +93,29 @@ export const StepRenderer: React.FC = () => {
     state.conversation.length,
     state.response_options?.options.length,
     loading,
+    stickToBottom,
     state.settings.reduced_motion,
   ]);
+
+  useEffect(() => {
+    const anchor = transcriptEndRef.current;
+    if (!anchor) return;
+
+    const host = (anchor.closest('main') || anchor.parentElement) as HTMLElement | null;
+    if (!host) return;
+    scrollHostRef.current = host;
+
+    const onScroll = () => {
+      const distanceFromBottom = host.scrollHeight - host.scrollTop - host.clientHeight;
+      setStickToBottom(distanceFromBottom < 120);
+    };
+
+    onScroll();
+    host.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      host.removeEventListener('scroll', onScroll);
+    };
+  }, [state.status]);
 
   const promptOnboardingFromNotifications = useCallback(() => {
     const hasOnboardingNotification = state.notifications.some((notification) =>

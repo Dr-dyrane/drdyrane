@@ -35,19 +35,43 @@ let initialized = false;
 const createWorker = (): Worker =>
   new Worker(new URL('../workers/sessionSync.worker.ts', import.meta.url), { type: 'module' });
 
+const MAX_CONVERSATION_MESSAGES = 240;
+const PRESERVED_CONVERSATION_HEAD = 24;
+
+const getConversationEntryKey = (entry: ClinicalState['conversation'][number], index: number): string => {
+  const id = (entry as { id?: unknown }).id;
+  if (typeof id === 'string' && id.trim()) return id;
+  return `${entry.role}:${entry.timestamp}:${entry.content.slice(0, 64)}:${index}`;
+};
+
 const compactConversation = (conversation: ClinicalState['conversation']): ClinicalState['conversation'] => {
   const all = Array.isArray(conversation) ? conversation : [];
-  if (all.length <= 140) return all;
+  if (all.length <= MAX_CONVERSATION_MESSAGES) return all;
 
-  const firstPatientMessage = all.find((entry) => entry.role === 'patient');
-  const tail = all.slice(-128);
-  if (!firstPatientMessage) return tail;
+  const head = all.slice(0, Math.min(PRESERVED_CONVERSATION_HEAD, all.length));
+  const tailBudget = Math.max(0, MAX_CONVERSATION_MESSAGES - head.length);
+  const tail = all.slice(-tailBudget);
+  const merged: ClinicalState['conversation'] = [];
+  const seen = new Set<string>();
 
-  if (tail.some((entry) => entry.id === firstPatientMessage.id)) {
-    return tail;
+  for (let index = 0; index < head.length; index += 1) {
+    const entry = head[index];
+    const key = getConversationEntryKey(entry, index);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(entry);
   }
 
-  return [firstPatientMessage, ...tail].slice(-140);
+  for (let index = 0; index < tail.length; index += 1) {
+    const entry = tail[index];
+    const key = getConversationEntryKey(entry, head.length + index);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(entry);
+  }
+
+  if (merged.length <= MAX_CONVERSATION_MESSAGES) return merged;
+  return merged.slice(-MAX_CONVERSATION_MESSAGES);
 };
 
 const compactState = (state: ClinicalState): ClinicalState => ({
