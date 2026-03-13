@@ -162,6 +162,8 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
   const promptConfig = useMemo(() => SCAN_LENS_CONFIG[scanLens], [scanLens]);
   const config = REVIEW_CONFIG[kind];
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const noteTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const previousImageDataUrlRef = useRef<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -346,6 +348,29 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     if (activeReview.lens === scanLens) return;
     setScanLens(activeReview.lens);
   }, [activeReview, scanLens]);
+
+  useEffect(() => {
+    if (previousImageDataUrlRef.current === null) {
+      previousImageDataUrlRef.current = imageDataUrl;
+      return;
+    }
+
+    const hadImage = Boolean(previousImageDataUrlRef.current);
+    const hasImage = Boolean(imageDataUrl);
+    previousImageDataUrlRef.current = imageDataUrl;
+
+    if (hadImage || !hasImage) return;
+
+    const focusTimer = window.setTimeout(() => {
+      const noteTextarea = noteTextareaRef.current;
+      if (!noteTextarea) return;
+      noteTextarea.focus({ preventScroll: true });
+      const cursor = noteTextarea.value.length;
+      noteTextarea.setSelectionRange(cursor, cursor);
+    }, 140);
+
+    return () => window.clearTimeout(focusTimer);
+  }, [imageDataUrl]);
 
   const openFilePicker = useCallback(() => {
     setError('');
@@ -735,6 +760,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
               <div className="surface-strong rounded-[20px] p-3 space-y-2">
                 <label className="text-[11px] text-content-dim uppercase tracking-wide">Clinical Note</label>
                 <textarea
+                  ref={noteTextareaRef}
                   value={contextNote}
                   onChange={(event) => {
                     if (!activeReview) return;
