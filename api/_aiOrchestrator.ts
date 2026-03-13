@@ -1429,8 +1429,16 @@ const buildConsultTextCorpus = (body: ConsultRequest, payload: ConsultPayload): 
     .map((entry) => entry.content)
     .join(' ');
 
+  const subjectiveSoap =
+    body.state?.soap &&
+    typeof body.state.soap === 'object' &&
+    body.state.soap['S'] &&
+    typeof body.state.soap['S'] === 'object'
+      ? (body.state.soap['S'] as Record<string, unknown>)
+      : {};
+
   const soapSnapshot = JSON.stringify({
-    ...(body.state?.soap?.S || {}),
+    ...subjectiveSoap,
     ...(payload.soap_updates?.S || {}),
   });
 
