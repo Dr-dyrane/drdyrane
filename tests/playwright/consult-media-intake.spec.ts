@@ -130,17 +130,22 @@ test.describe('Consult Media Intake', () => {
     await expect(page.getByText('How long have these mouth lesions been present?')).toBeVisible();
     await expect(page.locator('.option-button').first()).toBeVisible();
 
-    const savedReviewCount = await page.evaluate(() => {
-      const raw = localStorage.getItem('dr_dyrane.v2.session');
-      if (!raw) return 0;
-      try {
-        const parsed = JSON.parse(raw);
-        const reviews = parsed?.state?.diagnostic_reviews;
-        return Array.isArray(reviews) ? reviews.length : 0;
-      } catch {
-        return 0;
-      }
-    });
-    expect(savedReviewCount).toBeGreaterThan(0);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const raw = localStorage.getItem('dr_dyrane.v2.session');
+            if (!raw) return 0;
+            try {
+              const parsed = JSON.parse(raw);
+              const reviews = parsed?.state?.diagnostic_reviews;
+              return Array.isArray(reviews) ? reviews.length : 0;
+            } catch {
+              return 0;
+            }
+          }),
+        { timeout: 6000 }
+      )
+      .toBeGreaterThan(0);
   });
 });

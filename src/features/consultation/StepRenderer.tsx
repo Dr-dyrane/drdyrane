@@ -9,6 +9,7 @@ import { resolveTheme } from '../../core/theme/resolveTheme';
 import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
 import { analyzeClinicalImage } from '../../core/api/visionEngine';
 import { ResponseOptions } from '../../core/types/clinical';
+import { buildLocalOptions } from '../../core/api/agent/localOptions';
 import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
@@ -27,6 +28,27 @@ const MAX_IMAGE_UPLOAD_BYTES = 8 * 1024 * 1024;
 const DANGER_GATE_PATTERN =
   /danger signs?|breathlessness|confusion|persistent vomiting|bleeding|chest pain|fainting|breathing trouble/i;
 const DIRECT_BINARY_QUESTION_PATTERN = /^(is|are|do|did|have|has|can|could|will|would|should|any)\b/i;
+const TIMELINE_QUESTION_PATTERN = /\b(how long|since when|when did|when .* start|started|start)\b/i;
+const SUMMARY_QUESTION_PATTERN = /\b(summary|working diagnosis|finalize|plan)\b/i;
+const TIMELINE_OPTION_PATTERN = /\bstarted today\b|\b1-2 days\b|\b3-4 days\b|\b5-7 days\b|\bweek\b/i;
+const SUMMARY_OPTION_PATTERN = /\bready for summary\b|\badd one detail\b|\bnot sure\b/i;
+const DANGER_OPTION_PATTERN =
+  /\bnone of these\b|\bbreathlessness\b|\bconfusion\b|\bchest pain\b|\bpersistent vomiting\b|\bbleeding\b/i;
+
+const extractQuestionClause = (prompt: string): string => {
+  const compact = prompt.replace(/\s+/g, ' ').trim();
+  if (!compact) return '';
+
+  const questionIndex = compact.lastIndexOf('?');
+  if (questionIndex >= 0) {
+    const uptoQuestion = compact.slice(0, questionIndex);
+    const sentenceStart = Math.max(uptoQuestion.lastIndexOf('.'), uptoQuestion.lastIndexOf('!'));
+    return uptoQuestion.slice(sentenceStart + 1).trim().toLowerCase();
+  }
+
+  const sentenceStart = Math.max(compact.lastIndexOf('.'), compact.lastIndexOf('!'));
+  return compact.slice(sentenceStart + 1).trim().toLowerCase();
+};
 
 const readFileAsDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
@@ -60,12 +82,30 @@ const buildTimedGateOptions = (prompt: string, contextHint: string): ResponseOpt
 };
 
 const isBinaryQuestionPrompt = (prompt: string): boolean => {
-  const normalized = prompt.trim().toLowerCase();
+  const normalized = extractQuestionClause(prompt);
   if (!normalized) return false;
   if (normalized.includes(' how many ') || normalized.startsWith('how many')) return false;
   if (normalized.includes(' how long ') || normalized.startsWith('how long')) return false;
   if (normalized.startsWith('what ') || normalized.startsWith('which ')) return false;
   return DIRECT_BINARY_QUESTION_PATTERN.test(normalized) || DANGER_GATE_PATTERN.test(normalized);
+};
+
+const hasTimelineOptionShape = (options: ResponseOptions | null): boolean => {
+  if (!options || !Array.isArray(options.options) || options.options.length === 0) return false;
+  const textBlob = options.options.map((option) => option.text.toLowerCase()).join(' | ');
+  return TIMELINE_OPTION_PATTERN.test(textBlob);
+};
+
+const hasSummaryOptionShape = (options: ResponseOptions | null): boolean => {
+  if (!options || !Array.isArray(options.options) || options.options.length === 0) return false;
+  const textBlob = options.options.map((option) => option.text.toLowerCase()).join(' | ');
+  return SUMMARY_OPTION_PATTERN.test(textBlob);
+};
+
+const hasDangerOptionShape = (options: ResponseOptions | null): boolean => {
+  if (!options || !Array.isArray(options.options) || options.options.length === 0) return false;
+  const textBlob = options.options.map((option) => option.text.toLowerCase()).join(' | ');
+  return DANGER_OPTION_PATTERN.test(textBlob);
 };
 
 export const StepRenderer: React.FC = () => {
@@ -529,19 +569,46 @@ export const StepRenderer: React.FC = () => {
   const activeResponseOptions = React.useMemo(() => {
     const sourceOptions = state.response_options;
     const gatePrompt = activeGateSegment?.prompt || resolvedQuestion;
+    const normalizedPrompt = extractQuestionClause(gatePrompt);
+
+    let alignedOptions = sourceOptions;
+    if (sourceOptions) {
+      const requiresBinary = isBinaryQuestionPrompt(gatePrompt);
+      const expectsDuration = TIMELINE_QUESTION_PATTERN.test(normalizedPrompt);
+      const expectsSummary = SUMMARY_QUESTION_PATTERN.test(normalizedPrompt);
+      const expectsDanger = DANGER_GATE_PATTERN.test(normalizedPrompt);
+
+      const optionMismatch =
+        (requiresBinary && !hasBinaryOptionShape(sourceOptions)) ||
+        (expectsDuration && !hasTimelineOptionShape(sourceOptions)) ||
+        (expectsSummary && !hasSummaryOptionShape(sourceOptions)) ||
+        (expectsDanger && !hasDangerOptionShape(sourceOptions) && !hasBinaryOptionShape(sourceOptions));
+
+      if (optionMismatch) {
+        alignedOptions = buildLocalOptions(gatePrompt, state.profile);
+      }
+    }
+
     const shouldForceBinary = isTimedGateStep || isBinaryQuestionPrompt(gatePrompt);
-    if (!shouldForceBinary) return sourceOptions;
+    if (!shouldForceBinary) return alignedOptions;
 
     const timedHint = gateProgress ? `Step ${gateProgress}: Quick yes/no.` : 'Quick yes/no.';
 
-    if (!sourceOptions) {
+    if (!alignedOptions) {
       return buildTimedGateOptions(gatePrompt, timedHint);
     }
-    if (hasBinaryOptionShape(sourceOptions)) {
-      return sourceOptions;
+    if (hasBinaryOptionShape(alignedOptions)) {
+      return alignedOptions;
     }
     return buildTimedGateOptions(gatePrompt, timedHint);
-  }, [activeGateSegment?.prompt, gateProgress, isTimedGateStep, resolvedQuestion, state.response_options]);
+  }, [
+    activeGateSegment?.prompt,
+    gateProgress,
+    isTimedGateStep,
+    resolvedQuestion,
+    state.profile,
+    state.response_options,
+  ]);
   const showInput = !activeResponseOptions || activeResponseOptions.allow_custom_input;
 
   if (state.status === 'complete') return null;
