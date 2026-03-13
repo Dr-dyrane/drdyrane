@@ -13,6 +13,7 @@ import {
   AppNotification,
   SheetType,
   DiagnosticReviewRecord,
+  QuestionGateState,
 } from '../types/clinical';
 import { loadSessionState } from '../storage/sessionStore';
 import { initSessionSyncWorker, queueSessionSync } from '../storage/sessionSync';
@@ -256,6 +257,97 @@ const sanitizeDiagnosticReviewList = (value: unknown): DiagnosticReviewRecord[] 
     .filter((entry): entry is DiagnosticReviewRecord => Boolean(entry))
     .sort((a, b) => b.updated_at - a.updated_at)
     .slice(0, 12);
+
+const sanitizeQuestionGate = (value: unknown): QuestionGateState | null => {
+  if (!value || typeof value !== 'object') return null;
+  const raw = value as Partial<QuestionGateState> & Record<string, unknown>;
+  if (!raw.active) return null;
+
+  const sourceQuestion =
+    typeof raw.source_question === 'string' ? raw.source_question.trim() : '';
+  const kind =
+    raw.kind === 'stacked_symptom' ||
+    raw.kind === 'presenting_complaints' ||
+    raw.kind === 'safety_checkpoint'
+      ? raw.kind
+      : undefined;
+  const segments = (Array.isArray(raw.segments) ? raw.segments : [])
+    .map((segment) => {
+      if (!segment || typeof segment !== 'object') return null;
+      const entry = segment as {
+        id?: unknown;
+        prompt?: unknown;
+        timeout_seconds?: unknown;
+        input_mode?: unknown;
+      };
+      const id = typeof entry.id === 'string' ? entry.id.trim() : '';
+      const prompt = typeof entry.prompt === 'string' ? entry.prompt.trim() : '';
+      if (!id || !prompt) return null;
+      const timeoutRaw = Number(entry.timeout_seconds);
+      const timeout_seconds =
+        Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? Math.round(timeoutRaw) : undefined;
+      const input_mode =
+        entry.input_mode === 'freeform' || entry.input_mode === 'options'
+          ? (entry.input_mode as 'freeform' | 'options')
+          : undefined;
+      return {
+        id,
+        prompt,
+        timeout_seconds,
+        input_mode,
+      };
+    })
+    .filter(
+      (
+        segment
+      ): segment is NonNullable<typeof segment> => Boolean(segment)
+    )
+    .slice(0, 24);
+  if (segments.length === 0) return null;
+
+  const currentIndexRaw = Number(raw.current_index);
+  const current_index =
+    Number.isFinite(currentIndexRaw) && currentIndexRaw >= 0
+      ? Math.min(Math.floor(currentIndexRaw), segments.length - 1)
+      : 0;
+
+  const answers = (Array.isArray(raw.answers) ? raw.answers : [])
+    .map((answer) => {
+      if (!answer || typeof answer !== 'object') return null;
+      const entry = answer as {
+        segment_id?: unknown;
+        prompt?: unknown;
+        response?: unknown;
+      };
+      const segment_id = typeof entry.segment_id === 'string' ? entry.segment_id.trim() : '';
+      const prompt = typeof entry.prompt === 'string' ? entry.prompt.trim() : '';
+      const response = typeof entry.response === 'string' ? entry.response.trim() : '';
+      if (!segment_id || !prompt) return null;
+      return { segment_id, prompt, response };
+    })
+    .filter((answer): answer is NonNullable<typeof answer> => Boolean(answer))
+    .slice(0, 32);
+
+  const additionalCountRaw = Number(raw.additional_count);
+  const maxAdditionalRaw = Number(raw.max_additional);
+
+  return {
+    active: true,
+    source_question: sourceQuestion || segments[0].prompt,
+    kind,
+    segments,
+    current_index,
+    answers,
+    additional_count:
+      Number.isFinite(additionalCountRaw) && additionalCountRaw >= 0
+        ? Math.floor(additionalCountRaw)
+        : undefined,
+    max_additional:
+      Number.isFinite(maxAdditionalRaw) && maxAdditionalRaw >= 0
+        ? Math.floor(maxAdditionalRaw)
+        : undefined,
+  };
+};
 
 const initialState: ClinicalState = {
   sessionId: crypto.randomUUID(),
@@ -760,14 +852,9 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           };
         }
         if (parsed.selected_options === undefined) parsed.selected_options = [];
-        if (parsed.question_gate === undefined) parsed.question_gate = null;
-        if (
-          parsed.question_gate &&
-          parsed.question_gate.active &&
-          parsed.question_gate.kind !== 'safety_checkpoint'
-        ) {
-          parsed.question_gate = null;
-        }
+        parsed.question_gate = sanitizeQuestionGate(
+          parsed.question_gate === undefined ? null : parsed.question_gate
+        );
         if (!parsed.profile) parsed.profile = defaultProfile();
         parsed.profile.weight_kg = sanitizeWeightKg(parsed.profile.weight_kg);
         parsed.settings = sanitizeSettings(parsed.settings as Partial<AppSettings> | undefined);
