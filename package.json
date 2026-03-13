@@ -20,7 +20,7 @@
     "test:ui:engines": "playwright test tests/playwright/engine-smoke.spec.ts",
     "test:ui:scan": "playwright test tests/playwright/scan-treatment-synthesis.spec.ts",
     "test:ui:consult": "playwright test tests/playwright/consult-flow.spec.ts",
-    "test:ui:consult:regression": "playwright test tests/playwright/consult-flow.spec.ts tests/playwright/consult-loop-regression.spec.ts tests/playwright/consult-retry-resilience.spec.ts tests/playwright/consult-media-intake.spec.ts tests/playwright/consult-gate-options-resilience.spec.ts tests/playwright/consult-gate-reload-persistence.spec.ts tests/playwright/consult-option-normalization.spec.ts tests/playwright/consult-summary-ready-progress.spec.ts tests/playwright/consult-reset-race-resilience.spec.ts tests/playwright/consult-message-polish.spec.ts tests/playwright/consult-invariant-audit.spec.ts",
+    "test:ui:consult:regression": "playwright test tests/playwright/consult-flow.spec.ts tests/playwright/consult-loop-regression.spec.ts tests/playwright/consult-retry-resilience.spec.ts tests/playwright/consult-media-intake.spec.ts tests/playwright/consult-gate-options-resilience.spec.ts tests/playwright/consult-gate-reload-persistence.spec.ts tests/playwright/consult-option-normalization.spec.ts tests/playwright/consult-summary-ready-progress.spec.ts tests/playwright/consult-reset-race-resilience.spec.ts tests/playwright/consult-message-polish.spec.ts tests/playwright/consult-invariant-audit.spec.ts tests/playwright/consult-stale-state-replay.spec.ts",
     "test:ui:install": "playwright install chromium",
     "test:quality": "npm run lint && npm run e2e:deterministic && npm run test:ui:engines && npm run test:ui:scan && npm run test:ui:consult:regression"
   },

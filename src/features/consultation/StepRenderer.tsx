@@ -10,6 +10,8 @@ import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
 import { analyzeClinicalImage, VISION_UPLOAD_FILE_LIMIT_BYTES } from '../../core/api/visionEngine';
 import { ResponseOptions } from '../../core/types/clinical';
 import { buildLocalOptions } from '../../core/api/agent/localOptions';
+import { normalizeSingleQuestionPrompt } from '../../core/api/agent/questionInvariant';
+import { recordInvariantEvent } from '../../core/api/agent/invariantAudit';
 import { buildUserFacingError, UserFacingError } from '../../core/errors/userMessage';
 import {
   ONBOARDING_NOTIFICATION_BODY,
@@ -128,6 +130,7 @@ export const StepRenderer: React.FC = () => {
     preDelayMs?: number;
   } | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
+  const lastRenderQuestionAuditRef = useRef<string>('');
   const latestStateRef = useRef(state);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const scrollHostRef = useRef<HTMLElement | null>(null);
@@ -173,6 +176,19 @@ export const StepRenderer: React.FC = () => {
   useEffect(() => {
     setSelectedOptionIds([]);
   }, [state.response_options, state.status]);
+
+  useEffect(() => {
+    const latest = state.conversation[state.conversation.length - 1];
+    if (!latest || latest.role !== 'doctor') return;
+    const rawQuestion = (latest.metadata?.question || latest.content || '').trim();
+    if (!rawQuestion) return;
+    const normalized = normalizeSingleQuestionPrompt(rawQuestion);
+    if (!normalized || normalized === rawQuestion) return;
+    const auditKey = `${rawQuestion.slice(0, 80)}=>${normalized.slice(0, 80)}`;
+    if (lastRenderQuestionAuditRef.current === auditKey) return;
+    lastRenderQuestionAuditRef.current = auditKey;
+    recordInvariantEvent('single_question_enforced', `render:${normalized.slice(0, 120)}`);
+  }, [state.conversation]);
 
   useEffect(() => {
     if (!stickToBottom) return;
@@ -550,7 +566,9 @@ export const StepRenderer: React.FC = () => {
     state.profile.display_name || 'Patient'
   );
   const currentQuestion = currentMessage?.metadata?.question ?? currentMessage?.content ?? '';
-  const resolvedQuestion = currentQuestion.trim() || 'What symptom is bothering you the most right now?';
+  const normalizedCurrentQuestion = normalizeSingleQuestionPrompt(currentQuestion);
+  const resolvedQuestion =
+    normalizedCurrentQuestion || 'What symptom is bothering you the most right now?';
   const gateProgress = state.question_gate?.active
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
@@ -562,7 +580,8 @@ export const StepRenderer: React.FC = () => {
   const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
   const activeResponseOptions = React.useMemo(() => {
     const sourceOptions = state.response_options;
-    const gatePrompt = activeGateSegment?.prompt || resolvedQuestion;
+    const rawGatePrompt = activeGateSegment?.prompt || resolvedQuestion;
+    const gatePrompt = normalizeSingleQuestionPrompt(rawGatePrompt) || rawGatePrompt;
     const normalizedPrompt = extractQuestionClause(gatePrompt);
 
     let alignedOptions = sourceOptions;

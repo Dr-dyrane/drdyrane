@@ -17,6 +17,8 @@ import {
 } from '../types/clinical';
 import { loadSessionState } from '../storage/sessionStore';
 import { initSessionSyncWorker, queueSessionSync } from '../storage/sessionSync';
+import { recordInvariantEvent } from '../api/agent/invariantAudit';
+import { normalizeSingleQuestionPrompt } from '../api/agent/questionInvariant';
 
 export type Action =
   | { type: 'START_INTAKE' }
@@ -520,6 +522,98 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
     return { ...newState, history: prunedHistory };
   };
 
+  const sanitizeConversationQuestions = (
+    conversation: ConversationMessage[]
+  ): { conversation: ConversationMessage[]; correctedCount: number } => {
+    if (!Array.isArray(conversation) || conversation.length === 0) {
+      return { conversation: [], correctedCount: 0 };
+    }
+
+    let correctedCount = 0;
+    const sanitizedConversation = conversation.map((entry) => {
+      if (entry.role !== 'doctor') return entry;
+      const rawQuestion = (entry.metadata?.question || entry.content || '').trim();
+      if (!rawQuestion) return entry;
+      const normalizedQuestion = normalizeSingleQuestionPrompt(rawQuestion);
+      if (!normalizedQuestion || normalizedQuestion === rawQuestion) return entry;
+      correctedCount += 1;
+      return {
+        ...entry,
+        metadata: {
+          ...(entry.metadata || {}),
+          question: normalizedQuestion,
+        },
+      };
+    });
+
+    return { conversation: sanitizedConversation, correctedCount };
+  };
+
+  const resolveMonotonicQuestionGate = (
+    incomingGate: ClinicalState['question_gate'] | undefined
+  ): ClinicalState['question_gate'] => {
+    if (incomingGate === undefined) return state.question_gate;
+    if (!incomingGate?.active || !state.question_gate?.active) return incomingGate;
+
+    const sameGate =
+      incomingGate.kind === state.question_gate.kind &&
+      incomingGate.source_question === state.question_gate.source_question;
+    if (!sameGate) return incomingGate;
+
+    if (incomingGate.current_index >= state.question_gate.current_index) {
+      return incomingGate;
+    }
+
+    recordInvariantEvent(
+      'gate_progress_preserved',
+      `reducer:${incomingGate.kind || 'gate'}:${incomingGate.current_index}->${state.question_gate.current_index}`
+    );
+    return state.question_gate;
+  };
+
+  const applyAgentPayload = (
+    payload: Partial<ClinicalState>,
+    lastInput?: string
+  ): ClinicalState => {
+    const nextPayload = { ...payload };
+
+    if (Array.isArray(nextPayload.conversation)) {
+      const sanitized = sanitizeConversationQuestions(nextPayload.conversation);
+      if (sanitized.correctedCount > 0) {
+        recordInvariantEvent(
+          'single_question_enforced',
+          `reducer:${sanitized.correctedCount}`
+        );
+      }
+
+      if (sanitized.conversation.length < state.conversation.length) {
+        recordInvariantEvent(
+          'conversation_regression_blocked',
+          `reducer:${sanitized.conversation.length}->${state.conversation.length}`
+        );
+        nextPayload.conversation = state.conversation;
+        if (nextPayload.response_options !== undefined) {
+          nextPayload.response_options = state.response_options;
+        }
+      } else {
+        nextPayload.conversation = sanitized.conversation;
+      }
+    }
+
+    nextPayload.question_gate = resolveMonotonicQuestionGate(nextPayload.question_gate);
+
+    const updated = { ...state, ...nextPayload };
+    let archives = state.archives;
+    let notifications = state.notifications;
+    if (updated.status === 'complete' || updated.status === 'emergency') {
+      const archived = archiveSession(state.archives, updated);
+      archives = archived.archives;
+      notifications = appendHistoryNotification(notifications, archived.addedRecord);
+    }
+
+    return pushHistory({ ...updated, archives, notifications }, lastInput);
+  };
+
   switch (action.type) {
     case 'TOGGLE_THEME':
       return {
@@ -572,29 +666,11 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
       return pushHistory({ ...state, status: 'intake', view: 'consult' });
     
     case 'SET_AI_RESPONSE': {
-      const updated = { ...state, ...action.payload };
-      // If we finished or had an emergency, auto-archive it immediately
-      let archives = state.archives;
-      let notifications = state.notifications;
-      if (updated.status === 'complete' || updated.status === 'emergency') {
-        const archived = archiveSession(state.archives, updated);
-        archives = archived.archives;
-        notifications = appendHistoryNotification(notifications, archived.addedRecord);
-      }
-      return pushHistory({ ...updated, archives, notifications }, action.lastInput);
+      return applyAgentPayload(action.payload, action.lastInput);
     }
 
     case 'SET_AGENT_RESPONSE': {
-      const updated = { ...state, ...action.payload };
-      // If we finished or had an emergency, auto-archive it immediately
-      let archives = state.archives;
-      let notifications = state.notifications;
-      if (updated.status === 'complete' || updated.status === 'emergency') {
-        const archived = archiveSession(state.archives, updated);
-        archives = archived.archives;
-        notifications = appendHistoryNotification(notifications, archived.addedRecord);
-      }
-      return pushHistory({ ...updated, archives, notifications }, action.lastInput);
+      return applyAgentPayload(action.payload, action.lastInput);
     }
 
     case 'SELECT_OPTIONS':
@@ -981,6 +1057,27 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
     return initial;
   });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const host = window as Window & {
+      __drDyraneClinical?: {
+        getState: () => ClinicalState;
+        dispatch: (action: Action) => void;
+      };
+    };
+
+    host.__drDyraneClinical = {
+      getState: () => state,
+      dispatch: (action: Action) => dispatch(action),
+    };
+
+    return () => {
+      if (host.__drDyraneClinical) {
+        delete host.__drDyraneClinical;
+      }
+    };
+  }, [state, dispatch]);
 
   useEffect(() => {
     const stopSyncWorker = initSessionSyncWorker();
