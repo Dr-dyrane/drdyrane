@@ -1052,6 +1052,15 @@ export class AgentCoordinator {
           profile: stateForTurn.profile,
         })
       : stateForTurn.pillars;
+    const resolvedQuestionGate = autoComplete ? null : questionGate;
+    const resolvedResponseOptions = autoComplete
+      ? null
+      : this.enforceRuntimeOptionInvariant(
+          responseOptions,
+          nextConversation,
+          resolvedQuestionGate,
+          stateForTurn.profile
+        );
 
     const newState: Partial<ClinicalState> = {
       conversation: nextConversation,
@@ -1065,8 +1074,8 @@ export class AgentCoordinator {
       thinking: conversationResult.thinking,
       status: nextStatus,
       pillars: nextPillars,
-      question_gate: autoComplete ? null : questionGate,
-      response_options: autoComplete ? null : responseOptions,
+      question_gate: resolvedQuestionGate,
+      response_options: resolvedResponseOptions,
       selected_options: [],
     };
 
@@ -1470,6 +1479,62 @@ export class AgentCoordinator {
 
     if (!mismatch) return responseOptions;
     return buildLocalOptions(question, profile);
+  }
+
+  private isOptionIntentMismatch(question: string, responseOptions: ResponseOptions): boolean {
+    const questionIntent = this.detectQuestionIntent(question);
+    if (!questionIntent) return false;
+    const optionIntent = this.detectOptionIntent(responseOptions);
+    if (!optionIntent) return false;
+
+    if (questionIntent === 'danger_signs') {
+      return optionIntent !== 'danger_signs' && optionIntent !== 'yes_no';
+    }
+    if (questionIntent === 'duration') {
+      return optionIntent !== 'timeline';
+    }
+    if (questionIntent === 'yes_no') {
+      return optionIntent !== 'yes_no' && optionIntent !== 'danger_signs';
+    }
+    if (questionIntent === 'summary') {
+      return optionIntent !== 'summary' && optionIntent !== 'yes_no';
+    }
+    return false;
+  }
+
+  private getLatestDoctorQuestion(conversation: ClinicalState['conversation']): string {
+    for (let i = conversation.length - 1; i >= 0; i -= 1) {
+      const entry = conversation[i];
+      if (entry.role !== 'doctor') continue;
+      const candidate = (entry.metadata?.question || entry.content || '').trim();
+      if (candidate) return candidate;
+    }
+    return '';
+  }
+
+  private getActiveGatePrompt(gate: QuestionGateState | null | undefined): string {
+    if (!gate || !gate.active) return '';
+    const segment = gate.segments[gate.current_index];
+    const prompt = (segment?.prompt || gate.source_question || '').trim();
+    return prompt;
+  }
+
+  private enforceRuntimeOptionInvariant(
+    responseOptions: ResponseOptions | null,
+    conversation: ClinicalState['conversation'],
+    gate: QuestionGateState | null | undefined,
+    profile: ClinicalState['profile']
+  ): ResponseOptions | null {
+    if (!responseOptions) return null;
+    const activePrompt = this.getActiveGatePrompt(gate);
+    const latestQuestion = activePrompt || this.getLatestDoctorQuestion(conversation);
+    if (!latestQuestion) return responseOptions;
+
+    const aligned = this.ensureOptionIntentAlignment(latestQuestion, responseOptions, profile);
+    if (!this.isOptionIntentMismatch(latestQuestion, aligned)) {
+      return aligned;
+    }
+    return buildLocalOptions(latestQuestion, profile);
   }
 
   private ensureProgressiveQuestion(
@@ -1987,6 +2052,29 @@ export class AgentCoordinator {
           ),
         }
       : this.state.agent_state;
+    const effectiveQuestionGate =
+      monotonicQuestionGate !== undefined
+        ? monotonicQuestionGate
+        : this.state.question_gate;
+    const effectiveProfile = newState.profile || this.state.profile;
+    const baseResponseOptions =
+      shouldKeepCurrentOptions
+        ? this.state.response_options
+        : resolvedResponseOptions !== undefined
+        ? resolvedResponseOptions
+        : this.state.response_options;
+    const invariantResponseOptions = this.enforceRuntimeOptionInvariant(
+      baseResponseOptions,
+      mergedConversation,
+      effectiveQuestionGate,
+      effectiveProfile
+    );
+    const optionsCorrected = invariantResponseOptions !== baseResponseOptions;
+    const baseSelectedOptions =
+      shouldKeepCurrentOptions || newState.selected_options === undefined
+        ? this.state.selected_options
+        : newState.selected_options;
+    const invariantSelectedOptions = optionsCorrected ? [] : baseSelectedOptions;
 
     this.state = {
       ...this.state,
@@ -1995,16 +2083,8 @@ export class AgentCoordinator {
         monotonicQuestionGate !== undefined
           ? monotonicQuestionGate
           : this.state.question_gate,
-      response_options:
-        shouldKeepCurrentOptions
-          ? this.state.response_options
-          : resolvedResponseOptions !== undefined
-          ? resolvedResponseOptions
-          : this.state.response_options,
-      selected_options:
-        shouldKeepCurrentOptions || newState.selected_options === undefined
-          ? this.state.selected_options
-          : newState.selected_options,
+      response_options: invariantResponseOptions,
+      selected_options: invariantSelectedOptions,
       conversation: mergedConversation,
       agent_state: mergedAgentState,
     };
