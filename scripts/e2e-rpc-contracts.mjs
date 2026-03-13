@@ -1,6 +1,7 @@
 import { ensureE2EServer } from './e2eServer.mjs';
 
-const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
+const defaultBaseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
+let baseUrl = defaultBaseUrl;
 
 const VALID_URGENCY = new Set(['low', 'medium', 'high', 'critical']);
 const VALID_STATUS = new Set(['idle', 'intake', 'active', 'lens', 'emergency', 'complete']);
@@ -247,7 +248,8 @@ const runVisionRpcContract = async () => {
 };
 
 const run = async () => {
-  const server = await ensureE2EServer(baseUrl);
+  const server = await ensureE2EServer(baseUrl, { target: 'api' });
+  baseUrl = server.baseUrl || baseUrl;
   try {
     await assertMethodGuard('/api/consult');
     await assertMethodGuard('/api/options');

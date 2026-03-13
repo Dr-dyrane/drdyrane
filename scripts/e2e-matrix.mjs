@@ -13,7 +13,8 @@ const __dirname = path.dirname(__filename);
 const specPath = path.join(__dirname, 'specs', 'encounter-matrix.json');
 const spec = JSON.parse(fs.readFileSync(specPath, 'utf-8'));
 
-const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
+const defaultBaseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
+let baseUrl = defaultBaseUrl;
 const PATH_TYPES = ['positive', 'must_not_miss', 'ambiguous', 'contradiction', 'user_noise'];
 
 const DX_CODE_MAP = {
@@ -486,7 +487,13 @@ const run = async () => {
   ensure(paths.length > 0, 'No path scenarios selected.');
 
   const scenarios = buildScenarioMatrix(engines, paths);
-  const server = mode === 'live' ? await ensureE2EServer(baseUrl) : { stop: async () => {} };
+  const server =
+    mode === 'live'
+      ? await ensureE2EServer(baseUrl, { target: 'api' })
+      : { stop: async () => {} };
+  if (mode === 'live' && server.baseUrl) {
+    baseUrl = server.baseUrl;
+  }
 
   let passed = 0;
   try {
