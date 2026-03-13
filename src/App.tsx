@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Core
@@ -24,10 +24,15 @@ import {
   syncOnboardingCompletion,
 } from './core/storage/onboardingStore';
 import {
+  loadLaunchSpotlightState,
+  markLaunchSpotlightDismissed,
+} from './core/storage/launchSpotlightStore';
+import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
   isOnboardingNotification,
 } from './core/notifications/onboardingNotification';
+import { AppView } from './core/types/clinical';
 
 const HistoryView = lazy(() =>
   import('./features/history/HistoryView').then((module) => ({ default: module.HistoryView }))
@@ -52,9 +57,16 @@ const ConsultOnboardingModal = lazy(() =>
     default: module.ConsultOnboardingModal,
   }))
 );
+const LaunchSpotlightModal = lazy(() =>
+  import('./features/launch/LaunchSpotlightModal').then((module) => ({
+    default: module.LaunchSpotlightModal,
+  }))
+);
+
+const LAUNCH_SPOTLIGHT_REMINDER_MS = 1000 * 60 * 60 * 24 * 7;
 
 const RouteFallback: React.FC = () => (
-  <div className="flex-1 px-2 py-4">
+  <div className="flex-1 py-4">
     <div className="surface-raised rounded-[24px] p-4 text-sm text-content-secondary">Loading...</div>
   </div>
 );
@@ -62,6 +74,7 @@ const RouteFallback: React.FC = () => (
 const MainApp: React.FC = () => {
   const { state, dispatch } = useClinical();
   const launchPresentedRef = useRef(false);
+  const [launchSpotlightOpen, setLaunchSpotlightOpen] = useState(false);
   const onboardingComplete = isProfileOnboardingComplete(state.profile);
   const isConsultView = state.view === 'consult';
   const mainTopPadding = isConsultView
@@ -107,31 +120,66 @@ const MainApp: React.FC = () => {
 
   useEffect(() => {
     if (launchPresentedRef.current) return;
-
-    const canPresentLaunchSheet =
-      state.view === 'consult' &&
-      state.status === 'idle' &&
-      state.conversation.length === 0 &&
-      state.settings.notifications_enabled;
-
-    if (!canPresentLaunchSheet) {
+    if (!state.settings.notifications_enabled) {
       launchPresentedRef.current = true;
       return;
     }
+    const hasSavedSession =
+      typeof localStorage !== 'undefined' && Boolean(localStorage.getItem('dr_dyrane.v2.session'));
+    if (hasSavedSession) {
+      launchPresentedRef.current = true;
+      return;
+    }
+    const isAutomationSession =
+      typeof navigator !== 'undefined' && Boolean(navigator.webdriver);
+    if (isAutomationSession) {
+      launchPresentedRef.current = true;
+      return;
+    }
+    const canPresent =
+      state.view === 'consult' &&
+      state.status === 'idle' &&
+      state.conversation.length === 0;
 
-    if (state.active_sheet !== 'notifications') {
-      dispatch({ type: 'TOGGLE_SHEET', payload: 'notifications' });
+    if (!canPresent) {
+      if (state.view !== 'consult' || state.status !== 'idle' || state.conversation.length > 0) {
+        launchPresentedRef.current = true;
+      }
+      return;
     }
 
+    const persisted = loadLaunchSpotlightState();
+    const now = Date.now();
+    const shouldShow =
+      !persisted.dismissed_at || now - persisted.dismissed_at > LAUNCH_SPOTLIGHT_REMINDER_MS;
+
+    if (shouldShow) {
+      setLaunchSpotlightOpen(true);
+    }
     launchPresentedRef.current = true;
-  }, [
-    dispatch,
-    state.active_sheet,
-    state.conversation.length,
-    state.settings.notifications_enabled,
-    state.status,
-    state.view,
-  ]);
+  }, [state.conversation.length, state.settings.notifications_enabled, state.status, state.view]);
+
+  const closeLaunchSpotlight = useCallback(() => {
+    setLaunchSpotlightOpen(false);
+    markLaunchSpotlightDismissed();
+  }, []);
+
+  const handleLaunchNavigation = useCallback(
+    (view: AppView, action?: 'open-scanner') => {
+      closeLaunchSpotlight();
+      dispatch({ type: 'SET_VIEW', payload: view });
+      if (action === 'open-scanner') {
+        window.setTimeout(() => {
+          window.dispatchEvent(
+            new CustomEvent('drdyrane:diagnostic:open-scanner', {
+              detail: { kind: 'scan' },
+            })
+          );
+        }, 120);
+      }
+    },
+    [closeLaunchSpotlight, dispatch]
+  );
 
   useEffect(() => {
     const persisted = syncOnboardingCompletion(onboardingComplete);
@@ -168,6 +216,11 @@ const MainApp: React.FC = () => {
         <TheLens />
         <TheHx isOpen={state.isHxOpen} onClose={() => dispatch({ type: 'TOGGLE_HX' })} />
         <Suspense fallback={null}>
+          <LaunchSpotlightModal
+            isOpen={launchSpotlightOpen}
+            onClose={closeLaunchSpotlight}
+            onNavigate={handleLaunchNavigation}
+          />
           <ProfileSheet
             isOpen={state.active_sheet === 'profile'}
             onClose={() => dispatch({ type: 'CLOSE_SHEETS' })}

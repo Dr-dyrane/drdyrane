@@ -385,7 +385,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      setError('Image files only for AI review.');
+      setError('Image files only for Dr review.');
       return;
     }
 
@@ -494,7 +494,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       upsertReviewArchive(analyzedReview);
       feedback('question');
     } catch (analysisError) {
-      const message = analysisError instanceof Error ? analysisError.message : 'AI review failed.';
+      const message = analysisError instanceof Error ? analysisError.message : 'Dr review failed.';
       setError(message);
       feedback('error');
     } finally {
@@ -552,7 +552,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
   const pushToConsultation = useCallback(async () => {
     if (!analysis && !contextNote.trim()) {
-      setError('Run AI review or add a note before sending to consultation.');
+      setError('Run Dr review or add a note before sending to consultation.');
       return;
     }
 
@@ -616,7 +616,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
   const exportReviewPdf = useCallback(async () => {
     if (!analysis) {
-      setError('Run AI review before printing.');
+      setError('Run Dr review before printing.');
       return;
     }
     const { exportDiagnosticReviewPdf } = await import('../../core/pdf/clinicalPdf');
@@ -730,7 +730,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
 
   return (
     <>
-      <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-4 space-y-4 animate-emergence">
+      <div className="flex-1 w-full min-w-0 overflow-x-hidden py-4 space-y-4 animate-emergence">
         <section className="surface-raised rounded-[24px] p-4 space-y-3">
           <input
             ref={fileInputRef}
@@ -810,7 +810,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                   className="h-11 rounded-2xl cta-live text-xs font-semibold inline-flex items-center justify-center gap-1.5 interactive-tap disabled:opacity-55"
                 >
                   {analyzing ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
-                  {analyzing ? (synthesizingPlan ? 'Finalizing Plan...' : 'Reviewing...') : 'AI Review'}
+                  {analyzing ? (synthesizingPlan ? 'Finalizing Plan...' : 'Reviewing...') : 'Dr Review'}
                 </button>
 
                 <button
@@ -822,7 +822,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
                   Send to Consult
                 </button>
               </div>
-              <AiActivityTimeline scope="scan" maxTasks={3} showCompletedWithinMs={22000} />
+              <AiActivityTimeline scope="scan" maxTasks={2} showCompletedWithinMs={22000} />
             </>
           ) : (
             <p className="text-xs text-content-dim leading-relaxed">
@@ -1028,7 +1028,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
         {!analysis && (
           <section className="surface-raised rounded-[24px] p-4 pb-24">
             <p className="text-sm text-content-secondary leading-relaxed">
-              Upload or scan first, run AI review, then send structured findings back into consultation reasoning.
+              Upload or scan first, run Dr review, then send structured findings into consultation reasoning.
             </p>
           </section>
         )}

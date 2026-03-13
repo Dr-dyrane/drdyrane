@@ -170,7 +170,7 @@ export const PillarCard: React.FC = () => {
   const confidenceLabel = `${Math.round(Math.max(0, Math.min(100, state.probability || 0)))}%`;
 
   return (
-    <div className="flex-1 px-2 py-4 space-y-5 animate-emergence">
+      <div className="flex-1 py-4 space-y-5 animate-emergence">
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}

@@ -1,6 +1,18 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { seedClinicalStorage } from './helpers/seedSession';
 import { installConsultApiMock } from './helpers/mockApi';
+
+const dismissLaunchSpotlightIfPresent = async (page: Page) => {
+  const continueToApp = page.getByRole('button', { name: /Continue to App/i });
+  if (await continueToApp.isVisible().catch(() => false)) {
+    await continueToApp.click();
+    return;
+  }
+  const closeSpotlight = page.getByRole('button', { name: /Close spotlight/i });
+  if (await closeSpotlight.isVisible().catch(() => false)) {
+    await closeSpotlight.click();
+  }
+};
 
 test.describe('Consult Room UX Smoke', () => {
   test('handles fast taps without duplicate API turn', async ({ page }) => {
@@ -11,10 +23,7 @@ test.describe('Consult Room UX Smoke', () => {
     });
 
     await page.goto('/');
-    const continueToApp = page.getByRole('button', { name: 'Continue to App' });
-    if (await continueToApp.isVisible()) {
-      await continueToApp.click();
-    }
+    await dismissLaunchSpotlightIfPresent(page);
 
     const intake = page.getByPlaceholder('Describe your main concern...');
     await intake.fill('fever');
@@ -38,10 +47,7 @@ test.describe('Consult Room UX Smoke', () => {
     });
 
     await page.goto('/');
-    const continueToApp = page.getByRole('button', { name: 'Continue to App' });
-    if (await continueToApp.isVisible()) {
-      await continueToApp.click();
-    }
+    await dismissLaunchSpotlightIfPresent(page);
 
     const intake = page.getByPlaceholder('Describe your main concern...');
     await intake.fill('fever');
@@ -64,6 +70,7 @@ test.describe('Consult Room UX Smoke', () => {
     });
 
     await page.reload();
+    await dismissLaunchSpotlightIfPresent(page);
 
     await expect(page.getByText('fever')).toBeVisible();
     const resumedQuestion = page.locator('.consult-chat-bubble-doctor').last();
@@ -82,10 +89,7 @@ test.describe('Consult Room UX Smoke', () => {
     });
 
     await page.goto('/');
-    const continueToApp = page.getByRole('button', { name: 'Continue to App' });
-    if (await continueToApp.isVisible()) {
-      await continueToApp.click();
-    }
+    await dismissLaunchSpotlightIfPresent(page);
 
     await page.waitForFunction(() => 'serviceWorker' in navigator);
     await page.evaluate(async () => {
@@ -96,6 +100,7 @@ test.describe('Consult Room UX Smoke', () => {
 
     await context.setOffline(true);
     await page.reload({ waitUntil: 'domcontentloaded' });
+    await dismissLaunchSpotlightIfPresent(page);
 
     await expect(page.getByLabel('Open Consult')).toBeVisible();
     await expect(page.getByPlaceholder('Describe your main concern...')).toBeVisible();

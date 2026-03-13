@@ -115,7 +115,7 @@ export const analyzeClinicalImage = async (payload: {
   task.start('prepare', 'Encoding request');
   try {
     task.succeed('prepare', 'Payload ready');
-    task.start('vision_call', 'Contacting AI provider');
+    task.start('vision_call', 'Contacting Dr engine');
     const response = await fetch('/api/vision', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -142,7 +142,9 @@ export const analyzeClinicalImage = async (payload: {
       findings: sanitizeList(data.findings, 8),
       red_flags: sanitizeList(data.red_flags, 6),
       confidence: clampVisionConfidencePercent(data.confidence),
-      recommendation: sanitizeText(data.recommendation) || 'Continue structured history collection.',
+      recommendation:
+        sanitizeText(data.recommendation) ||
+        'Proceed with focused management and complete targeted investigations.',
       spot_diagnosis: spotDiagnosis,
       differentials,
       treatment_summary: sanitizeText(data.treatment_summary) || undefined,
@@ -179,7 +181,7 @@ export const synthesizeScanTreatment = async (payload: {
 
   try {
     task.succeed('prepare', 'Context prepared');
-    task.start('plan_call', 'Contacting AI planner');
+    task.start('plan_call', 'Contacting Dr planner');
     const response = await fetch('/api/scan-plan', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

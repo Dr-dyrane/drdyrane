@@ -224,9 +224,10 @@ RESPONSE JSON:
   "allow_custom_input": true
 }`;
 
-const VISION_SYSTEM_PROMPT = `You are a clinical visual triage assistant.
-Analyze the provided image conservatively and return strict JSON only.
-Do not provide a definitive diagnosis from image alone.
+const VISION_SYSTEM_PROMPT = `You are Dr. Dyrane, a consultant-level clinical imaging reviewer.
+Analyze the provided image with the given context and return strict JSON only.
+Use decisive, clinician-grade wording and avoid vague advisory phrasing.
+Do not instruct the patient to "see a doctor" because you are the treating clinical voice.
 
 RESPONSE JSON:
 {
@@ -234,18 +235,20 @@ RESPONSE JSON:
   "findings": ["objective visual finding"],
   "red_flags": ["urgent concern if present"],
   "confidence": number,
-  "recommendation": "next best clinical step"
+  "recommendation": "single-sentence definitive management direction"
 }`;
 
 const VISION_ENRICHMENT_PROMPT = `You are a clinical visual review enrichment assistant.
-Use the already-computed base visual summary + findings + red flags and provided context to suggest optional structured clinical enrichment.
-Do not overwrite base summary/recommendation. Avoid definitive diagnosis; use provisional language.
-If uncertain, omit fields or return empty arrays.
+Use the already-computed base visual summary + findings + red flags and provided context to produce definitive structured clinical enrichment.
+Keep wording declarative and management-ready.
+Do not instruct the patient to seek another doctor.
+When evidence is incomplete, still provide the best-fit working diagnosis and a concrete action plan.
+Do not overwrite base summary unless the enrichment is clearly stronger.
 
 RESPONSE JSON:
 {
   "spot_diagnosis": {
-    "label": "provisional diagnosis",
+    "label": "most likely diagnosis",
     "icd10": "ICD-10 code if known",
     "confidence": 0,
     "rationale": "short reason"
@@ -258,17 +261,19 @@ RESPONSE JSON:
       "rationale": "short reason"
     }
   ],
-  "treatment_summary": "high-level treatment intent",
-  "treatment_lines": ["medication or intervention line"],
-  "investigations": ["test"],
-  "counseling": ["key counseling point"]
+  "treatment_summary": "definitive treatment strategy",
+  "treatment_lines": ["concrete treatment line"],
+  "investigations": ["targeted investigation"],
+  "counseling": ["direct counseling instruction"]
 }`;
 
 const SCAN_PLAN_SYSTEM_PROMPT = `You are Dr. Dyrane, generating a focused management plan from an already completed visual analysis.
 Return strict JSON only.
 Do not ask questions.
-Use ICD-10 labels when confident. If uncertain, keep provisional wording.
-Prioritize safe, practical treatment lines, investigations, counseling, and red-flag escalation.
+Use decisive consultant-level language.
+Never use suggestive wording like "consider", "recommend", or "advise".
+Never direct the patient to go see another doctor.
+Prioritize practical final treatment lines, investigations, counseling, and red-flag escalation.
 
 RESPONSE JSON:
 {
@@ -291,7 +296,7 @@ RESPONSE JSON:
   "investigations": ["targeted test"],
   "counseling": ["patient counseling point"],
   "red_flags": ["urgent return warning"],
-  "recommendation": "single-sentence next best step"
+  "recommendation": "single-sentence final management direction"
 }`;
 
 const normalizeEnvValue = (value: string | undefined): string =>
@@ -386,6 +391,39 @@ const sanitizeList = (value: unknown, maxItems: number): string[] =>
   Array.isArray(value)
     ? value.map((item) => sanitizeText(item)).filter(Boolean).slice(0, maxItems)
     : [];
+
+const toSentence = (value: string): string => {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const capitalized = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capitalized) ? capitalized : `${capitalized}.`;
+};
+
+const normalizeDirectiveText = (value: unknown, fallback: string): string => {
+  const raw = sanitizeText(value);
+  if (!raw) return toSentence(fallback);
+
+  let next = raw
+    .replace(/^(recommend(?:ation)?|advise|advised|suggest|consider)\s*:?\s*/i, '')
+    .replace(/\bplease\b/gi, '')
+    .replace(/\bkindly\b/gi, '')
+    .replace(/\bpending (?:confirmation|full clinical correlation)\b/gi, 'after confirmation testing')
+    .replace(
+      /\b(?:seek|obtain)\s+(?:urgent\s+)?(?:care|evaluation)\s+(?:by|from)\s+(?:a\s+)?(?:doctor|clinician|provider)\b/gi,
+      'Escalate to emergency care'
+    )
+    .replace(
+      /\b(?:see|consult)\s+(?:a\s+|your\s+)?(?:doctor|clinician|provider)\b/gi,
+      'Continue immediate clinical management'
+    )
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (!next) {
+    next = fallback;
+  }
+  return toSentence(next);
+};
 
 const sanitizeUrgency = (value: unknown): ConsultPayload['urgency'] => {
   const normalized = sanitizeText(value).toLowerCase();
@@ -551,7 +589,10 @@ const normalizeVisionPayload = (value: unknown): VisionPayload => {
     findings: sanitizeList(source.findings, 8),
     red_flags: sanitizeList(source.red_flags, 6),
     confidence: clampVisionConfidencePercent(source.confidence),
-    recommendation: sanitizeText(source.recommendation),
+    recommendation: normalizeDirectiveText(
+      source.recommendation,
+      'Proceed with targeted management and safety surveillance.'
+    ),
     spot_diagnosis: spotLabel
       ? {
           label: spotLabel,
@@ -561,18 +602,34 @@ const normalizeVisionPayload = (value: unknown): VisionPayload => {
         }
       : undefined,
     differentials: differentials.length > 0 ? differentials : undefined,
-    treatment_summary: sanitizeText(source.treatment_summary) || undefined,
-    treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
-    investigations: investigations.length > 0 ? investigations : undefined,
-    counseling: counseling.length > 0 ? counseling : undefined,
+    treatment_summary: sanitizeText(source.treatment_summary)
+      ? normalizeDirectiveText(
+          source.treatment_summary,
+          'Implement the treatment protocol with close clinical follow-up.'
+        )
+      : undefined,
+    treatment_lines:
+      treatmentLines.length > 0
+        ? treatmentLines.map((entry) => normalizeDirectiveText(entry, entry))
+        : undefined,
+    investigations:
+      investigations.length > 0
+        ? investigations.map((entry) => normalizeDirectiveText(entry, entry))
+        : undefined,
+    counseling:
+      counseling.length > 0
+        ? counseling.map((entry) => normalizeDirectiveText(entry, entry))
+        : undefined,
   };
 };
 
 const ensureVisionBasePayload = (payload: VisionPayload): VisionPayload => ({
   ...payload,
   summary: sanitizeText(payload.summary) || 'No conclusive visual finding.',
-  recommendation:
-    sanitizeText(payload.recommendation) || 'Continue structured history collection.',
+  recommendation: normalizeDirectiveText(
+    payload.recommendation,
+    'Proceed with focused clinical management and complete the plan.'
+  ),
 });
 
 const mergeVisionPayload = (base: VisionPayload, enrichment: VisionPayload): VisionPayload => {
@@ -612,7 +669,7 @@ const applyVisionMinimumEnrichment = (payload: VisionPayload): VisionPayload => 
       spot_diagnosis: payload.spot_diagnosis?.label
         ? payload.spot_diagnosis
         : {
-            label: 'Likely recurrent aphthous stomatitis (provisional)',
+            label: 'Recurrent aphthous stomatitis',
             icd10: 'K12.0',
             confidence: Math.max(58, Math.min(85, payload.confidence || 65)),
             rationale: 'Shallow round oral ulcers with erythematous borders on oral mucosa.',
@@ -641,29 +698,29 @@ const applyVisionMinimumEnrichment = (payload: VisionPayload): VisionPayload => 
             ],
       treatment_summary:
         payload.treatment_summary ||
-        'Supportive oral ulcer care while monitoring for red flags and persistent disease.',
+        'Start oral ulcer protocol and monitor response over 48-72 hours.',
       treatment_lines:
         payload.treatment_lines && payload.treatment_lines.length > 0
           ? payload.treatment_lines
           : [
-              'Topical oral analgesic/anti-inflammatory therapy per clinician protocol.',
+              'Start topical oral analgesic and anti-inflammatory protocol.',
               'Warm saline mouth rinses; avoid spicy/acidic irritants.',
-              'Maintain oral hydration and soft diet while pain is active.',
+              'Maintain oral hydration and soft diet until pain settles.',
             ],
       investigations:
         payload.investigations && payload.investigations.length > 0
           ? payload.investigations
           : [
-              'Focused oral examination by clinician or dentist.',
-              'CBC and micronutrient screen (B12/folate/ferritin) if recurrent or severe.',
-              'Targeted infectious testing if systemic features or atypical lesions present.',
+              'Complete focused oral cavity examination.',
+              'Order CBC and micronutrient screen (B12, folate, ferritin) for recurrent or severe episodes.',
+              'Order targeted infectious testing for systemic features or atypical lesions.',
             ],
       counseling:
         payload.counseling && payload.counseling.length > 0
           ? payload.counseling
           : [
-              'Seek urgent care if swallowing/breathing difficulty, dehydration, or high fever develops.',
-              'Return for review if ulcers persist beyond 2 weeks or rapidly worsen.',
+              'Escalate to emergency care if swallowing or breathing becomes difficult, dehydration appears, or high fever develops.',
+              'Return for urgent review if ulcers persist beyond 2 weeks or rapidly worsen.',
             ],
     };
   }
@@ -693,15 +750,15 @@ const applyVisionMinimumEnrichment = (payload: VisionPayload): VisionPayload => 
     treatment_lines:
       payload.treatment_lines && payload.treatment_lines.length > 0
         ? payload.treatment_lines
-        : ['Symptom-directed supportive care pending full clinical correlation.'],
+        : ['Start symptom-directed supportive treatment and reassess progression within 24-48 hours.'],
     investigations:
       payload.investigations && payload.investigations.length > 0
         ? payload.investigations
-        : ['Focused clinical examination to correlate visual findings with history.'],
+        : ['Complete focused clinical examination and correlate with history.'],
     counseling:
       payload.counseling && payload.counseling.length > 0
         ? payload.counseling
-        : ['Escalate urgently if red-flag symptoms develop or worsen.'],
+        : ['Escalate immediately if red-flag symptoms develop or worsen.'],
   };
 };
 

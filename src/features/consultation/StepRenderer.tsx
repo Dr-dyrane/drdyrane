@@ -617,7 +617,7 @@ export const StepRenderer: React.FC = () => {
   if (state.status === 'complete') return null;
 
   return (
-    <div className="flex-1 flex flex-col justify-start min-h-0 px-2 consult-room-shell">
+    <div className="flex-1 flex flex-col justify-start min-h-0 consult-room-shell">
       <input
         ref={imageInputRef}
         type="file"
@@ -674,7 +674,7 @@ export const StepRenderer: React.FC = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="flex-1 flex flex-col items-center justify-start pt-4 px-2"
+            className="flex-1 flex flex-col items-center justify-start pt-4"
           >
             <div className="max-w-2xl w-full flex flex-col items-center">
               <motion.p
@@ -768,7 +768,7 @@ export const StepRenderer: React.FC = () => {
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
-            className="flex flex-col h-full relative px-2 pb-24"
+            className="flex flex-col h-full relative pb-24"
           >
             <div className="max-w-2xl mx-auto w-full space-y-4 consult-flow-shell">
               {transcriptMessages.length > 0 && (

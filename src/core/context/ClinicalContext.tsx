@@ -206,7 +206,7 @@ const sanitizeDiagnosticReviewRecord = (
         recommendation:
           typeof record.analysis.recommendation === 'string'
             ? record.analysis.recommendation.trim()
-            : 'Continue structured history collection.',
+            : 'Proceed with focused management and complete targeted investigations.',
         spot_diagnosis:
           record.analysis.spot_diagnosis &&
           typeof record.analysis.spot_diagnosis === 'object' &&

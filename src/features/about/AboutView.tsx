@@ -4,14 +4,14 @@ import { ShieldCheck, Database, Cpu, Activity } from 'lucide-react';
 
 export const AboutView: React.FC = () => {
   const specs = [
-    { title: 'Core Processor', value: 'OpenAI + Anthropic', icon: Cpu },
+    { title: 'Core Processor', value: 'Dr Collaborative Stack', icon: Cpu },
     { title: 'Clinical Scope', value: 'Chief-Complaint Hybrid', icon: ShieldCheck },
     { title: 'Logic Pattern', value: 'Chat-First Structured Reasoning', icon: Activity },
     { title: 'Privacy Mode', value: 'Local Persistence', icon: Database },
   ];
 
   return (
-    <div className="flex-1 px-2 py-4 space-y-4 animate-emergence">
+    <div className="flex-1 py-4 space-y-4 animate-emergence">
       <div className="grid grid-cols-2 gap-4 pb-24">
         {specs.map((spec) => (
           <GlassContainer

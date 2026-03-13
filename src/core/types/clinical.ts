@@ -249,7 +249,7 @@ export interface ClinicalState {
   lastFeedback?: string;
   probability: number; // 0-100 certainty
   urgency: 'low' | 'medium' | 'high' | 'critical';
-  thinking?: string; // AI's current clinical focus
+  thinking?: string; // Dr's current clinical focus
   question_gate: QuestionGateState | null;
   profile: UserProfile;
   settings: AppSettings;

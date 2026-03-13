@@ -107,7 +107,7 @@ export const HistoryView: React.FC = () => {
   }, [createManualRecord]);
 
   return (
-    <div className="flex-1 w-full min-w-0 overflow-x-hidden px-2 py-4 space-y-4 animate-emergence">
+    <div className="flex-1 w-full min-w-0 overflow-x-hidden py-4 space-y-4 animate-emergence">
       <div className="space-y-4 pb-24">
         {orderedArchives.length === 0 ? (
           <div className="text-center py-20 text-content-dim font-light space-y-4">

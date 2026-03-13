@@ -1,8 +1,20 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { seedClinicalStorage } from './helpers/seedSession';
 
 const ONE_PIXEL_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO6S8f8AAAAASUVORK5CYII=';
+
+const dismissLaunchSpotlightIfPresent = async (page: Page) => {
+  const continueToApp = page.getByRole('button', { name: /Continue to App/i });
+  if (await continueToApp.isVisible().catch(() => false)) {
+    await continueToApp.click();
+    return;
+  }
+  const closeSpotlight = page.getByRole('button', { name: /Close spotlight/i });
+  if (await closeSpotlight.isVisible().catch(() => false)) {
+    await closeSpotlight.click();
+  }
+};
 
 test.describe('Scan Treatment Synthesis', () => {
   test('keeps vision call intact and enriches treatment via second scan-plan call', async ({ page }) => {
@@ -67,10 +79,7 @@ test.describe('Scan Treatment Synthesis', () => {
     });
 
     await page.goto('/');
-    const continueToApp = page.getByRole('button', { name: 'Continue to App' });
-    if (await continueToApp.isVisible()) {
-      await continueToApp.click();
-    }
+    await dismissLaunchSpotlightIfPresent(page);
 
     await page.getByRole('button', { name: 'Open Scan' }).click();
 
@@ -81,7 +90,7 @@ test.describe('Scan Treatment Synthesis', () => {
       buffer: Buffer.from(ONE_PIXEL_PNG_BASE64, 'base64'),
     });
 
-    await page.getByRole('button', { name: 'AI Review' }).click();
+    await page.getByRole('button', { name: /Dr Review|AI Review/i }).click();
 
     await expect
       .poll(() => visionCalls, { timeout: 6000 })
