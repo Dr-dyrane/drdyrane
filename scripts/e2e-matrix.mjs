@@ -62,6 +62,27 @@ const ensure = (condition, message) => {
   if (!condition) throw new Error(message);
 };
 
+const assertDeterministicContract = (payload, label) => {
+  ensure(payload && typeof payload === 'object', `${label}: payload must be object`);
+  ensure(payload.diagnosis && typeof payload.diagnosis === 'object', `${label}: diagnosis must be present`);
+  ensure(
+    typeof payload.diagnosis.label === 'string' && payload.diagnosis.label.trim().length > 0,
+    `${label}: diagnosis.label must be populated`
+  );
+  ensure(
+    typeof payload.diagnosis.icd10 === 'string' && payload.diagnosis.icd10.trim().length > 0,
+    `${label}: diagnosis.icd10 must be populated`
+  );
+  ensure(Array.isArray(payload.differentials) && payload.differentials.length > 0, `${label}: differentials must be populated`);
+  ensure(Array.isArray(payload.management) && payload.management.length > 0, `${label}: management must be populated`);
+  ensure(
+    Array.isArray(payload.investigations) && payload.investigations.length > 0,
+    `${label}: investigations must be populated`
+  );
+  ensure(Array.isArray(payload.counseling) && payload.counseling.length > 0, `${label}: counseling must be populated`);
+  ensure(Array.isArray(payload.red_flags) && payload.red_flags.length > 0, `${label}: red_flags must be populated`);
+};
+
 const makeInitialState = () => ({
   soap: { S: {}, O: {}, A: {}, P: {} },
   agent_state: {
@@ -310,6 +331,24 @@ const buildMockConsultResponse = ({ scenario, turnIndex, patientInput, state }) 
     needs_options: true,
     lens_trigger: null,
     status,
+    diagnosis: {
+      label: engine.likely_dx_keyword,
+      icd10: code,
+      confidence: probability,
+      rationale: `${engine.label} weighted pathway favored this lead diagnosis.`,
+    },
+    differentials: baseDdX.map((entry, index) => ({
+      label: String(entry).replace(/\s*\(ICD-10:[^)]+\)\s*/i, '').trim(),
+      icd10: (String(entry).match(/\(ICD-10:\s*([A-Z0-9.-]+)\)/i)?.[1] || code).toUpperCase(),
+      likelihood: index === 0 ? 'high' : 'medium',
+    })),
+    management: [
+      `Initiate ${engine.label.toLowerCase()} management pathway now.`,
+      'Complete focused risk triage before final lock.',
+    ],
+    investigations: ['Focused confirmatory testing', 'CBC or core baseline investigations'],
+    counseling: ['Escalate immediately for danger signs or rapid worsening.'],
+    red_flags: ['Confusion', 'Breathlessness', 'Persistent vomiting', 'Bleeding'],
   };
 };
 
@@ -337,6 +376,7 @@ const runLiveConsultTurn = async ({ state, patientInput, turnLabel }) => {
   };
   const optionsResult = await callJson(`${baseUrl}/api/options`, optionsPayload);
   ensure(optionsResult.response.ok, `${turnLabel}: /api/options failed (${optionsResult.response.status})`);
+  assertDeterministicContract(body, turnLabel);
   return { consult: body, options: optionsResult.body };
 };
 
@@ -414,6 +454,7 @@ const runScenario = async ({ scenario, mode, strict }) => {
       response: consult,
       options,
     });
+    assertDeterministicContract(consult, turnLabel);
 
     applyConsultSideEffects(state, turn.input, consult);
     finalResponse = consult;

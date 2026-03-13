@@ -76,6 +76,22 @@ type ConsultPayload = {
   needs_options?: boolean;
   lens_trigger?: string | null;
   status?: 'idle' | 'intake' | 'active' | 'lens' | 'emergency' | 'complete';
+  diagnosis?: {
+    label?: string;
+    icd10?: string;
+    confidence?: number;
+    rationale?: string;
+  };
+  differentials?: Array<{
+    label?: string;
+    icd10?: string;
+    likelihood?: 'high' | 'medium' | 'low' | string;
+    rationale?: string;
+  }>;
+  management?: string[];
+  investigations?: string[];
+  counseling?: string[];
+  red_flags?: string[];
 };
 
 type OptionsPayload = {
@@ -453,6 +469,13 @@ const sanitizeCheckpointStatus = (
   return 'idle';
 };
 
+const sanitizeLikelihood = (value: unknown): 'high' | 'medium' | 'low' => {
+  const normalized = sanitizeText(value).toLowerCase();
+  if (normalized === 'high') return 'high';
+  if (normalized === 'low') return 'low';
+  return 'medium';
+};
+
 const sanitizeSoap = (value: unknown): ConsultPayload['soap_updates'] => {
   if (!value || typeof value !== 'object') {
     return { S: {}, O: {}, A: {}, P: {} };
@@ -466,6 +489,30 @@ const sanitizeSoap = (value: unknown): ConsultPayload['soap_updates'] => {
   };
 };
 
+const normalizeConsultDifferentials = (
+  value: unknown
+): NonNullable<ConsultPayload['differentials']> => {
+  const entries = Array.isArray(value) ? (value as Array<Record<string, unknown>>) : [];
+  return entries
+    .map((entry) => {
+      const label = sanitizeText(entry.label);
+      if (!label) return null;
+      const likelihoodRaw = sanitizeText(entry.likelihood).toLowerCase();
+      const likelihood =
+        likelihoodRaw === 'high' || likelihoodRaw === 'low' || likelihoodRaw === 'medium'
+          ? (likelihoodRaw as 'high' | 'medium' | 'low')
+          : 'medium';
+      return {
+        label,
+        icd10: sanitizeText(entry.icd10) || undefined,
+        likelihood,
+        rationale: sanitizeText(entry.rationale) || undefined,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+    .slice(0, 8);
+};
+
 const normalizeConsultPayload = (value: unknown): ConsultPayload => {
   const source = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
   const agentRaw = (source.agent_state && typeof source.agent_state === 'object'
@@ -474,6 +521,16 @@ const normalizeConsultPayload = (value: unknown): ConsultPayload => {
   const checkpointRaw = (agentRaw.must_not_miss_checkpoint && typeof agentRaw.must_not_miss_checkpoint === 'object'
     ? agentRaw.must_not_miss_checkpoint
     : {}) as Record<string, unknown>;
+  const diagnosisRaw =
+    source.diagnosis && typeof source.diagnosis === 'object'
+      ? (source.diagnosis as Record<string, unknown>)
+      : {};
+  const diagnosisLabel = sanitizeText(diagnosisRaw.label);
+  const differentials = normalizeConsultDifferentials(source.differentials);
+  const managementLines = sanitizeList(source.management, 10);
+  const investigations = sanitizeList(source.investigations, 10);
+  const counseling = sanitizeList(source.counseling, 10);
+  const redFlags = sanitizeList(source.red_flags, 10);
 
   return {
     statement: sanitizeText(source.statement),
@@ -505,6 +562,19 @@ const normalizeConsultPayload = (value: unknown): ConsultPayload => {
     needs_options: source.needs_options !== false,
     lens_trigger: source.lens_trigger ? sanitizeText(source.lens_trigger) : null,
     status: sanitizeStatus(source.status),
+    diagnosis: diagnosisLabel
+      ? {
+          label: diagnosisLabel,
+          icd10: sanitizeText(diagnosisRaw.icd10) || undefined,
+          confidence: clampPercent(diagnosisRaw.confidence),
+          rationale: sanitizeText(diagnosisRaw.rationale) || undefined,
+        }
+      : undefined,
+    differentials: differentials.length > 0 ? differentials : undefined,
+    management: managementLines.length > 0 ? managementLines : undefined,
+    investigations: investigations.length > 0 ? investigations : undefined,
+    counseling: counseling.length > 0 ? counseling : undefined,
+    red_flags: redFlags.length > 0 ? redFlags : undefined,
   };
 };
 
@@ -762,8 +832,109 @@ const applyVisionMinimumEnrichment = (payload: VisionPayload): VisionPayload => 
   };
 };
 
+const finalizeVisionContract = (payload: VisionPayload): VisionPayload => {
+  const defaults = {
+    leadLabel: 'Undifferentiated clinical finding',
+    leadIcd10: 'R69',
+    differentials: ['Focal inflammatory process', 'Infective process', 'Traumatic lesion'],
+    treatmentLines: [
+      'Start definitive protocol aligned with the most likely diagnosis and patient context.',
+      'Control pain/fever and maintain hydration while monitoring progression.',
+    ],
+    investigations: ['Targeted confirmatory testing for the lead diagnosis.', 'Focused baseline labs and reassessment trigger.'],
+    counseling: [
+      'Follow the treatment plan exactly as prescribed and complete the full course.',
+      'Escalate immediately if red-flag symptoms appear or worsen.',
+    ],
+    redFlags: ['Rapid progression', 'Breathing difficulty', 'Persistent vomiting', 'Bleeding', 'Altered mental status'],
+  };
+
+  const leadFromSpot = sanitizeText(payload.spot_diagnosis?.label);
+  const leadFromDifferential = sanitizeText(payload.differentials?.[0]?.label);
+  const leadFromSummary = sanitizeText(payload.summary).split(/[.;]/)[0] || '';
+  const leadSeed = leadFromSpot || leadFromDifferential || leadFromSummary || defaults.leadLabel;
+  const codedLead = formatDiagnosisWithCode(leadSeed, defaults.leadIcd10);
+  const leadLabel = stripIcd10Label(codedLead) || defaults.leadLabel;
+  const leadCode = (codedLead.match(ICD10_CAPTURE_PATTERN)?.[1] || defaults.leadIcd10).toUpperCase();
+
+  const differentialSeeds = [
+    ...(payload.differentials || []).map((entry) => sanitizeText(entry.label)).filter(Boolean),
+    ...defaults.differentials,
+  ];
+  const differentials = dedupeDxList(
+    differentialSeeds.map((entry) => formatDiagnosisWithCode(entry, defaults.leadIcd10))
+  )
+    .slice(0, 6)
+    .map((entry, index) => {
+      const label = stripIcd10Label(entry);
+      const icd10 = (entry.match(ICD10_CAPTURE_PATTERN)?.[1] || defaults.leadIcd10).toUpperCase();
+      const existing = (payload.differentials || []).find(
+        (item) => sanitizeText(item.label).toLowerCase() === label.toLowerCase()
+      );
+      return {
+        label,
+        icd10,
+        likelihood: existing?.likelihood || (index === 0 ? 'high' : index <= 2 ? 'medium' : 'low'),
+        rationale: sanitizeText(existing?.rationale) || undefined,
+      };
+    });
+
+  return {
+    ...payload,
+    summary: sanitizeText(payload.summary) || 'Image reviewed with clinically relevant findings identified.',
+    confidence: Math.max(clampVisionConfidencePercent(payload.confidence), 1),
+    recommendation: normalizeDirectiveText(
+      payload.recommendation,
+      'Proceed with definitive management and complete targeted investigations now.'
+    ),
+    spot_diagnosis: {
+      label: leadLabel,
+      icd10: sanitizeText(payload.spot_diagnosis?.icd10).toUpperCase() || leadCode,
+      confidence: Math.max(
+        clampVisionConfidencePercent(payload.spot_diagnosis?.confidence),
+        clampVisionConfidencePercent(payload.confidence),
+        1
+      ),
+      rationale:
+        sanitizeText(payload.spot_diagnosis?.rationale) ||
+        sanitizeText(payload.differentials?.[0]?.rationale) ||
+        'Lead diagnosis selected from the highest-consistency visual and contextual pattern.',
+    },
+    differentials,
+    treatment_summary:
+      sanitizeText(payload.treatment_summary) ||
+      'Definitive management pathway prepared from diagnosis and risk profile.',
+    treatment_lines: mergeUnique(payload.treatment_lines || [], defaults.treatmentLines, 8),
+    investigations: mergeUnique(payload.investigations || [], defaults.investigations, 8),
+    counseling: mergeUnique(payload.counseling || [], defaults.counseling, 8),
+    red_flags: mergeUnique(payload.red_flags || [], defaults.redFlags, 8),
+  };
+};
+
 const mergeUnique = (left: string[], right: string[], maxItems: number): string[] =>
   [...new Set([...left, ...right])].filter(Boolean).slice(0, maxItems);
+
+const mergeConsultDifferentials = (
+  primary: ConsultPayload['differentials'],
+  secondary: ConsultPayload['differentials'],
+  maxItems = 8
+): NonNullable<ConsultPayload['differentials']> => {
+  const merged = new Map<string, NonNullable<ConsultPayload['differentials']>[number]>();
+  for (const entry of [...(primary || []), ...(secondary || [])]) {
+    const label = sanitizeText(entry?.label);
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (merged.has(key)) continue;
+    merged.set(key, {
+      label,
+      icd10: sanitizeText(entry?.icd10) || undefined,
+      likelihood: sanitizeLikelihood(entry?.likelihood),
+      rationale: sanitizeText(entry?.rationale) || undefined,
+    });
+    if (merged.size >= maxItems) break;
+  }
+  return [...merged.values()];
+};
 
 const mergeCheckpointState = (
   primary: NonNullable<ConsultPayload['agent_state']>['must_not_miss_checkpoint'],
@@ -828,6 +999,18 @@ const mergeConsultPayloads = (primary: ConsultPayload, secondary: ConsultPayload
     sanitizeText(primary.statement).length >= sanitizeText(secondary.statement).length
       ? primary.statement
       : secondary.statement;
+  const mergedDifferentials = mergeConsultDifferentials(primary.differentials, secondary.differentials, 8);
+  const mergedManagement = mergeUnique(primary.management || [], secondary.management || [], 10);
+  const mergedInvestigations = mergeUnique(
+    primary.investigations || [],
+    secondary.investigations || [],
+    10
+  );
+  const mergedCounseling = mergeUnique(primary.counseling || [], secondary.counseling || [], 10);
+  const mergedRedFlags = mergeUnique(primary.red_flags || [], secondary.red_flags || [], 10);
+  const diagnosisFromPrimary = primary.diagnosis?.label ? primary.diagnosis : undefined;
+  const diagnosisFromSecondary = secondary.diagnosis?.label ? secondary.diagnosis : undefined;
+  const mergedDiagnosis = diagnosisFromPrimary || diagnosisFromSecondary;
 
   return {
     ...primary,
@@ -871,6 +1054,12 @@ const mergeConsultPayloads = (primary: ConsultPayload, secondary: ConsultPayload
     status: mergedStatus || 'active',
     statement: statement || '',
     question: question || '',
+    diagnosis: mergedDiagnosis,
+    differentials: mergedDifferentials.length > 0 ? mergedDifferentials : undefined,
+    management: mergedManagement.length > 0 ? mergedManagement : undefined,
+    investigations: mergedInvestigations.length > 0 ? mergedInvestigations : undefined,
+    counseling: mergedCounseling.length > 0 ? mergedCounseling : undefined,
+    red_flags: mergedRedFlags.length > 0 ? mergedRedFlags : undefined,
   };
 };
 
@@ -1007,6 +1196,29 @@ const ICD10_RULES: Icd10Rule[] = [
   { pattern: /\bviral upper respiratory infection\b|\burti\b/i, code: 'J06.9' },
   { pattern: /\burinary tract infection\b|\buti\b/i, code: 'N39.0' },
   { pattern: /\bbacterial infection\b/i, code: 'A49.9' },
+  { pattern: /\bacute coronary syndrome\b|\bacs\b/i, code: 'I24.9' },
+  { pattern: /\bmyocardial infarction\b|\bheart attack\b/i, code: 'I21.9' },
+  { pattern: /\bpulmonary embol(ism)?\b|\bpe\b/i, code: 'I26.9' },
+  { pattern: /\baortic dissection\b/i, code: 'I71.0' },
+  { pattern: /\bpneumothorax\b/i, code: 'J93.9' },
+  { pattern: /\bstroke\b|\bcerebrovascular accident\b/i, code: 'I64' },
+  { pattern: /\bsubarachnoid hemorrhage\b|\bsah\b/i, code: 'I60.9' },
+  { pattern: /\bappendicitis\b/i, code: 'K37' },
+  { pattern: /\bperitonitis\b/i, code: 'K65.9' },
+  { pattern: /\bdehydration\b/i, code: 'E86.0' },
+  { pattern: /\bsevere anemia\b|\banemia\b/i, code: 'D64.9' },
+  { pattern: /\bseptic arthritis\b/i, code: 'M00.9' },
+  { pattern: /\bgout\b/i, code: 'M10.9' },
+  { pattern: /\bmigraine\b/i, code: 'G43.9' },
+  { pattern: /\btension headache\b/i, code: 'G44.2' },
+  { pattern: /\bdelirium\b|altered mental status\b/i, code: 'R41.82' },
+  { pattern: /\bbleeding\b|\bhemorrhage\b/i, code: 'R58' },
+  { pattern: /\bshortness of breath\b|\bdyspnea\b/i, code: 'R06.02' },
+  { pattern: /\bchest pain\b/i, code: 'R07.9' },
+  { pattern: /\babdominal pain\b/i, code: 'R10.9' },
+  { pattern: /\bheadache\b/i, code: 'R51.9' },
+  { pattern: /\bjoint pain\b|\barthralgia\b/i, code: 'M25.50' },
+  { pattern: /\bweakness\b|\bfatigue\b/i, code: 'R53' },
 ];
 
 const FEVER_DISEASE_PROFILES: DiseaseProfile[] = [
@@ -1244,6 +1456,202 @@ const CHIEF_COMPLAINT_ENGINES: ChiefComplaintEngine[] = [
     matchers: [/\bconfusion|disoriented|altered mental|unconscious|seizure|faint\b/i],
   },
 ];
+
+type EngineContractDefaults = {
+  fallbackIcd10: string;
+  management: string[];
+  investigations: string[];
+  counseling: string[];
+  redFlags: string[];
+};
+
+const ENGINE_CONTRACT_DEFAULTS: Record<ChiefComplaintEngineId, EngineContractDefaults> = {
+  fever: {
+    fallbackIcd10: 'R50.9',
+    management: [
+      'Initiate acute febrile illness pathway with hydration and antipyretic support.',
+      'Move to targeted antimicrobial or antiparasitic treatment only after focused confirmation.',
+    ],
+    investigations: ['Malaria RDT and/or blood smear', 'CBC', 'Urinalysis or chest imaging guided by symptoms'],
+    counseling: [
+      'Maintain hydration and strict temperature monitoring.',
+      'Return urgently for confusion, breathing difficulty, persistent vomiting, bleeding, or worsening weakness.',
+    ],
+    redFlags: ['Confusion', 'Breathlessness', 'Persistent vomiting', 'Bleeding', 'Seizure'],
+  },
+  chest_pain: {
+    fallbackIcd10: 'R07.9',
+    management: [
+      'Treat as high-risk chest pain until acute coronary and thromboembolic causes are excluded.',
+      'Prioritize hemodynamic stabilization and urgent escalation when instability is present.',
+    ],
+    investigations: ['12-lead ECG', 'Serial troponin', 'Pulse oximetry and chest imaging as indicated'],
+    counseling: [
+      'Seek emergency care immediately for ongoing pressure pain, collapse, or breathlessness.',
+      'Avoid exertion until urgent cardiac and pulmonary causes are ruled out.',
+    ],
+    redFlags: ['Collapse or syncope', 'Severe breathlessness', 'Persistent crushing chest pain', 'New neurologic deficit'],
+  },
+  shortness_of_breath: {
+    fallbackIcd10: 'R06.02',
+    management: [
+      'Initiate acute dyspnea stabilization and oxygenation-first management pathway.',
+      'Escalate urgently if hypoxia, exhaustion, or hemodynamic instability is suspected.',
+    ],
+    investigations: ['Pulse oximetry', 'Chest X-ray', 'ECG and focused blood tests'],
+    counseling: [
+      'Escalate immediately if breathing worsens, speech is limited, or chest pain appears.',
+      'Avoid exertion and monitor oxygenation/red-flag symptoms closely.',
+    ],
+    redFlags: ['Severe respiratory distress', 'Cyanosis', 'Chest pain with collapse', 'Altered mental status'],
+  },
+  headache: {
+    fallbackIcd10: 'R51.9',
+    management: [
+      'Start focused headache pathway while ruling out hemorrhagic and infectious emergencies.',
+      'Escalate urgently when red-flag neurologic or meningeal features are present.',
+    ],
+    investigations: ['Focused neurologic examination', 'Neuroimaging for red flags', 'Infectious workup when febrile'],
+    counseling: [
+      'Seek urgent review for worst-ever headache, neck stiffness, weakness, or confusion.',
+      'Do not delay emergency care when acute neurologic deficits appear.',
+    ],
+    redFlags: ['Worst headache of life', 'Neck stiffness', 'Focal neurologic deficit', 'Persistent vomiting'],
+  },
+  abdominal_pain: {
+    fallbackIcd10: 'R10.9',
+    management: [
+      'Start abdominal pain stabilization and serial reassessment pathway.',
+      'Escalate urgently for peritonitic signs, obstruction concerns, or gastrointestinal bleeding.',
+    ],
+    investigations: ['Abdominal examination', 'CBC and metabolic panel', 'Targeted abdominal imaging'],
+    counseling: [
+      'Return urgently for persistent vomiting, inability to pass stool/gas, bleeding, or severe worsening pain.',
+      'Maintain hydration and avoid self-medication masking progressive pain.',
+    ],
+    redFlags: ['Guarding or rigidity', 'Persistent vomiting', 'GI bleeding', 'Progressive severe pain'],
+  },
+  vomiting_nausea: {
+    fallbackIcd10: 'R11.2',
+    management: [
+      'Start antiemetic and fluid-repletion pathway with rapid dehydration risk stratification.',
+      'Escalate for inability to retain fluids or signs of systemic compromise.',
+    ],
+    investigations: ['Fluid status assessment', 'Electrolytes and glucose', 'Focused cause-specific testing'],
+    counseling: [
+      'Use oral rehydration in small frequent amounts.',
+      'Seek urgent care if vomiting persists, urine output drops, or weakness worsens.',
+    ],
+    redFlags: ['Inability to retain fluids', 'Severe dehydration', 'Altered consciousness', 'Hematemesis'],
+  },
+  diarrhea: {
+    fallbackIcd10: 'A09',
+    management: [
+      'Initiate diarrheal illness pathway with dehydration-focused stabilization.',
+      'Escalate rapidly for bloody stool, systemic toxicity, or severe volume loss.',
+    ],
+    investigations: ['Hydration and perfusion assessment', 'Electrolytes', 'Stool studies when indicated'],
+    counseling: [
+      'Prioritize oral rehydration and monitor urine output.',
+      'Seek urgent review for blood in stool, persistent fever, or dizziness.',
+    ],
+    redFlags: ['Bloody stool', 'Severe dehydration', 'Persistent high fever', 'Syncope or collapse'],
+  },
+  rash: {
+    fallbackIcd10: 'R21',
+    management: [
+      'Begin focused dermatologic triage with infection and severe drug reaction exclusion.',
+      'Escalate urgently for systemic instability or mucosal involvement.',
+    ],
+    investigations: ['Full skin and mucosal examination', 'CBC and inflammatory markers when systemic signs exist'],
+    counseling: [
+      'Avoid new topical or oral triggers until reviewed.',
+      'Seek emergency care for breathing difficulty, facial swelling, or rapidly spreading painful rash.',
+    ],
+    redFlags: ['Rapidly spreading rash', 'Mucosal involvement', 'Breathing difficulty', 'Bleeding lesions'],
+  },
+  joint_pain: {
+    fallbackIcd10: 'M25.50',
+    management: [
+      'Initiate inflammatory versus infective joint pain differentiation pathway.',
+      'Escalate urgently for hot swollen joint with fever or systemic toxicity.',
+    ],
+    investigations: ['Focused joint examination', 'Inflammatory markers', 'Joint aspiration when septic arthritis suspected'],
+    counseling: [
+      'Restrict weight-bearing on acutely inflamed joints until reviewed.',
+      'Seek urgent care for fever, rapidly increasing swelling, or inability to move the joint.',
+    ],
+    redFlags: ['Hot swollen joint', 'Fever with joint pain', 'Inability to bear weight', 'Rapidly progressive swelling'],
+  },
+  weakness_fatigue: {
+    fallbackIcd10: 'R53',
+    management: [
+      'Start fatigue/weakness workup with neurologic emergency exclusion first.',
+      'Escalate immediately for focal deficits, collapse, or altered sensorium.',
+    ],
+    investigations: ['Neurologic screening', 'CBC and metabolic panel', 'Glucose and endocrine-focused tests'],
+    counseling: [
+      'Seek urgent care for one-sided weakness, speech change, or worsening confusion.',
+      'Avoid driving or hazardous activity if weakness is progressive.',
+    ],
+    redFlags: ['One-sided weakness', 'Speech disturbance', 'Confusion', 'Syncope or collapse'],
+  },
+  bleeding: {
+    fallbackIcd10: 'R58',
+    management: [
+      'Treat active bleeding as urgent until source and hemodynamic status are secured.',
+      'Escalate emergency pathway for ongoing heavy bleeding or shock features.',
+    ],
+    investigations: ['Hemodynamic assessment', 'CBC and coagulation profile', 'Source-directed imaging/endoscopy'],
+    counseling: [
+      'Seek immediate emergency care for heavy or persistent bleeding.',
+      'Avoid NSAIDs and other bleeding-risk medications unless explicitly advised.',
+    ],
+    redFlags: ['Heavy persistent bleeding', 'Dizziness or syncope', 'Hypotension signs', 'Hematemesis or melena'],
+  },
+  altered_mental_status: {
+    fallbackIcd10: 'R41.82',
+    management: [
+      'Activate altered-mental-status emergency pathway with airway-breathing-circulation priority.',
+      'Treat as high-acuity until stroke, sepsis, hypoglycemia, and toxicity are excluded.',
+    ],
+    investigations: ['Point-of-care glucose', 'Neurologic examination and urgent neuroimaging', 'Sepsis and toxicology screen'],
+    counseling: [
+      'Do not delay emergency evaluation for confusion, seizure, or reduced consciousness.',
+      'Ensure continuous supervision until urgent assessment is completed.',
+    ],
+    redFlags: ['Reduced consciousness', 'Seizure', 'Focal neurologic deficit', 'Severe agitation or collapse'],
+  },
+  general: {
+    fallbackIcd10: 'R69',
+    management: [
+      'Continue structured symptom narrowing with safety-first clinical triage.',
+      'Escalate promptly if any red-flag symptom cluster emerges.',
+    ],
+    investigations: ['Focused history and examination', 'Targeted baseline labs by leading differential'],
+    counseling: [
+      'Monitor for any danger signs and return immediately if symptoms worsen.',
+      'Provide one key symptom update per turn for faster narrowing.',
+    ],
+    redFlags: ['Breathing difficulty', 'Confusion', 'Persistent vomiting', 'Bleeding', 'Collapse'],
+  },
+};
+
+const ENGINE_FALLBACK_DIFFERENTIALS: Record<ChiefComplaintEngineId, string[]> = {
+  fever: ['Malaria', 'Viral infection', 'Typhoid fever', 'Sepsis'],
+  chest_pain: ['Acute coronary syndrome', 'Pulmonary embolism', 'Aortic dissection', 'Musculoskeletal chest pain'],
+  shortness_of_breath: ['Pulmonary embolism', 'Acute heart failure', 'Pneumonia', 'Asthma exacerbation'],
+  headache: ['Migraine', 'Meningitis', 'Subarachnoid hemorrhage', 'Tension headache'],
+  abdominal_pain: ['Appendicitis', 'Gastroenteritis', 'Pancreatitis', 'Peritonitis'],
+  vomiting_nausea: ['Acute gastroenteritis', 'Dehydration', 'Medication reaction', 'Metabolic disturbance'],
+  diarrhea: ['Acute gastroenteritis', 'Food-borne illness', 'Inflammatory bowel process', 'GI bleeding'],
+  rash: ['Allergic dermatitis', 'Viral exanthem', 'Drug reaction', 'Invasive infection'],
+  joint_pain: ['Rheumatoid arthritis flare', 'Septic arthritis', 'Gout flare', 'Reactive arthritis'],
+  weakness_fatigue: ['Anemia', 'Viral illness', 'Endocrine disturbance', 'Stroke'],
+  bleeding: ['Hemorrhoidal bleeding', 'Upper GI bleeding', 'Coagulopathy', 'Major hemorrhage'],
+  altered_mental_status: ['Delirium', 'Stroke', 'Sepsis-associated encephalopathy', 'Drug toxicity'],
+  general: ['Undifferentiated illness', 'Systemic infection', 'Metabolic disturbance'],
+};
 
 const FEATURE_CUES: FeatureCue[] = [
   {
@@ -1483,6 +1891,23 @@ const applyIcd10Label = (diagnosis: string): string => {
   return `${value} (ICD-10: ${rule.code})`;
 };
 
+const ICD10_CAPTURE_PATTERN = /\(ICD-10:\s*([A-Z0-9.-]+)\)/i;
+
+const formatDiagnosisWithCode = (diagnosis: string, fallbackCode?: string): string => {
+  const coded = applyIcd10Label(diagnosis);
+  const label = stripIcd10Label(coded || diagnosis);
+  const existingCode = (coded.match(ICD10_CAPTURE_PATTERN)?.[1] || '').toUpperCase();
+  const resolvedCode = existingCode || sanitizeText(fallbackCode).toUpperCase();
+  if (!label) return '';
+  return resolvedCode ? `${label} (ICD-10: ${resolvedCode})` : label;
+};
+
+const toLikelihoodBand = (index: number): 'high' | 'medium' | 'low' => {
+  if (index === 0) return 'high';
+  if (index <= 2) return 'medium';
+  return 'low';
+};
+
 const dedupeDxList = (diagnoses: string[]): string[] => {
   const seen = new Set<string>();
   const result: string[] = [];
@@ -1493,6 +1918,83 @@ const dedupeDxList = (diagnoses: string[]): string[] => {
     result.push(diagnosis);
   }
   return result;
+};
+
+const finalizeConsultContract = (
+  payload: ConsultPayload,
+  complaintRoute: {
+    engineId: ChiefComplaintEngineId;
+    label: string;
+    mustNotMiss: string[];
+  },
+  leadCandidate?: OrchestratedCandidate
+): ConsultPayload => {
+  const defaults = ENGINE_CONTRACT_DEFAULTS[complaintRoute.engineId] || ENGINE_CONTRACT_DEFAULTS.general;
+  const fallbackDx = ENGINE_FALLBACK_DIFFERENTIALS[complaintRoute.engineId] || ENGINE_FALLBACK_DIFFERENTIALS.general;
+  const leadSeed =
+    payload.diagnosis?.label ||
+    leadCandidate?.diagnosis ||
+    payload.ddx?.[0] ||
+    fallbackDx[0] ||
+    `${complaintRoute.label.replace(/\s*Engine$/i, '')} presentation`;
+  const leadDiagnosis = formatDiagnosisWithCode(leadSeed, defaults.fallbackIcd10);
+
+  const ddxCandidates = dedupeDxList([
+    leadDiagnosis,
+    ...((payload.ddx || []).map((entry) => formatDiagnosisWithCode(entry, defaults.fallbackIcd10))),
+    ...fallbackDx.map((entry) => formatDiagnosisWithCode(entry, defaults.fallbackIcd10)),
+    ...complaintRoute.mustNotMiss.map((entry) => formatDiagnosisWithCode(entry, defaults.fallbackIcd10)),
+  ])
+    .filter(Boolean)
+    .slice(0, 8);
+
+  const topDx = ddxCandidates[0] || leadDiagnosis;
+  const topLabel = stripIcd10Label(topDx);
+  const topCode =
+    sanitizeText(payload.diagnosis?.icd10).toUpperCase() ||
+    (topDx.match(ICD10_CAPTURE_PATTERN)?.[1] || '').toUpperCase() ||
+    defaults.fallbackIcd10;
+
+  const differentialEntries = ddxCandidates.slice(0, 6).map((entry, index) => {
+    const label = stripIcd10Label(entry);
+    const code = (entry.match(ICD10_CAPTURE_PATTERN)?.[1] || '').toUpperCase() || defaults.fallbackIcd10;
+    return {
+      label,
+      icd10: code,
+      likelihood: toLikelihoodBand(index),
+      rationale:
+        index === 0
+          ? `Current lead diagnosis based on ${complaintRoute.label.toLowerCase()} signal pattern.`
+          : undefined,
+    };
+  });
+
+  const management = mergeUnique(
+    payload.management || [],
+    [...defaults.management, ...(leadCandidate?.pendingActions || [])],
+    10
+  );
+  const investigations = mergeUnique(payload.investigations || [], defaults.investigations, 10);
+  const counseling = mergeUnique(payload.counseling || [], defaults.counseling, 10);
+  const redFlags = mergeUnique(payload.red_flags || [], defaults.redFlags, 10);
+
+  return {
+    ...payload,
+    ddx: ddxCandidates,
+    diagnosis: {
+      label: topLabel,
+      icd10: topCode,
+      confidence: Math.max(clampPercent(payload.diagnosis?.confidence), clampPercent(payload.probability)),
+      rationale:
+        sanitizeText(payload.diagnosis?.rationale) ||
+        `${complaintRoute.label} routing and accumulated findings support this working diagnosis.`,
+    },
+    differentials: differentialEntries,
+    management,
+    investigations,
+    counseling,
+    red_flags: redFlags,
+  };
 };
 
 const extractPatientMirror = (body: ConsultRequest): string => {
@@ -1931,10 +2433,13 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
   );
 
   if (orchestrated.length === 0) {
-    return {
+    return finalizeConsultContract(
+      {
       ...payload,
       ddx: withCodedDdx,
-    };
+      },
+      complaintRoute
+    );
   }
 
   const lead = orchestrated[0];
@@ -2032,7 +2537,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     body.state?.conversation || []
   );
 
-  return {
+  return finalizeConsultContract({
     ...payload,
     statement: ensureEmpathicStatement(payload.statement, body),
     ddx: mergedDdx,
@@ -2054,7 +2559,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     question:
       safeguardedQuestion ||
       'What symptom is bothering you the most right now?',
-  };
+  }, complaintRoute, lead);
 };
 
 const shouldRetryWithNextModel = (
@@ -2777,7 +3282,7 @@ export const runScanPlan = async (body: ScanPlanRequest): Promise<unknown> => {
     })
   );
 
-  return normalizeVisionPayload(payload);
+  return finalizeVisionContract(applyVisionMinimumEnrichment(normalizeVisionPayload(payload)));
 };
 
 export const runVision = async (body: VisionRequest): Promise<unknown> => {
@@ -2796,7 +3301,7 @@ export const runVision = async (body: VisionRequest): Promise<unknown> => {
   );
 
   if (!normalizeBooleanEnv(process.env.VISION_ENRICHMENT, true)) {
-    return basePayload;
+    return finalizeVisionContract(applyVisionMinimumEnrichment(basePayload));
   }
 
   try {
@@ -2809,10 +3314,12 @@ export const runVision = async (body: VisionRequest): Promise<unknown> => {
         basePayload
       )
     );
-    return applyVisionMinimumEnrichment(mergeVisionPayload(basePayload, enrichmentPayload));
+    return finalizeVisionContract(
+      applyVisionMinimumEnrichment(mergeVisionPayload(basePayload, enrichmentPayload))
+    );
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     console.warn('[runVision] enrichment skipped, returning base payload', { reason });
-    return applyVisionMinimumEnrichment(basePayload);
+    return finalizeVisionContract(applyVisionMinimumEnrichment(basePayload));
   }
 };

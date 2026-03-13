@@ -107,6 +107,21 @@ const validateConsultPayload = (payload, label) => {
   assert(checkpoint && typeof checkpoint === 'object', `${label}: checkpoint must be object`);
   assert(VALID_CHECKPOINT_STATUS.has(checkpoint.status), `${label}: checkpoint.status invalid`);
   assert(typeof checkpoint.required === 'boolean', `${label}: checkpoint.required must be boolean`);
+
+  assert(payload.diagnosis && typeof payload.diagnosis === 'object', `${label}: diagnosis must be object`);
+  assert(
+    typeof payload.diagnosis.label === 'string' && payload.diagnosis.label.trim().length > 0,
+    `${label}: diagnosis.label must be populated`
+  );
+  assert(
+    typeof payload.diagnosis.icd10 === 'string' && payload.diagnosis.icd10.trim().length > 0,
+    `${label}: diagnosis.icd10 must be populated`
+  );
+  assert(Array.isArray(payload.differentials) && payload.differentials.length > 0, `${label}: differentials must be populated`);
+  assert(Array.isArray(payload.management) && payload.management.length > 0, `${label}: management must be populated`);
+  assert(Array.isArray(payload.investigations) && payload.investigations.length > 0, `${label}: investigations must be populated`);
+  assert(Array.isArray(payload.counseling) && payload.counseling.length > 0, `${label}: counseling must be populated`);
+  assert(Array.isArray(payload.red_flags) && payload.red_flags.length > 0, `${label}: red_flags must be populated`);
 };
 
 const callJson = async (url, payload) => {
