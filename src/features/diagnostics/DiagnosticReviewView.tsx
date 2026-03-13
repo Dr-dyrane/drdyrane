@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { signalFeedback } from '../../core/services/feedback';
+import { toUserFriendlyErrorMessage } from '../../core/errors/userMessage';
 import {
   analyzeClinicalImage,
   VisionAnalysisResult,
@@ -329,11 +330,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
           setCameraReady(true);
         }
       } catch (cameraError) {
-        const message =
-          cameraError instanceof Error
-            ? cameraError.message
-            : 'Unable to access camera for scan.';
-        setError(message);
+        setError(toUserFriendlyErrorMessage(cameraError, 'scan'));
         setScannerOpen(false);
       }
     };
@@ -408,8 +405,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       setError('');
       feedback('select');
     } catch (readError) {
-      const message = readError instanceof Error ? readError.message : 'Unable to read image.';
-      setError(message);
+      setError(toUserFriendlyErrorMessage(readError, 'scan'));
     }
   };
 
@@ -499,8 +495,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       upsertReviewArchive(analyzedReview);
       feedback('question');
     } catch (analysisError) {
-      const message = analysisError instanceof Error ? analysisError.message : 'Dr review failed.';
-      setError(message);
+      setError(toUserFriendlyErrorMessage(analysisError, 'scan'));
       feedback('error');
     } finally {
       setSynthesizingPlan(false);
@@ -600,7 +595,7 @@ export const DiagnosticReviewView: React.FC<DiagnosticReviewViewProps> = ({ kind
       handoffTask.finishSuccess('Handoff complete');
       feedback('submit');
     } catch (handoffError) {
-      const message = handoffError instanceof Error ? handoffError.message : 'Unable to send review to consultation.';
+      const message = toUserFriendlyErrorMessage(handoffError, 'consult');
       handoffTask.fail(currentNode, 'Handoff failed');
       handoffTask.finishError(message);
       setError(message);

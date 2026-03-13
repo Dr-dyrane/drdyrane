@@ -10,6 +10,7 @@ import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
 import { analyzeClinicalImage, VISION_UPLOAD_FILE_LIMIT_BYTES } from '../../core/api/visionEngine';
 import { ResponseOptions } from '../../core/types/clinical';
 import { buildLocalOptions } from '../../core/api/agent/localOptions';
+import { toUserFriendlyErrorMessage } from '../../core/errors/userMessage';
 import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
@@ -257,12 +258,7 @@ export const StepRenderer: React.FC = () => {
           return false;
         }
         console.error('Interaction error:', error);
-        const reason = error instanceof Error ? error.message : String(error);
-        setInteractionError(
-          reason && reason !== 'undefined'
-            ? `Consultation interrupted: ${reason}`
-            : 'Consultation interrupted. Please retry.'
-        );
+        setInteractionError(toUserFriendlyErrorMessage(error, 'consult'));
         signalFeedback('error', {
           hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
           audioEnabled: latestStateRef.current.settings.audio_enabled,
@@ -391,12 +387,7 @@ export const StepRenderer: React.FC = () => {
           });
         }
       } catch (error) {
-        const reason = error instanceof Error ? error.message : String(error);
-        setInteractionError(
-          reason && reason !== 'undefined'
-            ? `Image intake failed: ${reason}`
-            : 'Image intake failed. Please retry.'
-        );
+        setInteractionError(toUserFriendlyErrorMessage(error, 'scan'));
         signalFeedback('error', {
           hapticsEnabled: latestStateRef.current.settings.haptics_enabled,
           audioEnabled: latestStateRef.current.settings.audio_enabled,
