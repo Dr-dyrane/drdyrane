@@ -7,7 +7,6 @@ import {
   Clock3,
   Copy,
   Printer,
-  Search,
   X,
 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
@@ -15,6 +14,7 @@ import { SessionRecord } from '../../core/types/clinical';
 import { signalFeedback } from '../../core/services/feedback';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { copyTextToClipboard } from '../../core/services/clipboard';
+import { DiagnosticSearchInput } from './DiagnosticSearchInput';
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
 type CalculatorMode = 'weight' | 'age';
@@ -147,6 +147,8 @@ export const DrugProtocolsView: React.FC = () => {
   const [calcDoseInput, setCalcDoseInput] = useState<string>('');
   const [calcStrengthInput, setCalcStrengthInput] = useState<string>('');
   const [calcVolumeInput, setCalcVolumeInput] = useState<string>('');
+  const [selectedIcd10, setSelectedIcd10] = useState<string | undefined>();
+  const [recentSearches, setRecentSearches] = useState<Array<{ label: string; icd10?: string }>>([]);
 
   const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
     signalFeedback(kind, {
@@ -224,6 +226,7 @@ export const DrugProtocolsView: React.FC = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             diagnosis: trimmedQuery,
+            icd10: selectedIcd10,
             age: state.profile.age,
             weight_kg: state.profile.weight_kg,
             sex: state.profile.sex,
@@ -276,7 +279,7 @@ export const DrugProtocolsView: React.FC = () => {
       isMounted = false;
       if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [query, state.profile.age, state.profile.weight_kg, state.profile.sex]);
+  }, [query, selectedIcd10, state.profile.age, state.profile.weight_kg, state.profile.sex]);
 
   const protocolSearchIndex = useMemo(
     () =>
@@ -521,39 +524,27 @@ export const DrugProtocolsView: React.FC = () => {
               Volume
             </button>
           </div>
-          <div className="h-11 rounded-2xl surface-strong px-3 inline-flex items-center gap-2 w-full">
-            <Search size={15} className="text-content-dim" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search diagnosis"
-              className="w-full text-sm text-content-primary"
-            />
-          </div>
-          {quickPickProtocols.length > 0 && query.trim().length === 0 && (
-            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-              {quickPickProtocols.map((entry) => (
-                <button
-                  key={`quick-${entry.value}`}
-                  onClick={() => {
-                    // If it's a real protocol with drugs, open it directly
-                    if (entry.drugs.length > 0) {
-                      setQuery('');
-                      openProtocol(entry);
-                    } else {
-                      // Otherwise, trigger a search
-                      setQuery(entry.label);
-                      feedback('select');
-                    }
-                  }}
-                  className="h-9 px-3.5 rounded-full surface-strong text-xs font-medium text-content-primary interactive-tap shrink-0"
-                  title={entry.label}
-                >
-                  <span className="block max-w-[10.5rem] truncate whitespace-nowrap">{entry.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <DiagnosticSearchInput
+            value={query}
+            onChange={(value, icd10) => {
+              setQuery(value);
+              setSelectedIcd10(icd10);
+            }}
+            onSelect={(diagnosis, icd10) => {
+              // Add to recent searches
+              setRecentSearches((prev) => {
+                const newSearch = { label: diagnosis, icd10 };
+                const filtered = prev.filter((item) => item.label !== diagnosis);
+                return [newSearch, ...filtered].slice(0, 5);
+              });
+              feedback('select');
+            }}
+            recentSearches={recentSearches}
+            quickPicks={quickPickProtocols.map((entry) => ({
+              label: entry.label,
+              icd10: undefined,
+            }))}
+          />
         </section>
 
         <section className="surface-raised rounded-[24px] p-4 space-y-3 pb-24">
