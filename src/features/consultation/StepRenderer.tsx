@@ -624,6 +624,11 @@ export const StepRenderer: React.FC = () => {
     });
     return groups;
   }, [transcriptMessages]);
+  const latestTranscriptGroup = groupedTranscriptMessages[groupedTranscriptMessages.length - 1] || null;
+  const activeDoctorGroup = latestTranscriptGroup?.role === 'doctor' ? latestTranscriptGroup : null;
+  const historicalTranscriptGroups = activeDoctorGroup
+    ? groupedTranscriptMessages.slice(0, -1)
+    : groupedTranscriptMessages;
   const hasDoctorInTranscript = transcriptMessages.some((entry) => entry.role === 'doctor');
   const resolvedTheme = resolveTheme(state.theme);
   const doctorAvatarSrc = resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png';
@@ -812,15 +817,17 @@ export const StepRenderer: React.FC = () => {
             className="flex flex-col h-full relative pb-24"
           >
             <div className="max-w-2xl mx-auto w-full space-y-4 consult-flow-shell">
-              {groupedTranscriptMessages.length > 0 && (
+              {historicalTranscriptGroups.length > 0 && (
                 <div className="consult-chat-log space-y-2">
-                  {groupedTranscriptMessages.map((group, index) => {
+                  {historicalTranscriptGroups.map((group, index) => {
                     const isDoctor = group.role === 'doctor';
+                    const fadeDepth = historicalTranscriptGroups.length - index;
+                    const fadedOpacity = Math.max(0.62, 1 - fadeDepth * 0.06);
                     return (
                       <motion.div
                         key={group.id}
                         initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
+                        animate={{ opacity: fadedOpacity, y: 0 }}
                         transition={{ delay: index * 0.02, duration: 0.2 }}
                         className={`flex ${isDoctor ? 'justify-start' : 'justify-end'} items-end gap-2`}
                       >
@@ -861,6 +868,37 @@ export const StepRenderer: React.FC = () => {
                   })}
                   <div ref={transcriptEndRef} />
                 </div>
+              )}
+
+              {activeDoctorGroup && (
+                <motion.div
+                  key={`focus-${activeDoctorGroup.id}`}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="consult-active-turn"
+                >
+                  <div className="flex justify-start items-end gap-2">
+                    <img
+                      src={doctorAvatarSrc}
+                      alt="Doctor avatar"
+                      className="h-8 w-8 rounded-full object-cover shrink-0 surface-chip"
+                      loading="lazy"
+                    />
+                    <div className="consult-chat-bubble consult-chat-bubble-doctor shadow-glass">
+                      <div className="space-y-1.5">
+                        {activeDoctorGroup.entries.map((segment) => (
+                          <p
+                            key={segment.id}
+                            className="text-sm text-content-primary leading-relaxed whitespace-pre-line"
+                          >
+                            {segment.content}
+                          </p>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
               )}
 
               {busy && hasDoctorInTranscript && (

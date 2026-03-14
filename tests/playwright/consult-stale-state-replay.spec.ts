@@ -12,7 +12,13 @@ test.describe('Consult Stale State Replay', () => {
     if (await continueToApp.isVisible()) {
       await continueToApp.click();
     }
-    await expect(page.getByPlaceholder('Describe your main concern...')).toBeVisible();
+    await expect(
+      page
+        .locator(
+          'textarea[placeholder="Describe your main concern..."], textarea[placeholder="Type your response..."]'
+        )
+        .first()
+    ).toBeVisible();
 
     const snapshot = await page.evaluate(async () => {
       const host = window as Window & {
