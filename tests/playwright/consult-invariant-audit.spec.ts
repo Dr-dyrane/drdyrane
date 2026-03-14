@@ -125,6 +125,11 @@ test.describe('Consult Invariant Audit', () => {
     await input.press('Enter');
 
     await expect.poll(() => consultInput).toBe('None of these');
+    const guardBlade = page.getByTestId('consult-guard-blade');
+    await expect(guardBlade).toBeVisible();
+    await expect(guardBlade).toContainText('Dr guard aligned response options for this question.');
+    await page.getByRole('button', { name: 'Toggle Dr guard details' }).click();
+    await expect(guardBlade).toContainText('turn:');
 
     const snapshot = await page.evaluate(() => {
       const host = window as Window & {

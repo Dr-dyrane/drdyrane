@@ -11,7 +11,7 @@ import { analyzeClinicalImage, VISION_UPLOAD_FILE_LIMIT_BYTES } from '../../core
 import { ResponseOptions } from '../../core/types/clinical';
 import { buildLocalOptions } from '../../core/api/agent/localOptions';
 import { normalizeSingleQuestionPrompt } from '../../core/api/agent/questionInvariant';
-import { recordInvariantEvent } from '../../core/api/agent/invariantAudit';
+import { getInvariantAuditSnapshot, recordInvariantEvent } from '../../core/api/agent/invariantAudit';
 import { buildUserFacingError, UserFacingError } from '../../core/errors/userMessage';
 import {
   ONBOARDING_NOTIFICATION_BODY,
@@ -22,6 +22,7 @@ import { Orb } from './Orb';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
 import { AiActivityTimeline } from '../../components/shared/AiActivityTimeline';
 import { InlineErrorBlade } from '../../components/shared/InlineErrorBlade';
+import { InvariantGuardBlade } from '../../components/shared/InvariantGuardBlade';
 
 const LOADING_PHASES = [
   'Analyzing history',
@@ -123,6 +124,11 @@ export const StepRenderer: React.FC = () => {
   const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
   const [interactionError, setInteractionError] = useState<UserFacingError | null>(null);
+  const [guardNotice, setGuardNotice] = useState<{
+    id: string;
+    status: 'enforced' | 'failed';
+    detail?: string;
+  } | null>(null);
   const [lastAttempt, setLastAttempt] = useState<{
     input: string | string[];
     isOptionSelection: boolean;
@@ -131,6 +137,7 @@ export const StepRenderer: React.FC = () => {
   } | null>(null);
   const lastDoctorMessageId = useRef<string | null>(null);
   const lastRenderQuestionAuditRef = useRef<string>('');
+  const dismissedGuardEventIdsRef = useRef<Set<string>>(new Set());
   const latestStateRef = useRef(state);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const scrollHostRef = useRef<HTMLElement | null>(null);
@@ -189,6 +196,35 @@ export const StepRenderer: React.FC = () => {
     lastRenderQuestionAuditRef.current = auditKey;
     recordInvariantEvent('single_question_enforced', `render:${normalized.slice(0, 120)}`);
   }, [state.conversation]);
+
+  useEffect(() => {
+    const audit = getInvariantAuditSnapshot();
+    const latestContractEvent = audit.events.find(
+      (event) =>
+        event.type === 'option_contract_failed' || event.type === 'option_contract_enforced'
+    );
+
+    if (!latestContractEvent) return;
+    if (dismissedGuardEventIdsRef.current.has(latestContractEvent.id)) return;
+
+    setGuardNotice((prev) =>
+      prev?.id === latestContractEvent.id
+        ? prev
+        : {
+            id: latestContractEvent.id,
+            status:
+              latestContractEvent.type === 'option_contract_failed'
+                ? 'failed'
+                : 'enforced',
+            detail: latestContractEvent.detail,
+          }
+    );
+  }, [
+    state.conversation.length,
+    state.response_options?.options.length,
+    state.status,
+    loading,
+  ]);
 
   useEffect(() => {
     if (!stickToBottom) return;
@@ -435,6 +471,13 @@ export const StepRenderer: React.FC = () => {
       lastAttempt.preDelayMs || 0
     );
   }, [lastAttempt, loading, runInteraction]);
+
+  const handleDismissGuardNotice = useCallback(() => {
+    if (guardNotice) {
+      dismissedGuardEventIdsRef.current.add(guardNotice.id);
+    }
+    setGuardNotice(null);
+  }, [guardNotice]);
 
   const activeGateSegment = state.question_gate?.active
     ? state.question_gate.segments[state.question_gate.current_index]
@@ -841,6 +884,19 @@ export const StepRenderer: React.FC = () => {
                   details={interactionError.details}
                   onDismiss={() => setInteractionError(null)}
                   onRetry={() => void handleRetryLastAttempt()}
+                />
+              )}
+
+              {!busy && guardNotice && (
+                <InvariantGuardBlade
+                  status={guardNotice.status}
+                  summary={
+                    guardNotice.status === 'failed'
+                      ? 'Dr guard adjusted this step after an option contract failure.'
+                      : 'Dr guard aligned response options for this question.'
+                  }
+                  details={guardNotice.detail}
+                  onDismiss={handleDismissGuardNotice}
                 />
               )}
 
