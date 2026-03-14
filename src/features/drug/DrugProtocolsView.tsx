@@ -544,6 +544,7 @@ export const DrugProtocolsView: React.FC = () => {
               label: entry.label,
               icd10: undefined,
             }))}
+            forceClose={activeProtocol !== null || calculatorOpen}
           />
         </section>
 

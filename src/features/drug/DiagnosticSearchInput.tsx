@@ -15,6 +15,7 @@ interface DiagnosticSearchInputProps {
   placeholder?: string;
   recentSearches?: DiagnosticSuggestion[];
   quickPicks?: DiagnosticSuggestion[];
+  forceClose?: boolean;
 }
 
 const COMMON_DIAGNOSES: DiagnosticSuggestion[] = [
@@ -37,11 +38,19 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
   placeholder = 'Search diagnosis or ICD-10 code',
   recentSearches = [],
   quickPicks = [],
+  forceClose = false,
 }) => {
   const [focused, setFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<DiagnosticSuggestion[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Force close dropdown when parent requests it
+  useEffect(() => {
+    if (forceClose) {
+      setFocused(false);
+    }
+  }, [forceClose]);
 
   // Filter suggestions based on input
   useEffect(() => {
