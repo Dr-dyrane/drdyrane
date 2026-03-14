@@ -632,7 +632,7 @@ export class AgentCoordinator {
           profile: profileForTurn,
         }
       );
-      const finalPlan = buildClinicalPlan({
+      const finalPlan = await buildClinicalPlan({
         ddx: this.state.ddx,
         soap: this.state.soap,
         urgency: this.state.urgency,
@@ -1193,7 +1193,7 @@ export class AgentCoordinator {
         ? 'complete'
         : conversationResult.status;
     const nextPillars = autoComplete
-      ? buildClinicalPlan({
+      ? await buildClinicalPlan({
           ddx: conversationResult.ddx,
           soap: nextSoap,
           urgency: conversationResult.urgency,

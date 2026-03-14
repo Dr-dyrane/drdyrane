@@ -1,4 +1,5 @@
 import { ClinicalOutputContract, ClinicalState, PillarData } from '../../types/clinical';
+import { generatePrescriptionsWithLLM } from './prescriptionGenerator';
 
 interface ClinicalPlanInput {
   ddx: string[];
@@ -10,24 +11,9 @@ interface ClinicalPlanInput {
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
 
-interface DrugProtocolRow {
-  name: string;
-  form: string;
-  factor: DoseFactor;
-  max: number;
-  unit: string;
-  frequency: string;
-  duration: string;
-}
-
 type WeightDoseMeta = NonNullable<
   NonNullable<PillarData['encounter']>['prescriptions'][number]['weight_based']
 >;
-
-interface MalariaProtocol {
-  label: string;
-  rows: DrugProtocolRow[];
-}
 
 const stripIcd = (value: string): string =>
   value.replace(/\s*\(ICD-10:\s*[A-Z0-9.]+\)\s*/gi, '').trim();
@@ -123,103 +109,7 @@ const mergeContractIntoPlan = (
   };
 };
 
-const hasMalariaSignal = (diagnosis: string): boolean => /\bmalaria\b/i.test(diagnosis);
-
-const MALARIA_PROTOCOLS: {
-  adult: Record<'mild' | 'mild_urti' | 'moderate' | 'moderate_urti' | 'moderate_ge', MalariaProtocol>;
-  child: Record<'mild' | 'mild_urti' | 'moderate' | 'moderate_urti' | 'moderate_ge', MalariaProtocol>;
-} = {
-  adult: {
-    mild: {
-      label: 'Mild Malaria (Adult)',
-      rows: [
-        { name: 'ACT', form: 'Tab', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Tab', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-      ],
-    },
-    mild_urti: {
-      label: 'Mild Malaria + URTI (Adult)',
-      rows: [
-        { name: 'ACT', form: 'Tab', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Tab', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-        { name: 'Loratidine', form: 'Tab', factor: 0.2, max: 10, unit: 'mg', frequency: 'od', duration: '5/7' },
-        { name: 'Cefuroxime', form: 'Tab', factor: 15, max: 500, unit: 'mg', frequency: 'bd', duration: '5/7' },
-      ],
-    },
-    moderate: {
-      label: 'Moderate Malaria (Adult)',
-      rows: [
-        { name: 'Artemether', form: 'IM', factor: 3.2, max: 160, unit: 'mg', frequency: 'od', duration: '3/7 then oral step-down' },
-        { name: 'ACT', form: 'Tab', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Tab', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-      ],
-    },
-    moderate_urti: {
-      label: 'Moderate Malaria + URTI (Adult)',
-      rows: [
-        { name: 'Artemether', form: 'IM', factor: 3.2, max: 160, unit: 'mg', frequency: 'od', duration: '3/7 then oral step-down' },
-        { name: 'ACT', form: 'Tab', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Tab', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-        { name: 'Loratidine', form: 'Tab', factor: 0.2, max: 10, unit: 'mg', frequency: 'od', duration: '5/7' },
-        { name: 'Cefuroxime', form: 'Tab', factor: 15, max: 500, unit: 'mg', frequency: 'bd', duration: '5/7' },
-      ],
-    },
-    moderate_ge: {
-      label: 'Moderate Malaria + Gastroenteritis (Adult)',
-      rows: [
-        { name: 'Artemether', form: 'IM', factor: 3.2, max: 160, unit: 'mg', frequency: 'od', duration: '3/7 then oral step-down' },
-        { name: 'ACT', form: 'Tab', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Tab', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-        { name: 'ORS', form: 'Syrup', factor: 'ORSFactor', max: 400, unit: 'mls', frequency: 'per loose stool', duration: '3/7' },
-        { name: 'Zinc', form: 'Tab', factor: 'ZincFactor', max: 20, unit: 'mg', frequency: 'od', duration: '10/7' },
-      ],
-    },
-  },
-  child: {
-    mild: {
-      label: 'Mild Malaria (Child)',
-      rows: [
-        { name: 'ACT', form: 'Syrup', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Syrup', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-      ],
-    },
-    mild_urti: {
-      label: 'Mild Malaria + URTI (Child)',
-      rows: [
-        { name: 'ACT', form: 'Syrup', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Syrup', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-        { name: 'Piriton', form: 'Syrup', factor: 0.1, max: 12, unit: 'mg', frequency: 'tds', duration: '5/7' },
-      ],
-    },
-    moderate: {
-      label: 'Moderate Malaria (Child)',
-      rows: [
-        { name: 'Artemether', form: 'IM', factor: 3.2, max: 160, unit: 'mg', frequency: 'od', duration: '3/7 then oral step-down' },
-        { name: 'ACT', form: 'Syrup', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Syrup', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-      ],
-    },
-    moderate_urti: {
-      label: 'Moderate Malaria + URTI (Child)',
-      rows: [
-        { name: 'Artemether', form: 'IM', factor: 3.2, max: 160, unit: 'mg', frequency: 'od', duration: '3/7 then oral step-down' },
-        { name: 'ACT', form: 'Syrup', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Syrup', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-        { name: 'Piriton', form: 'Syrup', factor: 0.1, max: 12, unit: 'mg', frequency: 'tds', duration: '5/7' },
-      ],
-    },
-    moderate_ge: {
-      label: 'Moderate Malaria + Gastroenteritis (Child)',
-      rows: [
-        { name: 'Artemether', form: 'IM', factor: 3.2, max: 160, unit: 'mg', frequency: 'od', duration: '3/7 then oral step-down' },
-        { name: 'ACT', form: 'Syrup', factor: 'ACTFactor', max: 480, unit: 'mg', frequency: 'bd', duration: '3/7' },
-        { name: 'Paracetamol', form: 'Syrup', factor: 15, max: 1000, unit: 'mg', frequency: 'tds', duration: '3/7' },
-        { name: 'ORS', form: 'Syrup', factor: 'ORSFactor', max: 400, unit: 'mls', frequency: 'per loose stool', duration: '3/7' },
-        { name: 'Zinc', form: 'Syrup', factor: 'ZincFactor', max: 20, unit: 'mg', frequency: 'od', duration: '10/7' },
-      ],
-    },
-  },
-};
+// Weight-based dosing utilities (preserved for ACT, Zinc, ORS special calculations)
 
 const getACTFactor = (weight: number): number => {
   if (weight >= 35) return 480;
@@ -319,133 +209,7 @@ const buildWeightDoseMeta = (factor: DoseFactor, maxDose: number, unit: string):
   };
 };
 
-const pickMalariaTrack = (
-  urgency: ClinicalState['urgency'],
-  soap: ClinicalState['soap'],
-  profile: ClinicalState['profile']
-): { protocol: MalariaProtocol; severityLabel: string } => {
-  const clinicalCorpus = JSON.stringify(soap.S || {}).toLowerCase();
-  const isChild = typeof profile.age === 'number' && profile.age < 13;
-  const base = isChild ? MALARIA_PROTOCOLS.child : MALARIA_PROTOCOLS.adult;
-
-  const hasRespiratoryOverlay = /cough|sore throat|catarrh|runny nose|nasal congestion/.test(clinicalCorpus);
-  const hasGastroOverlay = /diarrh|abdominal pain|stomach pain|loose stool/.test(clinicalCorpus);
-  const severeSignal =
-    urgency === 'high' ||
-    urgency === 'critical' ||
-    /persistent vomiting|cannot keep fluids down|confusion|very weak|seizure/.test(clinicalCorpus);
-
-  if (severeSignal) {
-    if (hasGastroOverlay) return { protocol: base.moderate_ge, severityLabel: 'moderate/severe pattern' };
-    if (hasRespiratoryOverlay) return { protocol: base.moderate_urti, severityLabel: 'moderate/severe pattern' };
-    return { protocol: base.moderate, severityLabel: 'moderate/severe pattern' };
-  }
-
-  if (hasRespiratoryOverlay) return { protocol: base.mild_urti, severityLabel: 'uncomplicated pattern' };
-  return { protocol: base.mild, severityLabel: 'uncomplicated pattern' };
-};
-
-const formatPrescriptionLine = (item: {
-  medication: string;
-  form: string;
-  dose: string;
-  frequency: string;
-  duration: string;
-}): string =>
-  `${item.form} ${item.medication} ${item.dose}${item.frequency ? ` ${item.frequency}` : ''} ${item.duration}`.replace(
-    /\s+/g,
-    ' '
-  );
-
-const buildMalariaPlan = (
-  diagnosis: string,
-  urgency: ClinicalState['urgency'],
-  soap: ClinicalState['soap'],
-  profile: ClinicalState['profile']
-): PillarData => {
-  const { protocol, severityLabel } = pickMalariaTrack(urgency, soap, profile);
-  const isChild = typeof profile.age === 'number' && profile.age < 13;
-  const explicitWeight = getProfileWeightKg(profile);
-  const dosingWeight = explicitWeight ?? estimateWeightKg(profile);
-  const prescriptions = protocol.rows.map((row) => ({
-    medication: row.name,
-    form: row.form,
-    dose: deriveDose(row.factor, row.max, row.unit, dosingWeight, isChild),
-    frequency: row.frequency || 'as directed',
-    duration: sanitizeDuration(row.duration),
-    note:
-      isChild && !explicitWeight && dosingWeight !== null
-        ? `Dose currently uses age-estimated weight (${dosingWeight} kg). Enter actual weight before print/export.`
-        : undefined,
-    weight_based: buildWeightDoseMeta(row.factor, row.max, row.unit),
-  }));
-  const investigations = [
-    'Confirm fever pattern: intermittent/nocturnal pattern with evening chills and morning relief.',
-    'Confirm exposure: mosquito bites, net use, travel or high-mosquito environment.',
-    'Malaria RDT and/or thick-thin blood film.',
-    'FBC, electrolytes/creatinine, LFT, blood glucose.',
-  ];
-  const counseling = [
-    'Complete full antimalarial course; do not stop early when symptoms improve.',
-    'Take oral medications with adequate fluids and food when appropriate.',
-    'Avoid self-mixing antimalarials or adding random antibiotics without indication.',
-    'Return immediately for confusion, persistent vomiting, breathing difficulty, bleeding, or worsening weakness.',
-  ];
-  const followUp = [
-    'Reassess in 24-48h with symptom trend and vital signs.',
-    'Escalate to urgent care/hospital now if severe features emerge.',
-  ];
-  const managementSummary = [
-    `Track: ${protocol.label} (${severityLabel})`,
-    `Investigations: ${investigations.join(' ')}`,
-    `Prescription: ${prescriptions.map(formatPrescriptionLine).join(' | ')}`,
-    `Pharmacy counseling: ${counseling.join(' ')}`,
-    `Follow-up: ${followUp.join(' ')}`,
-  ].join('\n');
-
-  return {
-    diagnosis: `${diagnosis}\nClinical pattern is consistent with malaria and management pathway is activated.`,
-    management: managementSummary,
-    prognosis:
-      'With early confirmed treatment, response is usually favorable. Risk rises with delayed treatment, dehydration, or severe features.',
-    prevention:
-      'Use insecticide-treated nets, reduce mosquito exposure, seek testing early for recurrent fever, and maintain hydration.',
-    encounter: {
-      source: 'Mapped from ../drug malaria protocol dataset (legacy formulary)',
-      investigations,
-      prescriptions,
-      counseling,
-      follow_up: followUp,
-    },
-  };
-};
-
-const buildGenericPlan = (diagnosis: string): PillarData => ({
-  diagnosis: diagnosis,
-  management: [
-    '1. Start diagnosis-directed management for the lead condition.',
-    '2. Run focused investigations now and trend response over 24-48 hours.',
-    '3. Deliver full medication and counseling instructions with strict return precautions.',
-    '4. Reassess early and refine treatment based on investigation results.',
-  ].join('\n'),
-  prognosis: 'Early targeted management improves outcome and lowers escalation risk.',
-  prevention: 'Preventive strategy is aligned to diagnosis, exposures, and recurrence risk.',
-  encounter: {
-    investigations: [
-      'Focused labs and bedside tests guided by highest-risk differentials.',
-      'Baseline safety markers with repeat interval reassessment.',
-    ],
-    prescriptions: [],
-    counseling: [
-      'Follow medication instructions exactly and avoid unsupervised additions.',
-      'Seek urgent review if any danger signs emerge or symptoms worsen.',
-    ],
-    follow_up: [
-      'Short-interval review to confirm response and refine differential ranking.',
-      'Escalate same-day if red-flag symptoms appear.',
-    ],
-  },
-});
+// Removed hardcoded malaria-specific logic - now using universal LLM prescription generation
 
 const buildProfileLine = (profile: ClinicalState['profile']): string => {
   const bits: string[] = [];
@@ -464,11 +228,167 @@ const injectSoapSummary = (plan: PillarData, soap: ClinicalState['soap']): Pilla
   };
 };
 
-export const buildClinicalPlan = (input: ClinicalPlanInput): PillarData => {
+// Transform LLM prescription response into PillarData prescription format
+const transformLLMPrescriptionsToPillarFormat = (
+  llmPrescriptions: Array<{
+    medication: string;
+    form: string;
+    dose_per_kg?: number | null;
+    max_dose?: number | null;
+    unit: string;
+    frequency: string;
+    duration: string;
+    note?: string;
+  }>,
+  profile: ClinicalState['profile']
+): NonNullable<PillarData['encounter']>['prescriptions'] => {
+  const isChild = typeof profile.age === 'number' && profile.age < 13;
+  const explicitWeight = getProfileWeightKg(profile);
+  const dosingWeight = explicitWeight ?? estimateWeightKg(profile);
+
+  return llmPrescriptions.map((rx) => {
+    // Check if this is a special weight-band medication (ACT, Zinc, ORS)
+    const isACT = /ACT|artemether.*lumefantrine/i.test(rx.medication);
+    const isZinc = /zinc/i.test(rx.medication);
+    const isORS = /ORS|oral.*rehydration/i.test(rx.medication);
+
+    let dose: string;
+    let weightMeta: WeightDoseMeta | undefined;
+
+    if (isACT && rx.max_dose) {
+      const factor: DoseFactor = 'ACTFactor';
+      dose = deriveDose(factor, rx.max_dose, rx.unit, dosingWeight, isChild);
+      weightMeta = buildWeightDoseMeta(factor, rx.max_dose, rx.unit);
+    } else if (isZinc && rx.max_dose) {
+      const factor: DoseFactor = 'ZincFactor';
+      dose = deriveDose(factor, rx.max_dose, rx.unit, dosingWeight, isChild);
+      weightMeta = buildWeightDoseMeta(factor, rx.max_dose, rx.unit);
+    } else if (isORS && rx.max_dose) {
+      const factor: DoseFactor = 'ORSFactor';
+      dose = deriveDose(factor, rx.max_dose, rx.unit, dosingWeight, isChild);
+      weightMeta = buildWeightDoseMeta(factor, rx.max_dose, rx.unit);
+    } else if (rx.dose_per_kg && rx.max_dose && dosingWeight) {
+      // Standard weight-based dosing
+      const calculatedDose = Math.round(Math.min(dosingWeight * rx.dose_per_kg, rx.max_dose));
+      dose = `${calculatedDose} ${rx.unit}`;
+      weightMeta = buildWeightDoseMeta(rx.dose_per_kg, rx.max_dose, rx.unit);
+    } else if (rx.max_dose) {
+      // Fixed dose
+      dose = `${rx.max_dose} ${rx.unit}`;
+    } else {
+      // Fallback
+      dose = `as directed`;
+    }
+
+    const note =
+      rx.note ||
+      (isChild && !explicitWeight && dosingWeight
+        ? `Dose currently uses age-estimated weight (${dosingWeight} kg). Enter actual weight before print/export.`
+        : undefined);
+
+    return {
+      medication: rx.medication,
+      form: rx.form,
+      dose,
+      frequency: rx.frequency,
+      duration: sanitizeDuration(rx.duration),
+      note,
+      weight_based: weightMeta,
+    };
+  });
+};
+
+const extractIcd10 = (diagnosis: string): string | undefined => {
+  const match = diagnosis.match(/\(ICD-10:\s*([A-Z0-9.]+)\)/i);
+  return match ? match[1] : undefined;
+};
+
+export const buildClinicalPlan = async (input: ClinicalPlanInput): Promise<PillarData> => {
   const diagnosis = getTopDiagnosis(input.ddx);
-  const basePlan = hasMalariaSignal(diagnosis)
-    ? buildMalariaPlan(diagnosis, input.urgency, input.soap, input.profile)
-    : buildGenericPlan(diagnosis);
+
+  let basePlan: PillarData;
+
+  try {
+    // Call LLM to generate prescriptions for ANY diagnosis
+    const prescriptionResponse = await generatePrescriptionsWithLLM({
+      diagnosis,
+      icd10: extractIcd10(diagnosis),
+      age: input.profile.age,
+      weight_kg: input.profile.weight_kg,
+      sex: input.profile.sex,
+      pregnancy: false, // TODO: Add pregnancy field to UserProfile if needed
+      urgency: input.urgency,
+      soap: input.soap,
+    });
+
+    const prescriptions = transformLLMPrescriptionsToPillarFormat(
+      prescriptionResponse.prescriptions,
+      input.profile
+    );
+
+    basePlan = {
+      diagnosis,
+      management: [
+        '1. Start evidence-based management for the confirmed diagnosis.',
+        '2. Run focused investigations and monitor clinical response over 24-48 hours.',
+        '3. Deliver full medication and counseling instructions with strict return precautions.',
+        '4. Reassess early and refine treatment based on investigation results.',
+        prescriptionResponse.rationale ? `\nClinical rationale: ${prescriptionResponse.rationale}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      prognosis: 'Early targeted management improves outcome and lowers escalation risk.',
+      prevention: 'Preventive strategy is aligned to diagnosis, exposures, and recurrence risk.',
+      encounter: {
+        source: 'LLM-generated evidence-based prescription (WHO/UpToDate/BNF guidelines)',
+        investigations: [
+          'Focused labs and bedside tests guided by highest-risk differentials.',
+          'Baseline safety markers with repeat interval reassessment.',
+        ],
+        prescriptions,
+        counseling: [
+          'Follow medication instructions exactly and complete the full course.',
+          'Seek urgent review if any danger signs emerge or symptoms worsen.',
+          'Return immediately if new symptoms develop or condition deteriorates.',
+        ],
+        follow_up: [
+          'Short-interval review to confirm response and refine differential ranking.',
+          'Escalate same-day if red-flag symptoms appear.',
+        ],
+      },
+    };
+  } catch (error) {
+    console.error('[buildClinicalPlan] LLM prescription generation failed:', error);
+    // Fallback to empty prescriptions if LLM fails
+    basePlan = {
+      diagnosis,
+      management: [
+        '1. Start diagnosis-directed management for the lead condition.',
+        '2. Run focused investigations now and trend response over 24-48 hours.',
+        '3. Deliver full medication and counseling instructions with strict return precautions.',
+        '4. Reassess early and refine treatment based on investigation results.',
+      ].join('\n'),
+      prognosis: 'Early targeted management improves outcome and lowers escalation risk.',
+      prevention: 'Preventive strategy is aligned to diagnosis, exposures, and recurrence risk.',
+      encounter: {
+        source: 'Fallback plan (LLM prescription generation unavailable)',
+        investigations: [
+          'Focused labs and bedside tests guided by highest-risk differentials.',
+          'Baseline safety markers with repeat interval reassessment.',
+        ],
+        prescriptions: [],
+        counseling: [
+          'Follow medication instructions exactly and avoid unsupervised additions.',
+          'Seek urgent review if any danger signs emerge or symptoms worsen.',
+        ],
+        follow_up: [
+          'Short-interval review to confirm response and refine differential ranking.',
+          'Escalate same-day if red-flag symptoms appear.',
+        ],
+      },
+    };
+  }
+
   const withContract = mergeContractIntoPlan(basePlan, input.ddx, input.contract);
   const withSoap = injectSoapSummary(withContract, input.soap);
   const profileLine = buildProfileLine(input.profile);
