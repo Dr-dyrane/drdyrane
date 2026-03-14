@@ -620,8 +620,8 @@ export const StepRenderer: React.FC = () => {
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
-  const showBackControl = canGoBack && !isIntakeView;
-  const showResetControl = state.status !== 'idle' && !isIntakeView;
+  const showBackControl = canGoBack && !isIntakeView && state.conversation.length > 2;
+  const showResetControl = state.status !== 'idle' && !isIntakeView && state.conversation.length > 3;
   const showActionRow = showBackControl || showResetControl;
   const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
   const activeResponseOptions = React.useMemo(() => {
@@ -741,16 +741,18 @@ export const StepRenderer: React.FC = () => {
       {isIntakeView && (
         <div className="consult-room-stage">
           <div className="consult-room-presence">
-            <Orb loading={loading} prominence="hero" />
+              <Orb loading={loading} prominence="hero" />
+            </div>
+          {busy && (
+            <AiActivityTimeline
+              scope="consult"
+              maxTasks={2}
+              className="w-full max-w-2xl mt-2"
+              showCompletedWithinMs={1200}
+            />
+          )}
           </div>
-          <AiActivityTimeline
-            scope="consult"
-            maxTasks={2}
-            className="w-full max-w-2xl mt-2"
-            showCompletedWithinMs={22000}
-          />
-        </div>
-      )}
+        )}
 
       <AnimatePresence mode="wait">
         {isIntakeView ? (
@@ -885,7 +887,9 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
-              <AiActivityTimeline scope="consult" maxTasks={2} showCompletedWithinMs={22000} />
+              {busy && (
+                <AiActivityTimeline scope="consult" maxTasks={2} showCompletedWithinMs={1200} />
+              )}
 
               {!busy && showGateStatusChips && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
                 <div className="pt-1">
@@ -934,13 +938,15 @@ export const StepRenderer: React.FC = () => {
 
               <div className="space-y-3 consult-answer-zone">
                 {assistiveResponseOptions && !isSafetyCheckpoint && !suggestionsOpen && (
-                  <button
-                    type="button"
-                    onClick={() => setSuggestionsOpen(true)}
-                    className="w-full h-10 rounded-2xl surface-raised text-[12px] text-content-secondary inline-flex items-center justify-center interactive-tap"
-                  >
-                    Show suggestions ({assistiveResponseOptions.options.length})
-                  </button>
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => setSuggestionsOpen(true)}
+                      className="h-8 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center justify-center interactive-tap"
+                    >
+                      Suggestions ({assistiveResponseOptions.options.length})
+                    </button>
+                  </div>
                 )}
 
                 {assistiveResponseOptions && (isSafetyCheckpoint || suggestionsOpen) && (
@@ -1010,10 +1016,10 @@ export const StepRenderer: React.FC = () => {
                     )}
                   </div>
                 )}
-                {showInput && (
+                {showInput && (inputHint || val.length > 0) && (
                   <div className="flex items-center justify-between px-1">
                     <p className="text-[11px] text-content-dim">
-                      {inputHint || 'Press Enter to send. Shift+Enter for new line.'}
+                      {inputHint || 'Press Enter to send'}
                     </p>
                     <p className="text-[11px] text-content-dim">
                       {val.length}/{INPUT_CHAR_LIMIT}
