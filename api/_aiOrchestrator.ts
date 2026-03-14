@@ -224,14 +224,53 @@ CLERKING STRUCTURE - FOLLOW THIS ORDER STRICTLY:
     - Targeted investigations to confirm/rule out differentials
     - Definitive management plan
 
-CLINICAL REASONING RULES:
-- Use Bayesian thinking: each answer updates probability of each differential
-- Negative findings are as important as positive findings
-- Match your questions to disease pathophysiology (e.g., for malaria: evening chills → night fever → morning sweats)
-- Consider natural history: acute (<1 week), subacute (1-4 weeks), chronic (>4 weeks)
-- Always keep must-not-miss diagnoses in mind (meningitis, sepsis, MI, PE, ectopic, etc.)
-- Use epidemiology: Nigeria context means high malaria, typhoid, TB prevalence
-- Challenge your own anchoring bias by actively considering alternatives
+CLINICAL REASONING ALGORITHM (for ANY presenting complaint):
+
+1. PATTERN RECOGNITION (Pathophysiology-First Thinking):
+   - Identify disease MECHANISMS from symptoms, not just symptom checklists
+   - Examples:
+     * "Chronic itch + dark patches" → Itch-scratch cycle → Lichenification → Post-inflammatory hyperpigmentation → Lichen Simplex Chronicus
+     * "Fever + cyclic pattern + mosquito" → Plasmodium lifecycle → Paroxysmal fever (48-72h) → Malaria
+     * "Crushing chest pain + radiation to jaw" → Myocardial ischemia → Acute Coronary Syndrome
+     * "Worst headache of life + sudden onset" → Subarachnoid hemorrhage → Thunderclap headache
+   - Think: "What pathophysiological process explains ALL these findings together?"
+   - Use temporal patterns: acute (<1 week), subacute (1-4 weeks), chronic (>4 weeks)
+
+2. DIFFERENTIAL BUILDING (Hypothesis Generation):
+   - Generate 3-5 hypotheses ranked by likelihood based on pathophysiology
+   - Always include at least ONE must-not-miss diagnosis (meningitis, sepsis, MI, PE, ectopic, stroke, etc.)
+   - Use Bayesian thinking: each answer updates probability of each differential
+   - Consider epidemiology: Nigeria context means high malaria, typhoid, TB prevalence
+   - Negative findings are as important as positive findings (rule-out value)
+
+3. TARGETED QUESTIONING (Hypothesis Testing):
+   - Each question should test a SPECIFIC differential or pathophysiological mechanism
+   - Explain your reasoning in "thinking" field (e.g., "Asking about neck stiffness to rule out meningitis")
+   - Match questions to disease pathophysiology:
+     * Malaria: "Evening chills → night fever → morning sweats?" (matches Plasmodium lifecycle)
+     * Appendicitis: "Pain started around belly button then moved to lower right?" (matches visceral → parietal peritoneum)
+     * Lichen Simplex Chronicus: "Do dark patches appear where you scratch?" (confirms itch-scratch cycle)
+   - Adapt questions based on patient's previous answers - build on what you know
+
+4. QUALITY ENFORCEMENT (Universal Standards):
+   - Minimum 5 questions before offering diagnosis (unless SPOT DIAGNOSIS - see below)
+   - Minimum 3 HPC elements documented (onset, character, timing, associated symptoms, etc.)
+   - Positive AND negative findings documented
+   - Differentials ruled in/out with evidence-based reasoning
+
+5. SPOT DIAGNOSIS EXCEPTION:
+   - If diagnosis is OBVIOUS from presenting complaint alone, offer it immediately
+   - Examples: Tetanus prophylaxis after rusty nail, simple viral URTI, obvious contact dermatitis
+   - Don't force unnecessary clerking when diagnosis is clear and no differentials need ruling out
+
+6. SAFETY CHECKS (Must-Not-Miss):
+   - Always consider life-threatening differentials FIRST
+   - Red flags: confusion, severe pain, bleeding, respiratory distress, neurological deficits, hemodynamic instability
+   - Escalate immediately if emergency pattern detected
+
+This algorithm works for ANY presenting complaint - from common colds to rare diseases.
+You have comprehensive medical knowledge from your training. Trust it.
+You don't need hardcoded patterns - use pathophysiological reasoning.
 
 PHASE DISCIPLINE:
 - "intake" phase: Focus ONLY on presenting complaint(s) with duration
@@ -2202,19 +2241,23 @@ const buildConsultTextCorpus = (body: ConsultRequest, payload: ConsultPayload): 
   return `${body.patientInput || ''} ${patientNarrative} ${soapSnapshot}`.toLowerCase();
 };
 
-const buildFeatureEvidence = (corpus: string): Record<string, EvidenceState> => {
-  const evidence: Record<string, EvidenceState> = {};
-  for (const cue of FEATURE_CUES) {
-    const hasNegative = (cue.negative || []).some((pattern) => pattern.test(corpus));
-    if (hasNegative) {
-      evidence[cue.id] = 'absent';
-      continue;
-    }
-    const hasPositive = cue.positive.some((pattern) => pattern.test(corpus));
-    evidence[cue.id] = hasPositive ? 'present' : 'unknown';
-  }
-  return evidence;
-};
+/**
+ * DEPRECATED: Part of old pattern-matching architecture
+ * TODO: Remove after full LLM-first refactoring is complete
+ */
+// const buildFeatureEvidence = (corpus: string): Record<string, EvidenceState> => {
+//   const evidence: Record<string, EvidenceState> = {};
+//   for (const cue of FEATURE_CUES) {
+//     const hasNegative = (cue.negative || []).some((pattern) => pattern.test(corpus));
+//     if (hasNegative) {
+//       evidence[cue.id] = 'absent';
+//       continue;
+//     }
+//     const hasPositive = cue.positive.some((pattern) => pattern.test(corpus));
+//     evidence[cue.id] = hasPositive ? 'present' : 'unknown';
+//   }
+//   return evidence;
+// };
 
 const featureQuestionById = (featureId: string): string | undefined =>
   FEATURE_CUES.find((cue) => cue.id === featureId)?.question;
@@ -2702,19 +2745,76 @@ const enforceQuestionProgression = (
   return normalized;
 };
 
-const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
-  const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
-  const corpus = buildConsultTextCorpus(body, payload);
-  const complaintRoute = classifyChiefComplaint(corpus);
-  const evidence = buildFeatureEvidence(corpus);
-  const rankedProfiles = rankTopDownProfiles(corpus);
-  const rankedFromLlm = rankLlmDiagnoses(withCodedDdx, evidence);
-  const orchestrated = applyFeverOnlyGuardrail(
-    mergeOrchestratedCandidates(rankedProfiles, rankedFromLlm),
-    evidence
+/**
+ * UNIVERSAL EMERGENCY DETECTION
+ *
+ * Detects life-threatening conditions in differential diagnosis.
+ * This is a UNIVERSAL safety check - not disease-specific.
+ *
+ * Emergency patterns (must-not-miss):
+ * - Meningitis, Sepsis (infection emergencies)
+ * - ACS, MI, PE, Aortic dissection (cardiovascular emergencies)
+ * - Stroke, SAH (neurological emergencies)
+ * - Appendicitis, Peritonitis (surgical emergencies)
+ * - Ectopic pregnancy (obstetric emergency)
+ */
+const detectEmergencyInDifferential = (ddx: string[], corpus: string): boolean => {
+  const emergencyPatterns = [
+    /meningitis/i,
+    /sepsis/i,
+    /acute coronary syndrome|acs|myocardial infarction|heart attack/i,
+    /pulmonary embol/i,
+    /aortic dissection/i,
+    /stroke|cerebrovascular accident/i,
+    /subarachnoid hemorrhage|sah/i,
+    /appendicitis/i,
+    /peritonitis/i,
+    /ectopic pregnancy/i,
+  ];
+
+  // Check if any differential matches emergency pattern
+  const hasEmergencyDx = ddx.some((diagnosis) =>
+    emergencyPatterns.some((pattern) => pattern.test(diagnosis))
   );
 
-  if (orchestrated.length === 0) {
+  // Check if corpus contains emergency red flags
+  const emergencyRedFlags = [
+    /neck stiffness.*fever|fever.*neck stiffness/i,
+    /confusion.*fever|fever.*confusion/i,
+    /crushing chest pain|chest pain.*radiation/i,
+    /worst headache.*life|thunderclap headache/i,
+    /one.*sided weakness|facial droop|speech difficulty/i,
+    /severe.*abdominal pain.*rigid/i,
+  ];
+
+  const hasRedFlag = emergencyRedFlags.some((pattern) => pattern.test(corpus));
+
+  return hasEmergencyDx || hasRedFlag;
+};
+
+/**
+ * LLM-FIRST ARCHITECTURE: Trust the LLM's clinical reasoning
+ *
+ * PHILOSOPHY: The LLM has comprehensive medical knowledge from training.
+ * It doesn't need hardcoded disease patterns for 70,000+ ICD-10 codes.
+ *
+ * This simplified approach:
+ * 1. Trusts LLM's differential diagnosis (pathophysiology-based reasoning)
+ * 2. Applies ICD-10 coding (universal mapping)
+ * 3. Classifies chief complaint for routing (universal symptom categories)
+ * 4. Enforces clinical quality (universal standards)
+ *
+ * Works for ANY presenting complaint - from common colds to rare diseases.
+ */
+const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload): ConsultPayload => {
+  // 1. Apply ICD-10 codes to LLM's differential diagnosis
+  const withCodedDdx = dedupeDxList((payload.ddx || []).map((entry) => applyIcd10Label(entry)));
+
+  // 2. Classify chief complaint for routing (universal symptom categories)
+  const corpus = buildConsultTextCorpus(body, payload);
+  const complaintRoute = classifyChiefComplaint(corpus);
+
+  if (withCodedDdx.length === 0) {
     return finalizeConsultContract(
       {
       ...payload,
@@ -2724,50 +2824,34 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     );
   }
 
-  const lead = orchestrated[0];
-  const secondScore = orchestrated[1]?.score || 0;
-  const mergedDdx = dedupeDxList([
-    ...orchestrated.map((entry) => entry.diagnosis),
-    ...withCodedDdx,
-  ]).slice(0, 8);
-  const feverOnlyPresentation = isFeverOnlyPresentation(evidence);
-  const probabilityFloor = feverOnlyPresentation
-    ? Math.min(scoreToProbabilityFloor(lead, secondScore), 62)
-    : scoreToProbabilityFloor(lead, secondScore);
-  const escalationFloor = lead.emergency ? Math.max(probabilityFloor, 78) : probabilityFloor;
-  const preferredQuestion = feverOnlyPresentation
-    ? lead.followUpQuestion || payload.question
-    : shouldOverrideQuestion(payload.question, lead, corpus, secondScore)
-      ? lead.followUpQuestion
-      : payload.question;
+  // 3. Use LLM's differential as-is (trust the clinical reasoning)
+  const mergedDdx = withCodedDdx.slice(0, 8);
+
+  // 4. Detect emergency patterns (universal safety check)
+  const hasEmergencyPattern = detectEmergencyInDifferential(mergedDdx, corpus);
+  const probabilityFloor = hasEmergencyPattern ? 78 : 65;
+
+  // 5. Build next actions (universal clinical workflow)
   const safetyAction = `Must-not-miss checks for ${complaintRoute.label}: ${complaintRoute.mustNotMiss.join(', ')}`;
   const routeAction = `Chief complaint route: ${complaintRoute.label} (${complaintRoute.reason})`;
   const nextActions = dedupeDxList([
     ...(payload.agent_state?.pending_actions || []),
-    ...lead.pendingActions,
     routeAction,
     safetyAction,
-    'Apply WHO/Medscape aligned differential confirmation steps',
+    'Continue systematic history taking and differential narrowing',
   ]);
+
+  // 6. Determine phase and urgency (based on LLM's assessment)
   const patientTurns =
     (body.state?.conversation || []).filter((entry) => entry.role === 'patient').length +
     (sanitizeText(body.patientInput) ? 1 : 0);
-  const decisiveLead =
-    !feverOnlyPresentation &&
-    lead.score >= 6.8 &&
-    lead.score - secondScore >= 1.4 &&
-    patientTurns >= 3;
-  const nextPhase = lead.emergency
+  const nextPhase = hasEmergencyPattern
     ? payload.agent_state?.phase || 'assessment'
-    : decisiveLead
-      ? 'resolution'
-      : atLeastDifferential(payload.agent_state?.phase);
+    : atLeastDifferential(payload.agent_state?.phase);
   let nextUrgency = payload.urgency || 'low';
-  if (lead.emergency && lead.score >= 6.4) {
+  if (hasEmergencyPattern) {
     nextUrgency = 'critical';
-  } else if (lead.emergency && lead.score >= 4.6 && URGENCY_RANK[nextUrgency] < URGENCY_RANK.high) {
-    nextUrgency = 'high';
-  } else if (lead.score >= 5 && URGENCY_RANK[nextUrgency] < URGENCY_RANK.medium) {
+  } else if (URGENCY_RANK[nextUrgency] < URGENCY_RANK.medium) {
     nextUrgency = 'medium';
   }
   const requestAgentState =
@@ -2803,6 +2887,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     }
   );
 
+  // 7. Question resolution (trust LLM's question, with fallback)
   const genericQuestionPattern =
     /(what symptom is bothering you the most right now|tell me the one symptom troubling you most right now|what changed most since symptoms began|what one detail should i clarify before i summarize your working diagnosis)/i;
   const progressionFallbackQuestion =
@@ -2813,11 +2898,9 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
       ? complaintRoute.starterQuestion
       : progressionFallbackQuestion;
   const resolvedQuestion =
-    preferredQuestion && !genericQuestionPattern.test(preferredQuestion)
-      ? preferredQuestion
-      : payload.question && !genericQuestionPattern.test(payload.question)
-        ? payload.question
-        : conversationalFallbackQuestion;
+    payload.question && !genericQuestionPattern.test(payload.question)
+      ? payload.question
+      : conversationalFallbackQuestion;
   const safeguardedQuestion = enforceQuestionProgression(
     resolvedQuestion || 'Tell me the one symptom troubling you most right now.',
     body.state?.conversation || [],
@@ -2828,17 +2911,18 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     ...payload,
     statement: ensureEmpathicStatement(payload.statement, body),
     ddx: mergedDdx,
-    probability: Math.max(clampPercent(payload.probability), escalationFloor),
+    probability: Math.max(clampPercent(payload.probability), probabilityFloor),
     urgency: nextUrgency,
     agent_state: {
       phase: nextPhase,
-      confidence: Math.max(clampPercent(payload.agent_state?.confidence), escalationFloor),
+      confidence: Math.max(clampPercent(payload.agent_state?.confidence), probabilityFloor),
       focus_area:
         payload.agent_state?.focus_area ||
-        `${complaintRoute.label}: ${stripIcd10Label(lead.diagnosis)} focused top-down differential narrowing`,
+        `${complaintRoute.label}: LLM-driven differential narrowing`,
       pending_actions: nextActions.slice(0, 8),
       last_decision:
-        `Top-down orchestration prioritized ${stripIcd10Label(lead.diagnosis)} with ${complaintRoute.label} routing`,
+        payload.agent_state?.last_decision ||
+        `LLM clinical reasoning with ${complaintRoute.label} routing`,
       positive_findings: mergedPositiveFindings,
       negative_findings: mergedNegativeFindings,
       must_not_miss_checkpoint: mergedCheckpoint,
@@ -2846,7 +2930,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     question:
       safeguardedQuestion ||
       'Tell me the one symptom troubling you most right now.',
-  }, complaintRoute, lead);
+  }, complaintRoute);
 };
 
 const shouldRetryWithNextModel = (
