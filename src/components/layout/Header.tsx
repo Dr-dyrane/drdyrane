@@ -33,7 +33,9 @@ export const Header: React.FC = () => {
       <div className="flex items-center gap-3">
         <button
           onClick={() => dispatch({ type: 'TOGGLE_SHEET', payload: 'profile' })}
-          className="h-11 w-11 rounded-full surface-raised shadow-glass overflow-hidden flex items-center justify-center focus-glow interactive-tap interactive-soft pointer-events-auto"
+          className={`rounded-full surface-raised shadow-glass overflow-hidden flex items-center justify-center focus-glow interactive-tap interactive-soft pointer-events-auto ${
+            isConsultView ? 'h-10 w-10' : 'h-11 w-11'
+          }`}
           aria-label="Open profile"
         >
           <img src={avatarSrc} alt="Profile avatar" className="h-full w-full object-cover" />
@@ -52,13 +54,15 @@ export const Header: React.FC = () => {
 
         <button
           onClick={() => dispatch({ type: 'TOGGLE_SHEET', payload: 'notifications' })}
-          className={`relative h-11 w-11 rounded-full surface-raised shadow-glass flex items-center justify-center focus-glow interactive-tap interactive-soft pointer-events-auto ${
+          className={`relative rounded-full surface-raised shadow-glass flex items-center justify-center focus-glow interactive-tap interactive-soft pointer-events-auto ${
+            isConsultView ? 'h-10 w-10' : 'h-11 w-11'
+          } ${
             notificationsEnabled ? 'text-content-dim hover:text-content-primary' : 'text-content-dim opacity-80'
           }`}
           aria-label="Open notifications"
         >
           <Bell size={18} />
-          {unreadCount > 0 && (
+          {!isConsultView && unreadCount > 0 && (
             <span className="absolute top-2 right-2 min-w-[16px] h-4 px-1 rounded-full badge-accent text-[11px] font-bold leading-4 text-center">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>

@@ -45,7 +45,7 @@ const getOptionClass = (
   if (variant === 'chips') return `${base} min-h-12 rounded-full px-4 py-3 surface-raised shadow-glass`;
   if (variant === 'grid') {
     return compact
-      ? `${base} min-h-14 rounded-[18px] px-3 py-4 surface-raised shadow-glass`
+      ? `${base} min-h-12 rounded-[16px] px-3 py-3 surface-raised shadow-glass`
       : `${base} min-h-20 rounded-[22px] px-4 py-6 surface-raised shadow-glass`;
   }
   if (variant === 'ladder') return `${base} min-h-14 rounded-2xl px-4 py-4 text-left surface-raised shadow-glass`;

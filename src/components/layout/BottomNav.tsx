@@ -326,6 +326,7 @@ export const BottomNav: React.FC = () => {
           >
             {smartTabs.map((tab) => {
               const isActive = state.view === tab.id;
+              const showActiveLabel = isActive && state.view !== 'consult';
               const Icon = tab.icon;
               return (
                 <button
@@ -338,7 +339,7 @@ export const BottomNav: React.FC = () => {
                 >
                   <Icon size={16} />
                   <AnimatePresence mode="wait">
-                    {isActive && (
+                    {showActiveLabel && (
                       <motion.span
                         initial={{ opacity: 0, width: 0 }}
                         animate={{ opacity: 1, width: 'auto' }}
