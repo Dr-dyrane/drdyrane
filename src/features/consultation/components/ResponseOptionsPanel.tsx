@@ -16,7 +16,8 @@ interface ResponseOptionsPanelProps {
 const getGridByVariant = (variant: ResponseOptions['ui_variant']): string => {
   if (variant === 'binary' || variant === 'segmented') return 'grid-cols-2';
   if (variant === 'grid') return 'grid-cols-2';
-  if (variant === 'stack' || variant === 'ladder' || variant === 'chips') return 'grid-cols-2';
+  if (variant === 'stack' || variant === 'ladder') return 'grid-cols-2';
+  if (variant === 'chips') return 'grid-cols-1';
   return 'grid-cols-1';
 };
 
@@ -141,6 +142,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   const isSingle = responseOptions.mode === 'single' || responseOptions.mode === 'confirm';
   const isScale = variant === 'scale';
   const isSegmentedLike = variant === 'segmented' || variant === 'binary';
+  const isChipList = variant === 'chips';
   const hasSelection = selectedOptionIds.length > 0;
   const showMultipleSubmit = isMultiple;
   const showSingleSubmit = isSingle && (isScale || variant === 'ladder');
@@ -276,6 +278,8 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 ? `surface-raised segment-live-shell option-shell-live rounded-[20px] p-2 grid gap-1.5 ${getGridByVariant(
                   variant
                 )}`
+              : isChipList
+                ? 'flex flex-wrap gap-2'
               : `grid gap-3 ${getGridByVariant(variant)}`
           }`}
         >

@@ -120,7 +120,7 @@ test.describe('Consult Reset Race Resilience', () => {
     await page.locator('.option-button', { hasText: 'None of these' }).first().click();
 
     await expect.poll(() => consultCalls).toBe(1);
-    await page.getByLabel('Open contextual actions').click();
+    await page.getByLabel('Actions').click();
     await page.getByRole('button', { name: 'Reset' }).click();
     await expect(page.getByPlaceholder('Describe your main concern...')).toBeVisible();
 

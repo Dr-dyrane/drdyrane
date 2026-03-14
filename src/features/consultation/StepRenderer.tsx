@@ -13,6 +13,7 @@ import { buildLocalOptions } from '../../core/api/agent/localOptions';
 import { normalizeSingleQuestionPrompt } from '../../core/api/agent/questionInvariant';
 import { getInvariantAuditSnapshot, recordInvariantEvent } from '../../core/api/agent/invariantAudit';
 import { buildUserFacingError, UserFacingError } from '../../core/errors/userMessage';
+import { ConversationMessage } from '../../core/types/clinical';
 import {
   ONBOARDING_NOTIFICATION_BODY,
   ONBOARDING_NOTIFICATION_TITLE,
@@ -601,6 +602,28 @@ export const StepRenderer: React.FC = () => {
     state.conversation.length > 0 ? state.conversation[state.conversation.length - 1] : null;
   const conversationTimeline = state.conversation.filter((entry) => entry.role !== 'system');
   const transcriptMessages = conversationTimeline;
+  const groupedTranscriptMessages = React.useMemo(() => {
+    const groups: Array<{
+      id: string;
+      role: 'doctor' | 'patient';
+      entries: ConversationMessage[];
+    }> = [];
+    transcriptMessages.forEach((entry) => {
+      if (entry.role !== 'doctor' && entry.role !== 'patient') return;
+      const last = groups[groups.length - 1];
+      if (last && last.role === entry.role) {
+        last.entries.push(entry);
+        last.id = entry.id;
+        return;
+      }
+      groups.push({
+        id: entry.id,
+        role: entry.role,
+        entries: [entry],
+      });
+    });
+    return groups;
+  }, [transcriptMessages]);
   const hasDoctorInTranscript = transcriptMessages.some((entry) => entry.role === 'doctor');
   const resolvedTheme = resolveTheme(state.theme);
   const doctorAvatarSrc = resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png';
@@ -664,17 +687,17 @@ export const StepRenderer: React.FC = () => {
   const assistiveResponseOptions = React.useMemo(() => {
     if (!activeResponseOptions) return null;
     if (isSafetyCheckpoint) return activeResponseOptions;
+    const assistiveOptions = activeResponseOptions.options.slice(0, ASSISTIVE_SUGGESTION_CAP);
     return {
       ...activeResponseOptions,
       mode: 'single' as const,
-      ui_variant: 'chips' as const,
+      ui_variant: assistiveOptions.length >= 4 ? ('grid' as const) : ('chips' as const),
       allow_custom_input: true,
-      options: activeResponseOptions.options.slice(0, ASSISTIVE_SUGGESTION_CAP),
+      options: assistiveOptions,
       context_hint: 'Suggested quick replies. You can ignore and type freely.',
     };
   }, [activeResponseOptions, isSafetyCheckpoint]);
   const showInput = true;
-  const showGateStatusChips = isSafetyCheckpoint || isTimedGateStep;
   const loadingPhaseLabel = LOADING_PHASES[loadingPhaseIndex] || 'Analyzing history';
 
   if (state.status === 'complete') return null;
@@ -789,13 +812,13 @@ export const StepRenderer: React.FC = () => {
             className="flex flex-col h-full relative pb-24"
           >
             <div className="max-w-2xl mx-auto w-full space-y-4 consult-flow-shell">
-              {transcriptMessages.length > 0 && (
+              {groupedTranscriptMessages.length > 0 && (
                 <div className="consult-chat-log space-y-2">
-                  {transcriptMessages.map((entry, index) => {
-                    const isDoctor = entry.role === 'doctor';
+                  {groupedTranscriptMessages.map((group, index) => {
+                    const isDoctor = group.role === 'doctor';
                     return (
                       <motion.div
-                        key={entry.id}
+                        key={group.id}
                         initial={{ opacity: 0, y: 8 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.02, duration: 0.2 }}
@@ -814,7 +837,16 @@ export const StepRenderer: React.FC = () => {
                             isDoctor ? 'consult-chat-bubble-doctor' : 'consult-chat-bubble-patient'
                           }`}
                         >
-                          <p className="text-sm text-content-primary leading-relaxed">{entry.content}</p>
+                          <div className="space-y-1.5">
+                            {group.entries.map((segment) => (
+                              <p
+                                key={segment.id}
+                                className="text-sm text-content-primary leading-relaxed whitespace-pre-line"
+                              >
+                                {segment.content}
+                              </p>
+                            ))}
+                          </div>
                         </div>
                         {!isDoctor && (
                           <img
@@ -853,29 +885,6 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
-              {!busy && showGateStatusChips && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
-                <div className="pt-1">
-                  <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {gateProgress && isSafetyCheckpoint && (
-                      <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
-                        Step {gateProgress}
-                      </span>
-                    )}
-                    {isTimedGateStep && gateCountdown !== null && (
-                      <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center gap-1">
-                        <Timer size={11} />
-                        {gateCountdown}s
-                      </span>
-                    )}
-                    {gateTimerExpired && (
-                      <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
-                        Select or type to continue
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {interactionError && !busy && (
                 <InlineErrorBlade
                   message={interactionError.message}
@@ -899,12 +908,23 @@ export const StepRenderer: React.FC = () => {
               )}
 
               <div className="space-y-3 consult-answer-zone">
+                {!busy && isSafetyCheckpoint && (
+                  <p className="ml-10 text-[11px] text-content-dim">Final safety check before diagnosis.</p>
+                )}
+                {!busy && isTimedGateStep && gateCountdown !== null && (
+                  <p className="ml-10 text-[11px] text-content-dim inline-flex items-center gap-1">
+                    <Timer size={11} />
+                    {gateTimerExpired
+                      ? 'You can select an option or type to continue.'
+                      : `Quick response window: ${gateCountdown}s`}
+                  </p>
+                )}
                 {inputHint && (
                   <p className="px-1 text-[11px] text-content-dim">{inputHint}</p>
                 )}
 
                 {showInput && (
-                  <div className="pt-1 flex items-center gap-3 rounded-[24px] surface-raised p-3 shadow-glass consult-free-input">
+                  <div className="pt-1 flex items-center gap-2 rounded-2xl surface-strong p-2">
                     <textarea
                       rows={1}
                       value={val}
@@ -924,7 +944,7 @@ export const StepRenderer: React.FC = () => {
                       type="button"
                       onClick={openImagePicker}
                       disabled={busy}
-                      className="h-10 w-10 flex items-center justify-center surface-strong rounded-xl text-content-secondary focus-glow interactive-tap disabled:opacity-50"
+                      className="h-9 w-9 flex items-center justify-center surface-chip rounded-xl text-content-secondary focus-glow interactive-tap disabled:opacity-50"
                       aria-label="Attach image"
                     >
                       {analyzingImage ? (
@@ -936,7 +956,7 @@ export const StepRenderer: React.FC = () => {
                     <button
                       onClick={() => void handleInitialInput()}
                       disabled={busy || !val.trim()}
-                      className="h-10 w-10 flex items-center justify-center cta-live-icon rounded-xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed"
+                      className="h-9 w-9 flex items-center justify-center cta-live-icon rounded-xl focus-glow hover:scale-[1.02] active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed"
                       aria-label="Send response"
                     >
                       <ArrowUp size={16} />

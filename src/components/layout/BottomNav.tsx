@@ -42,6 +42,8 @@ interface PrimaryAction {
   onClick: () => void;
   label: string;
   disabled?: boolean;
+  kind?: 'action' | 'menu';
+  tone?: 'primary' | 'subtle';
 }
 
 interface SmartTab {
@@ -267,32 +269,39 @@ export const BottomNav: React.FC = () => {
     switch (state.view) {
       case 'consult':
         if (hasCompletedEncounter) {
-          return { label: 'Export PDF', icon: Printer, onClick: exportPdf };
+          return { label: 'Export PDF', icon: Printer, onClick: exportPdf, tone: 'primary', kind: 'action' };
         }
-        return { label: 'Clinical Process', icon: LineChart, onClick: openProcess };
+        return {
+          label: 'Actions',
+          icon: MoreHorizontal,
+          onClick: () => setMenuOpen((prev) => !prev),
+          tone: 'subtle',
+          kind: 'menu',
+        };
       case 'history':
         if (hasArchives) {
-          return { label: 'Revisit Last', icon: RotateCcw, onClick: revisitLatest };
+          return { label: 'Revisit Last', icon: RotateCcw, onClick: revisitLatest, tone: 'primary', kind: 'action' };
         }
-        return { label: 'New Record', icon: Plus, onClick: () => emitEvent('drdyrane:history:create-record') };
+        return { label: 'New Record', icon: Plus, onClick: () => emitEvent('drdyrane:history:create-record'), tone: 'primary', kind: 'action' };
       case 'drug':
-        return { label: 'Open Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator') };
+        return { label: 'Open Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator'), tone: 'primary', kind: 'action' };
       case 'scan':
         if (hasScanAnalysis) {
-          return { label: 'Print Review', icon: Printer, onClick: () => triggerDiagnostic('print-review') };
+          return { label: 'Print Review', icon: Printer, onClick: () => triggerDiagnostic('print-review'), tone: 'primary', kind: 'action' };
         }
-        return { label: 'Open Scanner', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') };
+        return { label: 'Open Scanner', icon: Camera, onClick: () => triggerDiagnostic('open-scanner'), tone: 'primary', kind: 'action' };
       default:
-        return { label: 'Consult', icon: Stethoscope, onClick: () => openView('consult') };
+        return { label: 'Consult', icon: Stethoscope, onClick: () => openView('consult'), tone: 'primary', kind: 'action' };
     }
-  }, [emitEvent, exportPdf, hasArchives, hasCompletedEncounter, hasScanAnalysis, openProcess, openView, revisitLatest, state.view, triggerDiagnostic]);
+  }, [emitEvent, exportPdf, hasArchives, hasCompletedEncounter, hasScanAnalysis, openView, revisitLatest, state.view, triggerDiagnostic]);
 
   const triggerPrimaryAction = () => {
-    if (menuOpen) {
-      setMenuOpen(false);
+    if (primaryAction.disabled) return;
+    if (primaryAction.kind === 'menu') {
+      feedback('select');
+      primaryAction.onClick();
       return;
     }
-    if (primaryAction.disabled) return;
     feedback('submit');
     primaryAction.onClick();
   };
@@ -305,6 +314,7 @@ export const BottomNav: React.FC = () => {
   };
 
   const PrimaryIcon = primaryAction.icon;
+  const showMiniMenuToggle = primaryAction.kind !== 'menu';
 
   return (
     <>
@@ -349,23 +359,27 @@ export const BottomNav: React.FC = () => {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={triggerPrimaryAction}
-              className="h-14 w-14 rounded-full cta-live inline-flex items-center justify-center shadow-float interactive-tap"
+              className={`h-14 w-14 rounded-full inline-flex items-center justify-center shadow-float interactive-tap ${
+                primaryAction.tone === 'subtle' ? 'ios-tabbar-surface text-content-secondary' : 'cta-live'
+              }`}
               aria-label={menuOpen ? 'Close actions' : primaryAction.label}
             >
               {menuOpen ? <X size={19} /> : <PrimaryIcon size={19} />}
             </motion.button>
 
-            <motion.button
-              whileTap={{ scale: 0.94 }}
-              onClick={() => {
-                feedback('select');
-                setMenuOpen((prev) => !prev);
-              }}
-              className="absolute -top-1 -left-1 h-8 w-8 rounded-full ios-tabbar-surface shadow-glass text-content-dim inline-flex items-center justify-center interactive-tap tap-compact"
-              aria-label="Open contextual actions"
-            >
-              {menuOpen ? <X size={13} /> : <MoreHorizontal size={13} />}
-            </motion.button>
+            {showMiniMenuToggle && (
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                onClick={() => {
+                  feedback('select');
+                  setMenuOpen((prev) => !prev);
+                }}
+                className="absolute -top-1 -left-1 h-8 w-8 rounded-full ios-tabbar-surface shadow-glass text-content-dim inline-flex items-center justify-center interactive-tap tap-compact"
+                aria-label="Open contextual actions"
+              >
+                {menuOpen ? <X size={13} /> : <MoreHorizontal size={13} />}
+              </motion.button>
+            )}
 
             <AnimatePresence>
               {menuOpen && (
