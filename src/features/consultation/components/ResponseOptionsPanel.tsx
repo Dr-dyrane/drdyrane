@@ -408,11 +408,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
                 ? `Continue (${selectedScaleOption?.text || 'Selected'})`
                 : 'Select one option'}
           </motion.button>
-          {!compact && !hasSelection && !loading && (
-            <p className="text-xs text-content-dim text-center">
-              Choose a response before continuing.
-            </p>
-          )}
+          {/* Helper text removed per UI/UX audit - button state is self-explanatory */}
         </div>
       )}
 

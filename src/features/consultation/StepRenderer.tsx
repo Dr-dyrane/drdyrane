@@ -24,10 +24,11 @@ import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
 import { InlineErrorBlade } from '../../components/shared/InlineErrorBlade';
 import { InvariantGuardBlade } from '../../components/shared/InvariantGuardBlade';
 
+// More patient-friendly loading messages (less clinical jargon)
 const LOADING_PHASES = [
-  'Analyzing history',
-  'Narrowing differential',
-  'Selecting next question',
+  'Reviewing your history',
+  'Considering possibilities',
+  'Preparing next question',
 ];
 const INPUT_CHAR_LIMIT = 1200;
 const ASSISTIVE_SUGGESTION_CAP = 4;
@@ -625,9 +626,10 @@ export const StepRenderer: React.FC = () => {
   const normalizedCurrentQuestion = normalizeSingleQuestionPrompt(currentQuestion);
   const resolvedQuestion =
     normalizedCurrentQuestion || 'What symptom is bothering you the most right now?';
-  const gateProgress = state.question_gate?.active
-    ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
-    : null;
+  // Gate progress counter hidden per UI/UX audit - feels like a survey
+  // const gateProgress = state.question_gate?.active
+  //   ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
+  //   : null;
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
   const activeResponseOptions = React.useMemo(() => {
     const sourceOptions = state.response_options;
@@ -656,7 +658,8 @@ export const StepRenderer: React.FC = () => {
     const shouldForceBinary = isTimedGateStep || isBinaryQuestionPrompt(gatePrompt);
     if (!shouldForceBinary) return alignedOptions;
 
-    const timedHint = gateProgress ? `Step ${gateProgress}: Quick yes/no.` : 'Quick yes/no.';
+    // Removed gate progress counter - cleaner UX without survey-like numbering
+    const timedHint = 'Quick yes/no.';
 
     if (!alignedOptions) {
       return buildTimedGateOptions(gatePrompt, timedHint);
@@ -667,7 +670,6 @@ export const StepRenderer: React.FC = () => {
     return buildTimedGateOptions(gatePrompt, timedHint);
   }, [
     activeGateSegment?.prompt,
-    gateProgress,
     isTimedGateStep,
     resolvedQuestion,
     state.profile,
@@ -687,7 +689,7 @@ export const StepRenderer: React.FC = () => {
     };
   }, [activeResponseOptions, isSafetyCheckpoint]);
   const showInput = true;
-  const loadingPhaseLabel = LOADING_PHASES[loadingPhaseIndex] || 'Analyzing history';
+  const loadingPhaseLabel = LOADING_PHASES[loadingPhaseIndex] || 'Reviewing your history';
   const workingContract = state.working_contract;
 
   useEffect(() => {
