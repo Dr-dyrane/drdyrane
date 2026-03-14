@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
+  BarChart3,
   CalendarDays,
   Calculator,
   ChevronRight,
@@ -15,6 +16,7 @@ import { signalFeedback } from '../../core/services/feedback';
 import { OverlayPortal } from '../../components/shared/OverlayPortal';
 import { copyTextToClipboard } from '../../core/services/clipboard';
 import { DiagnosticSearchInput } from './DiagnosticSearchInput';
+import { DiagnosticSearchAnalyticsDashboard } from './DiagnosticSearchAnalyticsDashboard';
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
 type CalculatorMode = 'weight' | 'age';
@@ -149,6 +151,7 @@ export const DrugProtocolsView: React.FC = () => {
   const [calcVolumeInput, setCalcVolumeInput] = useState<string>('');
   const [selectedIcd10, setSelectedIcd10] = useState<string | undefined>();
   const [recentSearches, setRecentSearches] = useState<Array<{ label: string; icd10?: string }>>([]);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
 
   const feedback = (kind: Parameters<typeof signalFeedback>[0] = 'select') =>
     signalFeedback(kind, {
@@ -516,13 +519,23 @@ export const DrugProtocolsView: React.FC = () => {
         <section className="surface-raised rounded-[24px] p-4 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <label className="text-xs text-content-dim uppercase tracking-wide">Find Protocol</label>
-            <button
-              onClick={openCalculatorSheet}
-              className="h-9 px-3 rounded-full surface-strong text-[11px] font-semibold text-content-primary inline-flex items-center gap-1.5 interactive-tap tap-compact"
-            >
-              <Calculator size={13} />
-              Volume
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setAnalyticsOpen(true)}
+                className="h-9 px-3 rounded-full surface-strong text-[11px] font-semibold text-content-primary inline-flex items-center gap-1.5 interactive-tap tap-compact"
+                title="View search analytics"
+              >
+                <BarChart3 size={13} />
+                Stats
+              </button>
+              <button
+                onClick={openCalculatorSheet}
+                className="h-9 px-3 rounded-full surface-strong text-[11px] font-semibold text-content-primary inline-flex items-center gap-1.5 interactive-tap tap-compact"
+              >
+                <Calculator size={13} />
+                Volume
+              </button>
+            </div>
           </div>
           <DiagnosticSearchInput
             value={query}
@@ -919,6 +932,9 @@ export const DrugProtocolsView: React.FC = () => {
           )}
         </AnimatePresence>
       </OverlayPortal>
+
+      {/* Analytics Dashboard */}
+      <DiagnosticSearchAnalyticsDashboard isOpen={analyticsOpen} onClose={() => setAnalyticsOpen(false)} />
     </>
   );
 };

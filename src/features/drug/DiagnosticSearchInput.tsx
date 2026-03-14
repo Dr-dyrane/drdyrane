@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, X, ChevronRight, Filter } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
+import { trackSearch } from './diagnosticSearchAnalytics';
 
 interface DiagnosticSuggestion {
   label: string;
@@ -304,7 +305,10 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
     setSuggestions(matches);
   }, [value, filteredDiagnoses]);
 
-  const handleSelect = (diagnosis: string, icd10?: string) => {
+  const handleSelect = (diagnosis: string, icd10?: string, category?: string, source: 'search' | 'quick_pick' | 'recent' = 'search') => {
+    // Track analytics
+    trackSearch(diagnosis, icd10, category, source);
+
     onChange(diagnosis, icd10);
     onSelect?.(diagnosis, icd10);
     setFocused(false);
@@ -393,7 +397,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
           {quickPicks.map((item, index) => (
             <button
               key={`quick-${index}`}
-              onClick={() => handleSelect(item.label, item.icd10)}
+              onClick={() => handleSelect(item.label, item.icd10, item.category, 'quick_pick')}
               className="h-9 px-3.5 rounded-full surface-strong text-xs font-medium text-content-primary interactive-tap shrink-0 hover:bg-accent-primary/10 transition-colors"
             >
               <span className="block max-w-[10.5rem] truncate whitespace-nowrap">{item.label}</span>
@@ -419,7 +423,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
                 {recentSearches.map((item, index) => (
                   <button
                     key={`recent-${index}`}
-                    onClick={() => handleSelect(item.label, item.icd10)}
+                    onClick={() => handleSelect(item.label, item.icd10, item.category, 'recent')}
                     className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-accent-primary/10 transition-colors"
                   >
                     <div className="flex items-center justify-between gap-3">
@@ -445,7 +449,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
                 {suggestions.map((item, index) => (
                   <button
                     key={`suggestion-${index}`}
-                    onClick={() => handleSelect(item.label, item.icd10)}
+                    onClick={() => handleSelect(item.label, item.icd10, item.category, 'search')}
                     className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-accent-primary/10 transition-colors group"
                   >
                     <div className="flex items-center justify-between gap-3">
