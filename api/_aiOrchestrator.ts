@@ -2368,7 +2368,10 @@ const scoreLlmDiagnosis = (
  * Space: O(n) for ranked array
  *
  * TERMINATION: Array.sort() always terminates ✓
+ *
+ * DEPRECATED: Part of old pattern-matching architecture - will be removed
  */
+// @ts-ignore - Deprecated function, will be removed in cleanup
 const rankLlmDiagnoses = (
   ddx: string[],
   evidence: Record<string, EvidenceState>
@@ -2381,6 +2384,7 @@ const rankLlmDiagnoses = (
       return right.score - left.score;                   // Then by score
     });
 
+// @ts-ignore - Deprecated function, will be removed in cleanup
 const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
   if (profile.requiredAny && !profile.requiredAny.some((pattern) => pattern.test(corpus))) {
     return 0;
@@ -2401,6 +2405,7 @@ const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
   return Math.max(0, Math.round(score * 10) / 10);
 };
 
+// @ts-ignore - Deprecated function, will be removed in cleanup
 const rankTopDownProfiles = (corpus: string): RankedDisease[] => {
   return FEVER_DISEASE_PROFILES.map((profile) => ({
     profile,
@@ -2450,7 +2455,10 @@ const diseaseToDx = (entry: RankedDisease): string =>
  * Space: O(n + m) for merged Map
  *
  * TERMINATION: Two finite loops, always terminates ✓
+ *
+ * DEPRECATED: Part of old pattern-matching architecture - will be removed
  */
+// @ts-ignore - Deprecated function, will be removed in cleanup
 const mergeOrchestratedCandidates = (
   profiles: RankedDisease[],
   llmRanked: RankedLlmDiagnosis[]
@@ -2506,6 +2514,7 @@ const mergeOrchestratedCandidates = (
   });
 };
 
+// @ts-ignore - Deprecated function, will be removed in cleanup
 const shouldOverrideQuestion = (
   question: string | undefined,
   lead: OrchestratedCandidate,
@@ -2524,6 +2533,7 @@ const shouldOverrideQuestion = (
   );
 };
 
+// @ts-ignore - Deprecated function, will be removed in cleanup
 const scoreToProbabilityFloor = (lead: OrchestratedCandidate, secondScore: number): number => {
   const gap = Math.max(0, lead.score - secondScore);
   const raw = lead.emergency
@@ -2553,6 +2563,7 @@ const isFeverOnlyPresentation = (evidence: Record<string, EvidenceState>): boole
 const isSpecificFebrileDiagnosis = (diagnosis: string): boolean =>
   FEVER_PATHOGEN_PATTERNS.some((pattern) => pattern.test(diagnosis));
 
+// @ts-ignore - Deprecated function, will be removed in cleanup
 const applyFeverOnlyGuardrail = (
   candidates: OrchestratedCandidate[],
   evidence: Record<string, EvidenceState>

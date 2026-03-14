@@ -26,7 +26,6 @@ import { InvariantGuardBlade } from '../../components/shared/InvariantGuardBlade
 
 // FLOW STATE: No loading labels - instant feel like chat
 // Patient should never see "thinking" - just smooth flow
-const LOADING_PHASES = ['', '', '']; // Removed all labels for instant chat feel
 const INPUT_CHAR_LIMIT = 1200;
 const ASSISTIVE_SUGGESTION_CAP = 4;
 const DANGER_GATE_PATTERN =
