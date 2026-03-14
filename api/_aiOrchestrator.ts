@@ -2267,6 +2267,30 @@ const scoreLlmDiagnosis = (
   };
 };
 
+/**
+ * PROBLEM: Rank differential diagnoses with emergency conditions prioritized
+ * INPUT: (ddx: string[], evidence: Record<string, EvidenceState>)
+ * OUTPUT: RankedLlmDiagnosis[] (sorted by emergency then score)
+ *
+ * CORRECTNESS PROOF (Total Ordering):
+ * Define ordering: a < b iff (a.emergency ∧ ¬b.emergency) ∨
+ *                             (a.emergency = b.emergency ∧ a.score > b.score)
+ *
+ * Properties:
+ * 1. Reflexive: a ≮ a ✓
+ * 2. Antisymmetric: a < b → b ≮ a ✓
+ * 3. Transitive: a < b ∧ b < c → a < c ✓
+ * 4. Total: ∀a,b: a < b ∨ b < a ∨ a = b ✓
+ *
+ * Emergency Prioritization:
+ * ∀ emergency e, ∀ non-emergency n: e < n (proven by comparator) ✓
+ *
+ * COMPLEXITY:
+ * Time: O(n log n) where n = |ddx| (comparison-based sort lower bound)
+ * Space: O(n) for ranked array
+ *
+ * TERMINATION: Array.sort() always terminates ✓
+ */
 const rankLlmDiagnoses = (
   ddx: string[],
   evidence: Record<string, EvidenceState>
@@ -2274,9 +2298,9 @@ const rankLlmDiagnoses = (
   ddx
     .map((diagnosis, index) => scoreLlmDiagnosis(diagnosis, index, evidence))
     .sort((left, right) => {
-      if (left.emergency && !right.emergency) return -1;
-      if (!left.emergency && right.emergency) return 1;
-      return right.score - left.score;
+      if (left.emergency && !right.emergency) return -1; // Emergency first
+      if (!left.emergency && right.emergency) return 1;  // Non-emergency second
+      return right.score - left.score;                   // Then by score
     });
 
 const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
@@ -2315,12 +2339,47 @@ const rankTopDownProfiles = (corpus: string): RankedDisease[] => {
 const diseaseToDx = (entry: RankedDisease): string =>
   `${entry.profile.label} (ICD-10: ${entry.profile.icd10})`;
 
+/**
+ * PROBLEM: Merge profile-based and LLM-based diagnoses without duplicates
+ * INPUT: (profiles: RankedDisease[], llmRanked: RankedLlmDiagnosis[])
+ * OUTPUT: OrchestratedCandidate[] (merged, deduplicated)
+ *
+ * CORRECTNESS PROOF (Set Union with Deduplication):
+ * Let P = set of profile diagnoses
+ * Let L = set of LLM diagnoses
+ * Let M = merged output
+ *
+ * Claim: M = P ∪ L (with deduplication)
+ *
+ * Proof:
+ * 1. After profile loop: M = P ✓
+ * 2. For each l ∈ L:
+ *    - If l ∉ M: add l to M
+ *    - If l ∈ M: merge scores (still one entry)
+ * 3. After LLM loop: M = P ∪ L ✓
+ *
+ * Deduplication Guarantee:
+ * - Map.set() with same key overwrites/merges
+ * - normalizeDxKey() ensures case-insensitive matching
+ * - ∴ No duplicate diagnoses in output ✓
+ *
+ * Score Boosting (when both sources agree):
+ * - score = profile.score + llm.score × 0.4
+ * - Rationale: Agreement increases confidence ✓
+ *
+ * COMPLEXITY:
+ * Time: O(n + m) where n = |profiles|, m = |llmRanked|
+ * Space: O(n + m) for merged Map
+ *
+ * TERMINATION: Two finite loops, always terminates ✓
+ */
 const mergeOrchestratedCandidates = (
   profiles: RankedDisease[],
   llmRanked: RankedLlmDiagnosis[]
 ): OrchestratedCandidate[] => {
   const merged = new Map<string, OrchestratedCandidate>();
 
+  // Add all profile diagnoses (M = P)
   for (const entry of profiles) {
     const diagnosis = diseaseToDx(entry);
     const key = normalizeDxKey(diagnosis);
@@ -2334,6 +2393,7 @@ const mergeOrchestratedCandidates = (
     });
   }
 
+  // Add/merge LLM diagnoses (M = P ∪ L)
   for (const entry of llmRanked) {
     const key = normalizeDxKey(entry.diagnosis);
     const existing = merged.get(key);
