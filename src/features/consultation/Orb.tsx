@@ -21,7 +21,8 @@ export const Orb: React.FC<OrbProps> = ({ loading, prominence = 'support' }) => 
       : 'h-32 pt-4'
     : 'h-20 pt-1 scale-[0.78]';
   const imageClass = isHero ? 'w-32 h-32' : 'w-28 h-28';
-  const animationDuration = loading ? (isHero ? 1.5 : 1.8) : isHero ? 4 : 5;
+  // FLOW STATE: Faster breathing rhythm - like Hamilton's focus, not mechanical loader
+  const animationDuration = loading ? (isHero ? 1.2 : 1.4) : isHero ? 2.5 : 3;
 
   return (
     <div className={`flex flex-col items-center justify-center transition-all duration-700 ${containerClass}`}>
@@ -33,12 +34,13 @@ export const Orb: React.FC<OrbProps> = ({ loading, prominence = 'support' }) => 
               : loading
                 ? ['var(--orb-drop-soft)', 'var(--orb-drop-active)', 'var(--orb-drop-soft)']
                 : 'var(--orb-drop-idle)',
-            scale: isEmergency ? [1, 1.05, 1] : loading ? [0.98, 1.02, 0.98] : 1,
+            // FLOW STATE: Subtle breathing rhythm - like focused presence, not mechanical loader
+            scale: isEmergency ? [1, 1.05, 1] : loading ? [0.99, 1.01, 0.99] : [1, 1.005, 1],
           }}
           transition={{
             repeat: Infinity,
             duration: animationDuration,
-            ease: 'easeInOut',
+            ease: 'easeInOut', // Smooth breathing, like Hamilton's focus
           }}
           className="relative z-10"
         >
@@ -52,14 +54,7 @@ export const Orb: React.FC<OrbProps> = ({ loading, prominence = 'support' }) => 
           />
         </motion.div>
 
-        {loading && isHero && (
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1.5, opacity: 0 }}
-            transition={{ repeat: Infinity, duration: 2, ease: 'easeOut' }}
-            className="absolute inset-0 surface-chip rounded-full blur-2xl"
-          />
-        )}
+        {/* FLOW STATE: Removed pulsing ring - orb breathes naturally without extra effects */}
       </div>
     </div>
   );

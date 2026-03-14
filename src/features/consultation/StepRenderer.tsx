@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowUp, ChevronDown, ChevronRight, ImagePlus, Loader2 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
-import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
+import { signalFeedback } from '../../core/services/feedback'; // FLOW STATE: Removed playLoadingPhaseCue
 import { resolveProfileAvatarWithFallback } from '../../core/storage/avatarStore';
 import { resolveTheme } from '../../core/theme/resolveTheme';
 import { isProfileOnboardingComplete } from '../../core/profile/onboarding';
@@ -24,12 +24,9 @@ import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
 import { InlineErrorBlade } from '../../components/shared/InlineErrorBlade';
 import { InvariantGuardBlade } from '../../components/shared/InvariantGuardBlade';
 
-// More patient-friendly loading messages (less clinical jargon)
-const LOADING_PHASES = [
-  'Reviewing your history',
-  'Considering possibilities',
-  'Preparing next question',
-];
+// FLOW STATE: No loading labels - instant feel like chat
+// Patient should never see "thinking" - just smooth flow
+const LOADING_PHASES = ['', '', '']; // Removed all labels for instant chat feel
 const INPUT_CHAR_LIMIT = 1200;
 const ASSISTIVE_SUGGESTION_CAP = 4;
 const DANGER_GATE_PATTERN =
@@ -121,7 +118,7 @@ export const StepRenderer: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
-  const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
+  // FLOW STATE: Removed loadingPhaseIndex - no longer cycling through loading messages
   const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
   const [showWorkingDetails, setShowWorkingDetails] = useState(false);
@@ -150,26 +147,28 @@ export const StepRenderer: React.FC = () => {
     latestStateRef.current = state;
   }, [state]);
 
-  useEffect(() => {
-    if (!loading) {
-      setLoadingPhaseIndex(0);
-      return;
-    }
+  // FLOW STATE: Removed loading phase cycling - no visible loading labels
+  // useEffect(() => {
+  //   if (!loading) {
+  //     setLoadingPhaseIndex(0);
+  //     return;
+  //   }
+  //
+  //   const intervalId = window.setInterval(() => {
+  //     setLoadingPhaseIndex((prev) => (prev + 1) % LOADING_PHASES.length);
+  //   }, 2000);
+  //
+  //   return () => window.clearInterval(intervalId);
+  // }, [loading]);
 
-    const intervalId = window.setInterval(() => {
-      setLoadingPhaseIndex((prev) => (prev + 1) % LOADING_PHASES.length);
-    }, 1000);
-
-    return () => window.clearInterval(intervalId);
-  }, [loading]);
-
-  useEffect(() => {
-    if (loading) {
-      playLoadingPhaseCue(loadingPhaseIndex, {
-        audioEnabled: state.settings.audio_enabled,
-      });
-    }
-  }, [loading, loadingPhaseIndex, state.settings.audio_enabled]);
+  // FLOW STATE: Removed audio cues for loading phases - instant feel, no mechanical sounds
+  // useEffect(() => {
+  //   if (loading) {
+  //     playLoadingPhaseCue(loadingPhaseIndex, {
+  //       audioEnabled: state.settings.audio_enabled,
+  //     });
+  //   }
+  // }, [loading, loadingPhaseIndex, state.settings.audio_enabled]);
 
   useEffect(() => {
     const latest = state.conversation[state.conversation.length - 1];
@@ -615,7 +614,7 @@ export const StepRenderer: React.FC = () => {
   const historicalTranscriptGroups = activeDoctorGroup
     ? groupedTranscriptMessages.slice(0, -1)
     : groupedTranscriptMessages;
-  const hasDoctorInTranscript = transcriptMessages.some((entry) => entry.role === 'doctor');
+  // FLOW STATE: Removed hasDoctorInTranscript - no longer showing "Dr is thinking" label
   const resolvedTheme = resolveTheme(state.theme);
   const doctorAvatarSrc = resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png';
   const patientAvatarSrc = resolveProfileAvatarWithFallback(
@@ -689,7 +688,7 @@ export const StepRenderer: React.FC = () => {
     };
   }, [activeResponseOptions, isSafetyCheckpoint]);
   const showInput = true;
-  const loadingPhaseLabel = LOADING_PHASES[loadingPhaseIndex] || 'Reviewing your history';
+  // FLOW STATE: Removed loadingPhaseLabel - no longer displaying loading text
   const workingContract = state.working_contract;
 
   useEffect(() => {
@@ -987,12 +986,8 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
-              {busy && hasDoctorInTranscript && (
-                <div className="ml-10 inline-flex items-center gap-2 rounded-full surface-chip px-3 h-8">
-                  <span className="h-1.5 w-1.5 rounded-full bg-accent-primary animate-pulse" />
-                  <p className="text-[11px] text-content-secondary">Dr is thinking: {loadingPhaseLabel}</p>
-                </div>
-              )}
+              {/* FLOW STATE: Removed "Dr is thinking" label - feels instant like chat */}
+              {/* Patient never sees loading state - just smooth conversation flow */}
 
               {!busy && assistiveResponseOptions && (
                 <div className="ml-10">
