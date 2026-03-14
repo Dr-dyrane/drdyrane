@@ -679,10 +679,10 @@ export const StepRenderer: React.FC = () => {
     return {
       ...activeResponseOptions,
       mode: 'single' as const,
-      ui_variant: assistiveOptions.length >= 4 ? ('grid' as const) : ('chips' as const),
+      ui_variant: 'grid' as const,
       allow_custom_input: true,
       options: assistiveOptions,
-      context_hint: 'Suggested quick replies. You can ignore and type freely.',
+      context_hint: undefined,
     };
   }, [activeResponseOptions, isSafetyCheckpoint]);
   const showInput = true;

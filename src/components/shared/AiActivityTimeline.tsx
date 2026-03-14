@@ -42,9 +42,6 @@ export const AiActivityTimeline: React.FC<AiActivityTimelineProps> = ({
   const tasks = taskFeed.slice(0, Math.max(1, maxTasks));
   const hasActiveTask = tasks.some((task) => task.status === 'active');
   const [expanded, setExpanded] = React.useState<Record<string, boolean>>({});
-
-  if (tasks.length === 0) return null;
-
   const latestTask = tasks[0];
   const hasExpandedCompleted = tasks.some(
     (task) => task.status !== 'active' && expanded[task.id] === true
@@ -60,6 +57,8 @@ export const AiActivityTimeline: React.FC<AiActivityTimelineProps> = ({
     }, AUTO_COLLAPSE_DELAY_MS);
     return () => window.clearTimeout(timeoutId);
   }, [hasActiveTask, latestTask, latestTask?.id, latestTask?.status]);
+
+  if (tasks.length === 0) return null;
 
   if (!hasActiveTask && latestTask && !hasExpandedCompleted) {
     const completed = latestTask.nodes.filter((node) => node.status === 'success').length;

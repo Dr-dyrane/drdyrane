@@ -2342,6 +2342,13 @@ const INTENT_SEQUENCE: Array<{ intent: QuestionIntent; question: string }> = [
 
 const NON_SUBSTANTIVE_RESPONSE_PATTERN = /^(ok|okay|alright|fine|hmm+|uh+h*|ah+h*|k|kk)$/i;
 const UNCERTAIN_RESPONSE_PATTERN = /\b(not sure|unsure|unknown|maybe|don'?t know|cannot tell|idk)\b/i;
+const SUMMARY_CLARIFY_QUESTION_PATTERN =
+  /\bwhat one detail should i clarify before i summarize\b|\bwhat other detail should i clarify before i summarize\b|\bworking diagnosis and plan\b/i;
+const SUMMARY_READY_PATIENT_PATTERN =
+  /\bready for summary\b|\bsummary\b|\bdone\b|\bno more\b|\bnothing else\b|\bthat'?s all\b|\bproceed\b/i;
+const CONTRADICTION_SIGNAL_PATTERN =
+  /\bactually\b|\bbut now\b|\bhowever\b|\binstead\b|\bnew symptom\b|\bnow also\b|\bchanged\b|\bworse now\b|\bbetter now\b/i;
+const FINAL_SUMMARY_QUESTION = 'Would you like your working diagnosis and plan now?';
 
 const detectQuestionIntent = (question: string): QuestionIntent | null => {
   const normalized = sanitizeText(question);
@@ -2395,12 +2402,60 @@ const countRecentIntentAsks = (
     .reduce((count, entry) => (pattern.test(sanitizeText(entry.content)) ? count + 1 : count), 0);
 };
 
+const hasRecentPatientSignal = (
+  conversation: ConversationEntry[],
+  pattern: RegExp,
+  lookback = 24
+): boolean =>
+  (conversation || [])
+    .filter((entry) => entry.role === 'patient')
+    .slice(-lookback)
+    .some((entry) => pattern.test(sanitizeText(entry.content)));
+
+const isLikelyContradictionUpdate = (latestPatientInput: string): boolean =>
+  CONTRADICTION_SIGNAL_PATTERN.test(sanitizeText(latestPatientInput));
+
+const getNextProgressiveIntentQuestion = (
+  conversation: ConversationEntry[],
+  currentIntent: QuestionIntent | null
+): string | null => {
+  const currentIndex = currentIntent
+    ? INTENT_SEQUENCE.findIndex((step) => step.intent === currentIntent)
+    : -1;
+
+  if (currentIndex >= 0) {
+    for (let index = currentIndex + 1; index < INTENT_SEQUENCE.length; index += 1) {
+      const step = INTENT_SEQUENCE[index];
+      if (!hasAnsweredIntent(conversation, step.intent, 64)) {
+        return step.question;
+      }
+    }
+  }
+
+  for (const step of INTENT_SEQUENCE) {
+    if (!hasAnsweredIntent(conversation, step.intent, 64)) {
+      return step.question;
+    }
+  }
+
+  return null;
+};
+
 const enforceQuestionProgression = (
   question: string,
-  conversation: ConversationEntry[]
+  conversation: ConversationEntry[],
+  latestPatientInput = ''
 ): string => {
   const normalized = sanitizeText(question);
   if (!normalized) return normalized;
+
+  const patientReadyForSummary =
+    SUMMARY_READY_PATIENT_PATTERN.test(sanitizeText(latestPatientInput)) ||
+    hasRecentPatientSignal(conversation, SUMMARY_READY_PATIENT_PATTERN, 20);
+
+  if (SUMMARY_CLARIFY_QUESTION_PATTERN.test(normalized) && patientReadyForSummary) {
+    return FINAL_SUMMARY_QUESTION;
+  }
 
   const intent = detectQuestionIntent(normalized);
   if (!intent) return normalized;
@@ -2408,17 +2463,22 @@ const enforceQuestionProgression = (
   const recentIntentAsks = countRecentIntentAsks(conversation, intent, 10);
   const repeatedAsk = recentIntentAsks >= 2;
   const answeredAlready = hasAnsweredIntent(conversation, intent, 48);
+  const contradictionUpdate = isLikelyContradictionUpdate(latestPatientInput);
 
-  if (!answeredAlready && !repeatedAsk) {
+  if ((!answeredAlready && !repeatedAsk) || contradictionUpdate) {
     return normalized;
   }
 
-  for (const step of INTENT_SEQUENCE) {
-    if (!hasAnsweredIntent(conversation, step.intent, 64)) {
-      if (sanitizeText(step.question).toLowerCase() !== normalized.toLowerCase()) {
-        return step.question;
-      }
-    }
+  const progressedQuestion = getNextProgressiveIntentQuestion(conversation, intent);
+  if (
+    progressedQuestion &&
+    sanitizeText(progressedQuestion).toLowerCase() !== normalized.toLowerCase()
+  ) {
+    return progressedQuestion;
+  }
+
+  if (patientReadyForSummary) {
+    return FINAL_SUMMARY_QUESTION;
   }
 
   return normalized;
@@ -2525,11 +2585,15 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     }
   );
 
-  const genericQuestionPattern = /(what symptom is bothering you the most right now|what changed most since symptoms began)/i;
+  const genericQuestionPattern =
+    /(what symptom is bothering you the most right now|what changed most since symptoms began|what one detail should i clarify before i summarize your working diagnosis)/i;
+  const progressionFallbackQuestion =
+    getNextProgressiveIntentQuestion(body.state?.conversation || [], null) ||
+    FINAL_SUMMARY_QUESTION;
   const conversationalFallbackQuestion =
     patientTurns <= 1
       ? complaintRoute.starterQuestion
-      : 'What one detail should I clarify before I summarize your working diagnosis?';
+      : progressionFallbackQuestion;
   const resolvedQuestion =
     preferredQuestion && !genericQuestionPattern.test(preferredQuestion)
       ? preferredQuestion
@@ -2538,7 +2602,8 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
         : conversationalFallbackQuestion;
   const safeguardedQuestion = enforceQuestionProgression(
     resolvedQuestion || 'What symptom is bothering you the most right now?',
-    body.state?.conversation || []
+    body.state?.conversation || [],
+    body.patientInput || ''
   );
 
   return finalizeConsultContract({
