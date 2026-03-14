@@ -1289,23 +1289,26 @@ type RankedDisease = {
   score: number;
 };
 
-type EvidenceState = 'present' | 'absent' | 'unknown';
+// DEPRECATED: EvidenceState type removed - used by deleted pattern-matching functions
+// type EvidenceState = 'present' | 'absent' | 'unknown';
 
-type FeatureCue = {
-  id: string;
-  positive: RegExp[];
-  negative?: RegExp[];
-  question: string;
-};
+// DEPRECATED: FeatureCue type removed - used by deleted FEATURE_CUES
+// type FeatureCue = {
+//   id: string;
+//   positive: RegExp[];
+//   negative?: RegExp[];
+//   question: string;
+// };
 
-type DiagnosisHint = {
-  pattern: RegExp;
-  supports: string[];
-  contradicts?: string[];
-  emergency?: boolean;
-  followUpQuestion?: string;
-  pendingActions?: string[];
-};
+// DEPRECATED: DiagnosisHint type removed - used by deleted DIAGNOSIS_HINTS
+// type DiagnosisHint = {
+//   pattern: RegExp;
+//   supports: string[];
+//   contradicts?: string[];
+//   emergency?: boolean;
+//   followUpQuestion?: string;
+//   pendingActions?: string[];
+// };
 
 type RankedLlmDiagnosis = {
   diagnosis: string;
@@ -1390,153 +1393,11 @@ const ICD10_RULES: Icd10Rule[] = [
   { pattern: /\bweakness\b|\bfatigue\b/i, code: 'R53' },
 ];
 
-const FEVER_DISEASE_PROFILES: DiseaseProfile[] = [
-  {
-    id: 'meningitis',
-    label: 'Meningitis',
-    icd10: 'G03.9',
-    source: 'who_priority',
-    emergency: true,
-    minScore: 3.2,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\bneck stiffness|stiff neck|photophobia\b/i, weight: 2.5 },
-      { pattern: /\bconfusion|altered mental status|disoriented\b/i, weight: 2.3 },
-      { pattern: /\bseizure|fits\b/i, weight: 2.4 },
-      { pattern: /\bsevere headache\b/i, weight: 1.6 },
-    ],
-    followUpQuestion:
-      'Do you have neck stiffness, confusion, or severe persistent headache right now?',
-    pendingActions: ['Urgent neurologic assessment', 'Immediate referral and emergency workup'],
-  },
-  {
-    id: 'sepsis',
-    label: 'Sepsis',
-    icd10: 'A41.9',
-    source: 'who_priority',
-    emergency: true,
-    minScore: 3.2,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\blow blood pressure|hypotension|faint|collapse\b/i, weight: 2.5 },
-      { pattern: /\bconfusion|lethargy|drowsy\b/i, weight: 2.1 },
-      { pattern: /\bfast breathing|breathless|tachypnea\b/i, weight: 1.8 },
-      { pattern: /\bfast heart|palpitation|tachycardia\b/i, weight: 1.5 },
-    ],
-    followUpQuestion:
-      'Any confusion, very fast breathing, fainting, or low blood pressure symptoms now?',
-    pendingActions: ['Sepsis screen and vitals', 'Urgent facility escalation if unstable'],
-  },
-  {
-    id: 'malaria',
-    label: 'Malaria',
-    icd10: 'B54',
-    source: 'who_priority',
-    minScore: 3,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\bchills?|rigors?\b/i, weight: 2.2 },
-      { pattern: /\bheadache|behind (my )?eyes?|retro[-\s]?orbital\b/i, weight: 1.7 },
-      { pattern: /\bbody aches?|myalgia|muscle pain\b/i, weight: 1.2 },
-      { pattern: /\bnausea|vomit(ing)?\b/i, weight: 1.1 },
-      { pattern: /\bweak(ness)?|fatigue\b/i, weight: 0.9 },
-      { pattern: /\bintermittent|cyclic|comes and goes|on and off\b/i, weight: 1.4 },
-      { pattern: /\bnight|nocturnal|worse at night|evening chills\b/i, weight: 1.3 },
-      { pattern: /\bmorning relief|better in the morning|morning off\b/i, weight: 1.1 },
-      { pattern: /\bbitter taste|acid taste|metallic taste\b/i, weight: 0.6 },
-      { pattern: /\bmosquito(es)? bite(s)?|travel\b/i, weight: 1 },
-    ],
-    followUpQuestion:
-      'Does fever come in cycles (evening chills, night spike, morning relief), and was there mosquito exposure?',
-    pendingActions: ['Confirm with malaria RDT or blood smear', 'Screen for severe malaria danger signs'],
-  },
-  {
-    id: 'dengue',
-    label: 'Dengue Fever',
-    icd10: 'A97.9',
-    source: 'who_priority',
-    minScore: 2.8,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\bbehind (my )?eyes?|retro[-\s]?orbital\b/i, weight: 2.1 },
-      { pattern: /\brash\b/i, weight: 1.8 },
-      { pattern: /\bbleeding|gum bleed|nose bleed\b/i, weight: 2.2 },
-      { pattern: /\bbody aches?|myalgia|bone pain\b/i, weight: 1.3 },
-      { pattern: /\bnausea|vomit(ing)?\b/i, weight: 1 },
-    ],
-    followUpQuestion:
-      'Any rash, bleeding, or severe abdominal pain that could suggest dengue warning signs?',
-    pendingActions: ['Assess dengue warning signs', 'Plan CBC/platelet monitoring'],
-  },
-  {
-    id: 'typhoid',
-    label: 'Typhoid Fever',
-    icd10: 'A01.0',
-    source: 'medscape_core',
-    minScore: 2.4,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\babdominal pain|stomach pain\b/i, weight: 1.4 },
-      { pattern: /\bdiarrhea|constipation\b/i, weight: 1.2 },
-      { pattern: /\bpoor appetite|loss of appetite\b/i, weight: 0.8 },
-      { pattern: /\bnausea|vomit(ing)?\b/i, weight: 0.8 },
-    ],
-    followUpQuestion: 'Any abdominal pain, bowel habit change, or contaminated food/water exposure?',
-    pendingActions: ['Consider blood/stool culture workup', 'Review enteric fever risk exposure'],
-  },
-  {
-    id: 'pneumonia',
-    label: 'Pneumonia',
-    icd10: 'J18.9',
-    source: 'medscape_core',
-    minScore: 2.5,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\bcough\b/i, weight: 1.7 },
-      { pattern: /\bshortness of breath|breathless\b/i, weight: 1.8 },
-      { pattern: /\bchest pain\b/i, weight: 1.4 },
-    ],
-    suppress: [{ pattern: /\bno cough\b/i, penalty: 1.8 }],
-    followUpQuestion: 'Do you have cough, chest pain, or shortness of breath?',
-    pendingActions: ['Evaluate respiratory findings', 'Assess oxygenation and chest exam'],
-  },
-  {
-    id: 'uti',
-    label: 'Urinary Tract Infection',
-    icd10: 'N39.0',
-    source: 'medscape_core',
-    minScore: 2.3,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\bburning urination|dysuria\b/i, weight: 2 },
-      { pattern: /\bfrequency|urgency\b/i, weight: 1.4 },
-      { pattern: /\bflank pain|loin pain\b/i, weight: 1.5 },
-    ],
-    suppress: [{ pattern: /\bno burning urination\b/i, penalty: 2 }],
-    followUpQuestion: 'Any burning urination, urinary frequency, or flank pain?',
-    pendingActions: ['Urinalysis and urine culture pathway', 'Assess for upper UTI features'],
-  },
-  {
-    id: 'influenza',
-    label: 'Influenza',
-    icd10: 'J11.1',
-    source: 'medscape_core',
-    minScore: 2.2,
-    requiredAny: [/\bfever|pyrexia|temperature|febrile\b/i],
-    support: [
-      { pattern: /\bcough\b/i, weight: 1.5 },
-      { pattern: /\bsore throat\b/i, weight: 1.4 },
-      { pattern: /\brunny nose|nasal congestion\b/i, weight: 1.3 },
-      { pattern: /\bbody aches?|myalgia\b/i, weight: 1 },
-    ],
-    suppress: [
-      { pattern: /\bno cough\b/i, penalty: 1.4 },
-      { pattern: /\bno sore throat\b/i, penalty: 1.1 },
-    ],
-    followUpQuestion: 'Any cough, sore throat, or runny nose consistent with influenza-like illness?',
-    pendingActions: ['Assess influenza-like illness criteria', 'Supportive care and risk review'],
-  },
-];
+/**
+ * DEPRECATED: FEVER_DISEASE_PROFILES removed in LLM-First refactoring
+ * The LLM now uses pathophysiological reasoning instead of hardcoded disease patterns.
+ * See: docs/architecture/LLM_FIRST_REFACTORING_PLAN.md
+ */
 
 const CHIEF_COMPLAINT_ENGINES: ChiefComplaintEngine[] = [
   {
@@ -1834,196 +1695,33 @@ const ENGINE_FALLBACK_DIFFERENTIALS: Record<ChiefComplaintEngineId, string[]> = 
   general: ['Undifferentiated illness', 'Systemic infection', 'Metabolic disturbance'],
 };
 
-const FEATURE_CUES: FeatureCue[] = [
-  {
-    id: 'fever',
-    positive: [/\bfever|febrile|temperature|pyrexia\b/i],
-    question: 'Have you measured your temperature, and how high has it been?',
-  },
-  {
-    id: 'chills',
-    positive: [/\bchills?|rigors?\b/i],
-    question: 'Are the fever episodes associated with chills or rigors?',
-  },
-  {
-    id: 'fever_pattern_cycle',
-    positive: [/\bintermittent|cyclic|comes and goes|on and off\b/i],
-    question: 'Is the fever intermittent or cyclical rather than constant?',
-  },
-  {
-    id: 'nocturnal_fever',
-    positive: [/\bnight|nocturnal|worse at night|evening chills|morning relief\b/i],
-    question: 'Does fever tend to worsen at night after evening chills and ease by morning?',
-  },
-  {
-    id: 'mosquito_exposure',
-    positive: [/\bmosquito(es)? bite(s)?|sleeping without net|high mosquito exposure\b/i],
-    question: 'Have you had recent mosquito exposure or slept without mosquito protection?',
-  },
-  {
-    id: 'headache',
-    positive: [/\bheadache|head pain|retro[-\s]?orbital|behind (my )?eyes?\b/i],
-    question: 'Is the headache severe, persistent, or associated with eye pain?',
-  },
-  {
-    id: 'cough',
-    positive: [/\bcough|sputum|phlegm\b/i],
-    negative: [/\bno cough\b/i],
-    question: 'Any cough, sputum, or breathing symptoms with this illness?',
-  },
-  {
-    id: 'dyspnea',
-    positive: [/\bshortness of breath|breathless|difficulty breathing|tachypnea\b/i],
-    negative: [/\bno shortness of breath|no breathlessness\b/i],
-    question: 'Do you feel short of breath at rest or with minimal activity?',
-  },
-  {
-    id: 'chest_pain',
-    positive: [/\bchest pain|chest pressure|tight chest\b/i],
-    negative: [/\bno chest pain\b/i],
-    question: 'Is chest pain pressure-like, and does it radiate to arm, jaw, or back?',
-  },
-  {
-    id: 'abdominal_pain',
-    positive: [/\babdominal pain|stomach pain|belly pain|flank pain|loin pain\b/i],
-    question: 'Where exactly is the abdominal pain and does it migrate?',
-  },
-  {
-    id: 'vomiting',
-    positive: [/\bnausea|vomit(ing)?|throwing up\b/i],
-    question: 'How frequent is the nausea or vomiting, and can you keep fluids down?',
-  },
-  {
-    id: 'diarrhea',
-    positive: [/\bdiarrh|loose stool|watery stool\b/i],
-    question: 'Do you have diarrhea, and is there blood or mucus in stool?',
-  },
-  {
-    id: 'dysuria',
-    positive: [/\bdysuria|burning urination|painful urination\b/i],
-    negative: [/\bno burning urination|no dysuria\b/i],
-    question: 'Any burning urination, urinary urgency, or flank pain?',
-  },
-  {
-    id: 'rash_or_bleeding',
-    positive: [/\brash|bleeding|gum bleed|nose bleed|petechiae\b/i],
-    question: 'Have you noticed rash, gum bleeding, or easy bruising?',
-  },
-  {
-    id: 'chronic_itch',
-    positive: [
-      /\bitch(ing|y)?.*years?|chronic itch|persistent itch|always itch/i,
-      /\bdry skin.*dark patches|dark patches.*itch|lichenification|thickened skin/i,
-      /\bitch.*scratch.*cycle|scratch.*itch/i,
-    ],
-    question: 'How long have you had the itching, and do you notice dark patches where you scratch?',
-  },
-  {
-    id: 'confusion_or_neuro',
-    positive: [
-      /\bconfusion|disoriented|seizure|fits|focal weakness|one[-\s]?sided weakness|unilateral weakness|speech difficulty|facial droop\b/i,
-    ],
-    question: 'Any confusion, seizures, focal weakness, or speech difficulty?',
-  },
-];
+/**
+ * DEPRECATED: FEATURE_CUES removed in LLM-First refactoring
+ * The LLM now uses pathophysiological reasoning instead of regex-based feature detection.
+ * See: docs/architecture/LLM_FIRST_REFACTORING_PLAN.md
+ */
 
-const DIAGNOSIS_HINTS: DiagnosisHint[] = [
-  {
-    pattern: /\bmalaria\b/i,
-    supports: ['fever', 'chills', 'fever_pattern_cycle', 'nocturnal_fever', 'mosquito_exposure', 'headache', 'vomiting'],
-    followUpQuestion:
-      'Does fever usually start with evening chills, spike at night, ease by morning, and follow mosquito exposure?',
-    pendingActions: [
-      'Confirm fever pattern and mosquito exposure before locking malaria as lead',
-      'Confirm malaria with RDT/smear',
-      'Check for severe-malaria danger signs',
-    ],
-  },
-  {
-    pattern: /\bdengue\b/i,
-    supports: ['fever', 'headache', 'rash_or_bleeding', 'vomiting'],
-    followUpQuestion: 'Any rash, bleeding, or severe abdominal pain suggesting dengue warning signs?',
-    pendingActions: ['Assess dengue warning signs', 'Order CBC with platelet trend'],
-  },
-  {
-    pattern: /\blichen simplex chronicus|chronic itch.*lichenification|itch.*scratch.*cycle\b/i,
-    supports: ['chronic_itch', 'rash_or_bleeding'],
-    followUpQuestion: 'Is the itching worse at night, and do you notice thickened or darkened skin where you scratch?',
-    pendingActions: [
-      'Confirm chronic itch-scratch cycle (years duration)',
-      'Assess for lichenification and post-inflammatory hyperpigmentation',
-      'Rule out underlying causes: atopy, contact dermatitis, systemic disease',
-      'Prescribe potent topical steroid + antihistamine to break cycle',
-    ],
-  },
-  {
-    pattern: /\btyphoid\b/i,
-    supports: ['fever', 'abdominal_pain', 'diarrhea', 'vomiting'],
-    followUpQuestion: 'Any contaminated food or water exposure with persistent abdominal symptoms?',
-    pendingActions: ['Consider blood/stool culture', 'Assess enteric fever risk exposures'],
-  },
-  {
-    pattern: /\bpneumonia\b/i,
-    supports: ['fever', 'cough', 'dyspnea', 'chest_pain'],
-    followUpQuestion: 'Do you have cough with breathlessness or pleuritic chest pain?',
-    pendingActions: ['Perform respiratory exam and pulse oximetry', 'Evaluate for chest imaging'],
-  },
-  {
-    pattern: /\burinary tract infection\b|\buti\b|pyelonephritis/i,
-    supports: ['fever', 'dysuria', 'abdominal_pain'],
-    followUpQuestion: 'Any dysuria, urgency, or flank pain pointing to urinary infection?',
-    pendingActions: ['Urinalysis and urine culture pathway', 'Screen for upper UTI features'],
-  },
-  {
-    pattern: /\bgastroenteritis\b/i,
-    supports: ['vomiting', 'diarrhea', 'abdominal_pain'],
-    followUpQuestion: 'How many loose stools or vomiting episodes are you having in 24 hours?',
-    pendingActions: ['Assess dehydration severity', 'Stool workup if red flags present'],
-  },
-  {
-    pattern: /\bmeningitis\b/i,
-    supports: ['fever', 'headache', 'confusion_or_neuro'],
-    emergency: true,
-    followUpQuestion: 'Any neck stiffness, confusion, or seizures right now?',
-    pendingActions: ['Urgent neurologic assessment', 'Immediate emergency referral if red flags'],
-  },
-  {
-    pattern: /\bsepsis\b/i,
-    supports: ['fever', 'confusion_or_neuro', 'dyspnea'],
-    emergency: true,
-    followUpQuestion: 'Any confusion, fainting, or very fast breathing at the moment?',
-    pendingActions: ['Immediate sepsis screen and vitals', 'Escalate urgently if unstable'],
-  },
-  {
-    pattern: /\bacute coronary syndrome\b|\bacs\b|\bmyocardial infarction\b|heart attack/i,
-    supports: ['chest_pain', 'dyspnea', 'vomiting'],
-    emergency: true,
-    followUpQuestion: 'Is the chest pain crushing or radiating to arm, jaw, or back?',
-    pendingActions: ['Urgent cardiac triage pathway', 'Assess hemodynamic instability symptoms'],
-  },
-  {
-    pattern: /\bpulmonary embolism\b|\bpe\b/i,
-    supports: ['dyspnea', 'chest_pain'],
-    emergency: true,
-    followUpQuestion: 'Did shortness of breath start suddenly, and is there pleuritic chest pain?',
-    pendingActions: ['Urgent thromboembolism risk assessment', 'Escalate for acute cardiorespiratory signs'],
-  },
-];
+/**
+ * DEPRECATED: DIAGNOSIS_HINTS removed in LLM-First refactoring
+ * The LLM now uses pathophysiological reasoning instead of hardcoded diagnosis hints.
+ * See: docs/architecture/LLM_FIRST_REFACTORING_PLAN.md
+ */
 
-const FEVER_ONLY_LEAD_DIAGNOSIS = 'Undifferentiated febrile illness (ICD-10: R50.9)';
-const FEVER_ONLY_FOLLOW_UP_QUESTION = 'Are the fever episodes associated with chills or rigors?';
-const FEVER_ONLY_PENDING_ACTION = 'Use high-yield symptom clarifiers before locking a specific pathogen';
-const FEVER_PATHOGEN_PATTERNS: RegExp[] = [
-  /\bsepsis\b/i,
-  /\bmeningitis\b/i,
-  /\bmalaria\b/i,
-  /\bdengue\b/i,
-  /\btyphoid\b/i,
-  /\bpneumonia\b/i,
-  /\binfluenza\b|\bviral upper respiratory infection\b|\burti\b/i,
-  /\burinary tract infection\b|\buti\b|pyelonephritis/i,
-  /\bgastroenteritis\b/i,
-];
+// DEPRECATED: Fever-only guardrail constants removed
+// const FEVER_ONLY_LEAD_DIAGNOSIS = 'Undifferentiated febrile illness (ICD-10: R50.9)';
+// const FEVER_ONLY_FOLLOW_UP_QUESTION = 'Are the fever episodes associated with chills or rigors?';
+// const FEVER_ONLY_PENDING_ACTION = 'Use high-yield symptom clarifiers before locking a specific pathogen';
+// const FEVER_PATHOGEN_PATTERNS: RegExp[] = [
+//   /\bsepsis\b/i,
+//   /\bmeningitis\b/i,
+//   /\bmalaria\b/i,
+//   /\bdengue\b/i,
+//   /\btyphoid\b/i,
+//   /\bpneumonia\b/i,
+//   /\binfluenza\b|\bviral upper respiratory infection\b|\burti\b/i,
+//   /\burinary tract infection\b|\buti\b|pyelonephritis/i,
+//   /\bgastroenteritis\b/i,
+// ];
 
 const classifyChiefComplaint = (corpus: string): {
   engineId: ChiefComplaintEngineId;
@@ -2259,130 +1957,138 @@ const buildConsultTextCorpus = (body: ConsultRequest, payload: ConsultPayload): 
 //   return evidence;
 // };
 
-const featureQuestionById = (featureId: string): string | undefined =>
-  FEATURE_CUES.find((cue) => cue.id === featureId)?.question;
+// DEPRECATED: featureQuestionById removed - FEATURE_CUES deleted
+// const featureQuestionById = (featureId: string): string | undefined =>
+//   FEATURE_CUES.find((cue) => cue.id === featureId)?.question;
 
 const dedupeActions = (actions: string[]): string[] =>
   [...new Set(actions.map((item) => sanitizeText(item)).filter(Boolean))];
 
-const findDiagnosisHint = (diagnosis: string): DiagnosisHint | undefined =>
-  DIAGNOSIS_HINTS.find((hint) => hint.pattern.test(diagnosis));
+// DEPRECATED: findDiagnosisHint removed - DIAGNOSIS_HINTS deleted
+// const findDiagnosisHint = (diagnosis: string): DiagnosisHint | undefined =>
+//   DIAGNOSIS_HINTS.find((hint) => hint.pattern.test(diagnosis));
 
-const applyEmergencySpecificPenalty = (
-  diagnosis: string,
-  evidence: Record<string, EvidenceState>
-): number => {
-  if (/\bmeningitis\b/i.test(diagnosis)) {
-    return evidence.confusion_or_neuro === 'present' ? 0 : 1.6;
-  }
-  if (/\bsepsis\b/i.test(diagnosis)) {
-    const hasSepsisSignal =
-      evidence.confusion_or_neuro === 'present' ||
-      evidence.dyspnea === 'present';
-    return hasSepsisSignal ? 0 : 1.6;
-  }
-  return 0;
-};
+// DEPRECATED: applyEmergencySpecificPenalty removed - used by deleted scoreLlmDiagnosis
+// const applyEmergencySpecificPenalty = (
+//   diagnosis: string,
+//   evidence: Record<string, EvidenceState>
+// ): number => {
+//   if (/\bmeningitis\b/i.test(diagnosis)) {
+//     return evidence.confusion_or_neuro === 'present' ? 0 : 1.6;
+//   }
+//   if (/\bsepsis\b/i.test(diagnosis)) {
+//     const hasSepsisSignal =
+//       evidence.confusion_or_neuro === 'present' ||
+//       evidence.dyspnea === 'present';
+//     return hasSepsisSignal ? 0 : 1.6;
+//   }
+//   return 0;
+// };
 
-const hasEmergencySignalEvidence = (
-  diagnosis: string,
-  evidence: Record<string, EvidenceState>
-): boolean => {
-  if (/\bmeningitis\b/i.test(diagnosis)) {
-    return evidence.confusion_or_neuro === 'present';
-  }
-  if (/\bsepsis\b/i.test(diagnosis)) {
-    return evidence.confusion_or_neuro === 'present' || evidence.dyspnea === 'present';
-  }
-  return true;
-};
+// DEPRECATED: hasEmergencySignalEvidence removed - used by deleted scoreLlmDiagnosis
+// const hasEmergencySignalEvidence = (
+//   diagnosis: string,
+//   evidence: Record<string, EvidenceState>
+// ): boolean => {
+//   if (/\bmeningitis\b/i.test(diagnosis)) {
+//     return evidence.confusion_or_neuro === 'present';
+//   }
+//   if (/\bsepsis\b/i.test(diagnosis)) {
+//     return evidence.confusion_or_neuro === 'present' || evidence.dyspnea === 'present';
+//   }
+//   return true;
+// };
 
-const scoreLlmDiagnosis = (
-  diagnosis: string,
-  rankIndex: number,
-  evidence: Record<string, EvidenceState>
-): RankedLlmDiagnosis => {
-  const hint = findDiagnosisHint(diagnosis);
-  const prior = Math.max(0.9, 3.2 - rankIndex * 0.38);
-  let score = prior;
-  const supportStates = (hint?.supports || []).map((featureId) => ({
-    featureId,
-    state: evidence[featureId] || 'unknown',
-  }));
-  const nonFeverSupports = supportStates.filter(({ featureId }) => featureId !== 'fever');
-  const hasNonFeverSupport = nonFeverSupports.some(({ state }) => state === 'present');
-  const emergencySignalSatisfied = hasEmergencySignalEvidence(diagnosis, evidence);
-
-  if (hint) {
-    for (const { state } of supportStates) {
-      if (state === 'present') score += 0.85;
-      else if (state === 'absent') score -= 0.55;
-    }
-
-    // Prevent early fixation on pathogen-specific diagnoses when only fever is known.
-    if (nonFeverSupports.length > 0 && !hasNonFeverSupport) {
-      score -= 1.35;
-    }
-
-    for (const featureId of hint.contradicts || []) {
-      if ((evidence[featureId] || 'unknown') === 'present') {
-        score -= 0.9;
-      }
-    }
-
-    score -= applyEmergencySpecificPenalty(diagnosis, evidence);
-  }
-
-  const unknownSupportedFeature = hint?.supports.find((featureId) => evidence[featureId] === 'unknown');
-
-  return {
-    diagnosis,
-    score: Math.max(0, Math.round(score * 10) / 10),
-    emergency: Boolean(hint?.emergency) && emergencySignalSatisfied,
-    followUpQuestion:
-      hint?.followUpQuestion || (unknownSupportedFeature ? featureQuestionById(unknownSupportedFeature) : undefined),
-    pendingActions: dedupeActions(hint?.pendingActions || []),
-  };
-};
+// DEPRECATED: scoreLlmDiagnosis removed - uses deleted findDiagnosisHint and featureQuestionById
+// const scoreLlmDiagnosis = (
+//   diagnosis: string,
+//   rankIndex: number,
+//   evidence: Record<string, EvidenceState>
+// ): RankedLlmDiagnosis => {
+//   const hint = findDiagnosisHint(diagnosis);
+//   const prior = Math.max(0.9, 3.2 - rankIndex * 0.38);
+//   let score = prior;
+//   const supportStates = (hint?.supports || []).map((featureId) => ({
+//     featureId,
+//     state: evidence[featureId] || 'unknown',
+//   }));
+//   const nonFeverSupports = supportStates.filter(({ featureId }) => featureId !== 'fever');
+//   const hasNonFeverSupport = nonFeverSupports.some(({ state }) => state === 'present');
+//   const emergencySignalSatisfied = hasEmergencySignalEvidence(diagnosis, evidence);
+//
+//   if (hint) {
+//     for (const { state } of supportStates) {
+//       if (state === 'present') score += 0.85;
+//       else if (state === 'absent') score -= 0.55;
+//     }
+//
+//     // Prevent early fixation on pathogen-specific diagnoses when only fever is known.
+//     if (nonFeverSupports.length > 0 && !hasNonFeverSupport) {
+//       score -= 1.35;
+//     }
+//
+//     for (const featureId of hint.contradicts || []) {
+//       if ((evidence[featureId] || 'unknown') === 'present') {
+//         score -= 0.9;
+//       }
+//     }
+//
+//     score -= applyEmergencySpecificPenalty(diagnosis, evidence);
+//   }
+//
+//   const unknownSupportedFeature = hint?.supports.find((featureId) => evidence[featureId] === 'unknown');
+//
+//   return {
+//     diagnosis,
+//     score: Math.max(0, Math.round(score * 10) / 10),
+//     emergency: Boolean(hint?.emergency) && emergencySignalSatisfied,
+//     followUpQuestion:
+//       hint?.followUpQuestion || (unknownSupportedFeature ? featureQuestionById(unknownSupportedFeature) : undefined),
+//     pendingActions: dedupeActions(hint?.pendingActions || []),
+//   };
+// };
 
 /**
- * PROBLEM: Rank differential diagnoses with emergency conditions prioritized
- * INPUT: (ddx: string[], evidence: Record<string, EvidenceState>)
- * OUTPUT: RankedLlmDiagnosis[] (sorted by emergency then score)
- *
- * CORRECTNESS PROOF (Total Ordering):
- * Define ordering: a < b iff (a.emergency ∧ ¬b.emergency) ∨
- *                             (a.emergency = b.emergency ∧ a.score > b.score)
- *
- * Properties:
- * 1. Reflexive: a ≮ a ✓
- * 2. Antisymmetric: a < b → b ≮ a ✓
- * 3. Transitive: a < b ∧ b < c → a < c ✓
- * 4. Total: ∀a,b: a < b ∨ b < a ∨ a = b ✓
- *
- * Emergency Prioritization:
- * ∀ emergency e, ∀ non-emergency n: e < n (proven by comparator) ✓
- *
- * COMPLEXITY:
- * Time: O(n log n) where n = |ddx| (comparison-based sort lower bound)
- * Space: O(n) for ranked array
- *
- * TERMINATION: Array.sort() always terminates ✓
- *
- * DEPRECATED: Part of old pattern-matching architecture - will be removed
+ * DEPRECATED: rankLlmDiagnoses removed - uses deleted scoreLlmDiagnosis
  */
-// @ts-ignore - Deprecated function, will be removed in cleanup
-const rankLlmDiagnoses = (
-  ddx: string[],
-  evidence: Record<string, EvidenceState>
-): RankedLlmDiagnosis[] =>
-  ddx
-    .map((diagnosis, index) => scoreLlmDiagnosis(diagnosis, index, evidence))
-    .sort((left, right) => {
-      if (left.emergency && !right.emergency) return -1; // Emergency first
-      if (!left.emergency && right.emergency) return 1;  // Non-emergency second
-      return right.score - left.score;                   // Then by score
-    });
+// /**
+//  * PROBLEM: Rank differential diagnoses with emergency conditions prioritized
+//  * INPUT: (ddx: string[], evidence: Record<string, EvidenceState>)
+//  * OUTPUT: RankedLlmDiagnosis[] (sorted by emergency then score)
+//  *
+//  * CORRECTNESS PROOF (Total Ordering):
+//  * Define ordering: a < b iff (a.emergency ∧ ¬b.emergency) ∨
+//  *                             (a.emergency = b.emergency ∧ a.score > b.score)
+//  *
+//  * Properties:
+//  * 1. Reflexive: a ≮ a ✓
+//  * 2. Antisymmetric: a < b → b ≮ a ✓
+//  * 3. Transitive: a < b ∧ b < c → a < c ✓
+//  * 4. Total: ∀a,b: a < b ∨ b < a ∨ a = b ✓
+//  *
+//  * Emergency Prioritization:
+//  * ∀ emergency e, ∀ non-emergency n: e < n (proven by comparator) ✓
+//  *
+//  * COMPLEXITY:
+//  * Time: O(n log n) where n = |ddx| (comparison-based sort lower bound)
+//  * Space: O(n) for ranked array
+//  *
+//  * TERMINATION: Array.sort() always terminates ✓
+//  *
+//  * DEPRECATED: Part of old pattern-matching architecture - will be removed
+//  */
+// // @ts-ignore - Deprecated function, will be removed in cleanup
+// const rankLlmDiagnoses = (
+//   ddx: string[],
+//   evidence: Record<string, EvidenceState>
+// ): RankedLlmDiagnosis[] =>
+//   ddx
+//     .map((diagnosis, index) => scoreLlmDiagnosis(diagnosis, index, evidence))
+//     .sort((left, right) => {
+//       if (left.emergency && !right.emergency) return -1; // Emergency first
+//       if (!left.emergency && right.emergency) return 1;  // Non-emergency second
+//       return right.score - left.score;                   // Then by score
+//     });
 
 // @ts-ignore - Deprecated function, will be removed in cleanup
 const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
@@ -2405,19 +2111,20 @@ const scoreDisease = (profile: DiseaseProfile, corpus: string): number => {
   return Math.max(0, Math.round(score * 10) / 10);
 };
 
-// @ts-ignore - Deprecated function, will be removed in cleanup
-const rankTopDownProfiles = (corpus: string): RankedDisease[] => {
-  return FEVER_DISEASE_PROFILES.map((profile) => ({
-    profile,
-    score: scoreDisease(profile, corpus),
-  }))
-    .filter((entry) => entry.score >= entry.profile.minScore)
-    .sort((left, right) => {
-      if (left.profile.emergency && !right.profile.emergency) return -1;
-      if (!left.profile.emergency && right.profile.emergency) return 1;
-      return right.score - left.score;
-    });
-};
+// DEPRECATED: rankTopDownProfiles removed - uses deleted FEVER_DISEASE_PROFILES
+// // @ts-ignore - Deprecated function, will be removed in cleanup
+// const rankTopDownProfiles = (corpus: string): RankedDisease[] => {
+//   return FEVER_DISEASE_PROFILES.map((profile) => ({
+//     profile,
+//     score: scoreDisease(profile, corpus),
+//   }))
+//     .filter((entry) => entry.score >= entry.profile.minScore)
+//     .sort((left, right) => {
+//       if (left.profile.emergency && !right.profile.emergency) return -1;
+//       if (!left.profile.emergency && right.profile.emergency) return 1;
+//       return right.score - left.score;
+//     });
+// };
 
 const diseaseToDx = (entry: RankedDisease): string =>
   `${entry.profile.label} (ICD-10: ${entry.profile.icd10})`;
@@ -2552,43 +2259,47 @@ const atLeastDifferential = (phase: string | undefined): AgentPhase => {
   return 'differential';
 };
 
-const presentFeatureIds = (evidence: Record<string, EvidenceState>): string[] =>
-  FEATURE_CUES.map((cue) => cue.id).filter((featureId) => evidence[featureId] === 'present');
+// DEPRECATED: presentFeatureIds removed - FEATURE_CUES deleted
+// const presentFeatureIds = (evidence: Record<string, EvidenceState>): string[] =>
+//   FEATURE_CUES.map((cue) => cue.id).filter((featureId) => evidence[featureId] === 'present');
 
-const isFeverOnlyPresentation = (evidence: Record<string, EvidenceState>): boolean => {
-  const present = presentFeatureIds(evidence);
-  return present.length === 1 && present[0] === 'fever';
-};
+// DEPRECATED: isFeverOnlyPresentation removed - uses deleted presentFeatureIds
+// const isFeverOnlyPresentation = (evidence: Record<string, EvidenceState>): boolean => {
+//   const present = presentFeatureIds(evidence);
+//   return present.length === 1 && present[0] === 'fever';
+// };
 
-const isSpecificFebrileDiagnosis = (diagnosis: string): boolean =>
-  FEVER_PATHOGEN_PATTERNS.some((pattern) => pattern.test(diagnosis));
+// DEPRECATED: isSpecificFebrileDiagnosis removed - FEVER_PATHOGEN_PATTERNS deleted
+// const isSpecificFebrileDiagnosis = (diagnosis: string): boolean =>
+//   FEVER_PATHOGEN_PATTERNS.some((pattern) => pattern.test(diagnosis));
 
-// @ts-ignore - Deprecated function, will be removed in cleanup
-const applyFeverOnlyGuardrail = (
-  candidates: OrchestratedCandidate[],
-  evidence: Record<string, EvidenceState>
-): OrchestratedCandidate[] => {
-  if (!isFeverOnlyPresentation(evidence)) return candidates;
-
-  const downgraded = candidates.map((candidate) => {
-    if (!isSpecificFebrileDiagnosis(candidate.diagnosis)) return candidate;
-    return {
-      ...candidate,
-      score: Math.min(candidate.score, 2.7),
-    };
-  });
-
-  const neutralLead: OrchestratedCandidate = {
-    diagnosis: FEVER_ONLY_LEAD_DIAGNOSIS,
-    score: Math.max(3.1, (downgraded[0]?.score || 2.6) + 0.45),
-    emergency: false,
-    followUpQuestion: FEVER_ONLY_FOLLOW_UP_QUESTION,
-    pendingActions: [FEVER_ONLY_PENDING_ACTION],
-    source: 'profile',
-  };
-
-  return [neutralLead, ...downgraded].sort((left, right) => right.score - left.score);
-};
+// DEPRECATED: applyFeverOnlyGuardrail removed - uses deleted isFeverOnlyPresentation
+// // @ts-ignore - Deprecated function, will be removed in cleanup
+// const applyFeverOnlyGuardrail = (
+//   candidates: OrchestratedCandidate[],
+//   evidence: Record<string, EvidenceState>
+// ): OrchestratedCandidate[] => {
+//   if (!isFeverOnlyPresentation(evidence)) return candidates;
+//
+//   const downgraded = candidates.map((candidate) => {
+//     if (!isSpecificFebrileDiagnosis(candidate.diagnosis)) return candidate;
+//     return {
+//       ...candidate,
+//       score: Math.min(candidate.score, 2.7),
+//     };
+//   });
+//
+//   const neutralLead: OrchestratedCandidate = {
+//     diagnosis: FEVER_ONLY_LEAD_DIAGNOSIS,
+//     score: Math.max(3.1, (downgraded[0]?.score || 2.6) + 0.45),
+//     emergency: false,
+//     followUpQuestion: FEVER_ONLY_FOLLOW_UP_QUESTION,
+//     pendingActions: [FEVER_ONLY_PENDING_ACTION],
+//     source: 'profile',
+//   };
+//
+//   return [neutralLead, ...downgraded].sort((left, right) => right.score - left.score);
+// };
 
 type QuestionIntent = 'most_limiting' | 'symptom_change' | 'pattern' | 'danger_signs';
 
