@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, X, ChevronRight } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Search, X, ChevronRight, Filter } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 
 interface DiagnosticSuggestion {
@@ -17,6 +17,35 @@ interface DiagnosticSearchInputProps {
   quickPicks?: DiagnosticSuggestion[];
   forceClose?: boolean;
 }
+
+// ICD-10 code validation regex
+// Format: Letter + 2 digits + optional (. + 1-2 alphanumeric)
+// Examples: B54, A01.0, E11.9, J45.909
+const ICD10_REGEX = /^[A-Z]\d{2}(\.\d{1,2})?$/;
+
+const validateICD10 = (code: string): boolean => {
+  return ICD10_REGEX.test(code.trim().toUpperCase());
+};
+
+// Extract unique specialties from diagnoses
+const SPECIALTIES = [
+  'All',
+  'Infectious',
+  'Gastrointestinal',
+  'Cardiovascular',
+  'Respiratory',
+  'Endocrine',
+  'Neurological',
+  'Musculoskeletal',
+  'Dermatological',
+  'Psychiatric',
+  'Genitourinary',
+  'Hematological',
+  'Ophthalmological',
+  'Oncological',
+] as const;
+
+type Specialty = typeof SPECIALTIES[number];
 
 const COMMON_DIAGNOSES: DiagnosticSuggestion[] = [
   // Infectious Diseases
@@ -236,6 +265,8 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
 }) => {
   const [focused, setFocused] = useState(false);
   const [suggestions, setSuggestions] = useState<DiagnosticSuggestion[]>([]);
+  const [selectedSpecialty, setSelectedSpecialty] = useState<Specialty>('All');
+  const [showFilters, setShowFilters] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -243,20 +274,27 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
   useEffect(() => {
     if (forceClose) {
       setFocused(false);
+      setShowFilters(false);
     }
   }, [forceClose]);
+
+  // Filter diagnoses by specialty
+  const filteredDiagnoses = useMemo(() => {
+    if (selectedSpecialty === 'All') return COMMON_DIAGNOSES;
+    return COMMON_DIAGNOSES.filter((d) => d.category === selectedSpecialty);
+  }, [selectedSpecialty]);
 
   // Filter suggestions based on input
   useEffect(() => {
     const query = value.trim().toLowerCase();
-    
+
     if (!query || query.length < 2) {
       setSuggestions([]);
       return;
     }
 
-    // Search in common diagnoses
-    const matches = COMMON_DIAGNOSES.filter(
+    // Search in filtered diagnoses (respects specialty filter)
+    const matches = filteredDiagnoses.filter(
       (item) =>
         item.label.toLowerCase().includes(query) ||
         item.icd10?.toLowerCase().includes(query) ||
@@ -264,7 +302,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
     ).slice(0, 8);
 
     setSuggestions(matches);
-  }, [value]);
+  }, [value, filteredDiagnoses]);
 
   const handleSelect = (diagnosis: string, icd10?: string) => {
     onChange(diagnosis, icd10);
@@ -307,7 +345,47 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
             <X size={14} className="text-content-dim" />
           </button>
         )}
+        <button
+          onClick={() => setShowFilters(!showFilters)}
+          className={`shrink-0 p-1.5 rounded-full transition-colors ${
+            showFilters || selectedSpecialty !== 'All'
+              ? 'bg-accent-primary/20 text-accent-primary'
+              : 'hover:bg-black/5 dark:hover:bg-white/5 text-content-dim'
+          }`}
+          title="Filter by specialty"
+        >
+          <Filter size={14} />
+        </button>
       </div>
+
+      {/* Specialty Filters */}
+      <AnimatePresence>
+        {showFilters && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.15 }}
+            className="mt-2 overflow-hidden"
+          >
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              {SPECIALTIES.map((specialty) => (
+                <button
+                  key={specialty}
+                  onClick={() => setSelectedSpecialty(specialty)}
+                  className={`h-8 px-3 rounded-full text-xs font-medium shrink-0 transition-all ${
+                    selectedSpecialty === specialty
+                      ? 'bg-accent-primary text-white'
+                      : 'surface-strong text-content-secondary hover:bg-accent-primary/10'
+                  }`}
+                >
+                  {specialty}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Quick Picks (when empty) */}
       {showQuickPicks && !focused && (
@@ -375,8 +453,20 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
                         <p className="text-sm font-medium text-content-primary truncate">{item.label}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.icd10 && (
-                            <span className="text-[11px] font-mono text-accent-primary">
+                            <span
+                              className={`text-[11px] font-mono ${
+                                validateICD10(item.icd10)
+                                  ? 'text-accent-primary'
+                                  : 'text-danger-primary'
+                              }`}
+                              title={
+                                validateICD10(item.icd10)
+                                  ? 'Valid ICD-10 code'
+                                  : 'Invalid ICD-10 format'
+                              }
+                            >
                               {item.icd10}
+                              {!validateICD10(item.icd10) && ' ⚠'}
                             </span>
                           )}
                           {item.category && (
