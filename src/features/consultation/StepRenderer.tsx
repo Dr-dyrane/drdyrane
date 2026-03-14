@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ImagePlus, Loader2, Timer } from 'lucide-react';
+import { ArrowUp, ImagePlus, Loader2 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
@@ -121,7 +121,6 @@ export const StepRenderer: React.FC = () => {
   const [analyzingImage, setAnalyzingImage] = useState(false);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
-  const [gateCountdown, setGateCountdown] = useState<number | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
   const [interactionError, setInteractionError] = useState<UserFacingError | null>(null);
@@ -487,21 +486,6 @@ export const StepRenderer: React.FC = () => {
   const gateTimeoutSeconds = activeGateSegment?.timeout_seconds;
   const isTimedGateStep = typeof gateTimeoutSeconds === 'number' && gateTimeoutSeconds > 0;
 
-  useEffect(() => {
-    if (!isTimedGateStep || busy || !state.response_options) {
-      setGateCountdown(null);
-      return;
-    }
-    setGateCountdown(gateTimeoutSeconds);
-    const intervalId = window.setInterval(() => {
-      setGateCountdown((prev) => {
-        if (prev === null) return null;
-        return Math.max(0, prev - 1);
-      });
-    }, 1000);
-    return () => window.clearInterval(intervalId);
-  }, [busy, gateTimeoutSeconds, isTimedGateStep, state.response_options]);
-
   const handleInitialInput = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!isProfileOnboardingComplete(state.profile)) {
@@ -644,7 +628,6 @@ export const StepRenderer: React.FC = () => {
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
-  const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
   const activeResponseOptions = React.useMemo(() => {
     const sourceOptions = state.response_options;
     const rawGatePrompt = activeGateSegment?.prompt || resolvedQuestion;
@@ -946,17 +929,6 @@ export const StepRenderer: React.FC = () => {
               )}
 
               <div className="space-y-3 consult-answer-zone">
-                {!busy && isSafetyCheckpoint && (
-                  <p className="ml-10 text-[11px] text-content-dim">Final safety check before diagnosis.</p>
-                )}
-                {!busy && isTimedGateStep && gateCountdown !== null && (
-                  <p className="ml-10 text-[11px] text-content-dim inline-flex items-center gap-1">
-                    <Timer size={11} />
-                    {gateTimerExpired
-                      ? 'You can select an option or type to continue.'
-                      : `Quick response window: ${gateCountdown}s`}
-                  </p>
-                )}
                 {inputHint && (
                   <p className="px-1 text-[11px] text-content-dim">{inputHint}</p>
                 )}

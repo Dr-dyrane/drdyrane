@@ -30,6 +30,8 @@ const getNodeDotClass = (status: string): string => {
   return 'ai-progress-dot ai-progress-dot-pending';
 };
 
+const AUTO_COLLAPSE_DELAY_MS = 1200;
+
 export const AiActivityTimeline: React.FC<AiActivityTimelineProps> = ({
   scope,
   className,
@@ -48,19 +50,30 @@ export const AiActivityTimeline: React.FC<AiActivityTimelineProps> = ({
     (task) => task.status !== 'active' && expanded[task.id] === true
   );
 
+  React.useEffect(() => {
+    if (hasActiveTask || !latestTask || latestTask.status === 'active') return;
+    const timeoutId = window.setTimeout(() => {
+      setExpanded((prev) => {
+        if (Object.keys(prev).length === 0) return prev;
+        return {};
+      });
+    }, AUTO_COLLAPSE_DELAY_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [hasActiveTask, latestTask, latestTask?.id, latestTask?.status]);
+
   if (!hasActiveTask && latestTask && !hasExpandedCompleted) {
     const completed = latestTask.nodes.filter((node) => node.status === 'success').length;
     return (
       <button
         type="button"
         onClick={() => setExpanded((prev) => ({ ...prev, [latestTask.id]: true }))}
-        className={`w-full min-w-0 surface-raised rounded-full px-3.5 h-11 shadow-glass inline-flex items-center justify-between gap-2 interactive-tap ${className || ''}`}
+        className={`w-full min-w-0 surface-raised rounded-full px-3 h-9 shadow-glass inline-flex items-center justify-between gap-2 interactive-tap ${className || ''}`}
         aria-label="Expand Dr progress details"
       >
         <span className="min-w-0 inline-flex items-center gap-2">
           <CheckCircle2 size={14} className="text-accent-primary shrink-0" />
-          <span className="text-xs text-content-primary font-semibold truncate">
-            Dr completed: {latestTask.title}
+          <span className="text-[11px] text-content-primary font-semibold truncate">
+            Dr completed {latestTask.title}
           </span>
         </span>
         <span className="inline-flex items-center gap-1.5 shrink-0 text-[10px] text-content-secondary">
