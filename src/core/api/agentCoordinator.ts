@@ -73,6 +73,8 @@ const YES_ANSWER_PATTERN = /\b(yes|yeah|yep|affirmative|correct|absolutely|certa
 const NO_ANSWER_PATTERN = /\b(no|none|nothing else|nope)\b/i;
 const UNSURE_ANSWER_PATTERN = /\b(not sure|unsure|unknown|maybe|don'?t know|cannot tell|idk)\b/i;
 const NON_SUBSTANTIVE_PATIENT_RESPONSE_PATTERN = /^(ok|okay|alright|fine|hmm+|uh+h*|ah+h*|k|kk)$/i;
+const CONTRADICTION_UPDATE_PATTERN =
+  /\b(actually|but now|however|instead|now also|new symptom|changed|worse now|better now)\b/i;
 const MOST_LIMITING_QUESTION_PATTERN = /\bmost limiting\b|\bstands?\s*out\b/i;
 const SYMPTOM_CHANGE_QUESTION_PATTERN = /\bchanged since\b|\bhow has\b|\bbetter|worse|improved\b/i;
 const SUMMARY_CLARIFY_QUESTION_PATTERN =
@@ -1457,6 +1459,7 @@ export class AgentCoordinator {
     const maxObservedOrder = this.getMaxIntentOrder(conversation);
     const intentOrder = this.getQuestionIntentOrder(intent);
     const summaryReady = this.hasSummaryReadySignal(conversation);
+    const contradictionUpdate = this.hasRecentContradictionUpdate(conversation);
 
     if (!this.hasSingleQuestion(sanitized)) {
       recordInvariantEvent('single_question_enforced', sanitized.slice(0, 140));
@@ -1478,6 +1481,10 @@ export class AgentCoordinator {
         return FINAL_SAFETY_PROMPT;
       }
       return SUMMARY_FINALIZE_PROMPT;
+    }
+
+    if (contradictionUpdate && intent) {
+      return sanitized;
     }
 
     if (intent && !REPEAT_INTENT_EXEMPT.has(intent) && this.hasAnsweredIntent(conversation, intent)) {
@@ -1731,20 +1738,25 @@ export class AgentCoordinator {
     }
     if (isLoopingGenericPrompt(sanitized, conversation)) fallbackReasons.push('generic_loop');
     if (this.isNearDuplicateQuestion(sanitized, lastQuestion)) fallbackReasons.push('duplicate_last');
+    const contradictionUpdate = this.hasRecentContradictionUpdate(conversation);
     const shouldFallback = CONSULT_RELAXED_GUARDS_MODE
-      ? immediateRepeat ||
+      ? (contradictionUpdate
+          ? false
+          : immediateRepeat ||
         fallbackReasons.includes('near_duplicate') ||
         fallbackReasons.includes('answered_topic') ||
         fallbackReasons.includes('generic_loop') ||
-        fallbackReasons.includes('duplicate_last')
-      : hardBlockIntentRepeat ||
+        fallbackReasons.includes('duplicate_last'))
+      : (contradictionUpdate
+          ? false
+          : hardBlockIntentRepeat ||
         immediateRepeat ||
         loopRisk ||
         fallbackReasons.includes('near_duplicate') ||
         fallbackReasons.includes('answered_topic') ||
         fallbackReasons.includes('answered_intent') ||
         fallbackReasons.includes('generic_loop') ||
-        fallbackReasons.includes('duplicate_last');
+        fallbackReasons.includes('duplicate_last'));
     if (!shouldFallback) {
       return this.enforceTurnInvariantQuestion(sanitized, phase, conversation);
     }
@@ -1985,6 +1997,19 @@ export class AgentCoordinator {
     if (UNSURE_ANSWER_PATTERN.test(normalized)) return false;
     if (NON_SUBSTANTIVE_PATIENT_RESPONSE_PATTERN.test(normalized)) return false;
     return /[a-z0-9]/i.test(normalized);
+  }
+
+  private hasRecentContradictionUpdate(
+    conversation: ClinicalState['conversation']
+  ): boolean {
+    for (let index = conversation.length - 1; index >= 0; index -= 1) {
+      const entry = conversation[index];
+      if (entry.role !== 'patient') continue;
+      const content = (entry.content || '').trim();
+      if (!this.isSubstantivePatientResponse(content)) continue;
+      return CONTRADICTION_UPDATE_PATTERN.test(content);
+    }
+    return false;
   }
 
   private resolveSymptomCluster(answerText: string): 'fever' | 'head_pain' | 'airway' | 'gut' | 'general' | 'none' {

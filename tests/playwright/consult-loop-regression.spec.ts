@@ -59,6 +59,43 @@ test.describe('Consult Loop Regression', () => {
   test('progresses even when consult API repeats the same generic question', async ({ page }) => {
     await seedClinicalStorage(page);
 
+    const readDoctorQuestions = async () =>
+      page.evaluate(() => {
+        const host = window as Window & {
+          __drDyraneClinical?: {
+            getState: () => {
+              conversation: Array<{
+                role?: string;
+                metadata?: { question?: string };
+                content?: string;
+              }>;
+            };
+          };
+        };
+        const fromState = host.__drDyraneClinical?.getState?.().conversation;
+        if (Array.isArray(fromState) && fromState.length > 0) {
+          return fromState
+            .filter((entry) => entry?.role === 'doctor')
+            .map((entry) => String(entry?.metadata?.question || entry?.content || '').trim())
+            .filter(Boolean);
+        }
+
+        const raw = localStorage.getItem('dr_dyrane.v2.session');
+        if (!raw) return [] as string[];
+        try {
+          const parsed = JSON.parse(raw);
+          const conversation = parsed?.state?.conversation || [];
+          return conversation
+            .filter((entry: { role?: string }) => entry?.role === 'doctor')
+            .map((entry: { metadata?: { question?: string }; content?: string }) =>
+              String(entry?.metadata?.question || entry?.content || '').trim()
+            )
+            .filter(Boolean);
+        } catch {
+          return [] as string[];
+        }
+      });
+
     await page.route('**/api/consult', async (route) => {
       const requestBody = route.request().postDataJSON() as { patientInput?: string };
       const patientInput = String(requestBody?.patientInput || '');
@@ -134,22 +171,10 @@ test.describe('Consult Loop Regression', () => {
       await option.click();
     }
 
-    const doctorQuestions = await page.evaluate(() => {
-      const raw = localStorage.getItem('dr_dyrane.v2.session');
-      if (!raw) return [] as string[];
-      try {
-        const parsed = JSON.parse(raw);
-        const conversation = parsed?.state?.conversation || [];
-        return conversation
-          .filter((entry: { role?: string }) => entry?.role === 'doctor')
-          .map((entry: { metadata?: { question?: string }; content?: string }) =>
-            String(entry?.metadata?.question || entry?.content || '').trim()
-          )
-          .filter(Boolean);
-      } catch {
-        return [] as string[];
-      }
-    });
+    await expect
+      .poll(async () => (await readDoctorQuestions()).length, { timeout: 5000 })
+      .toBeGreaterThanOrEqual(4);
+    const doctorQuestions = await readDoctorQuestions();
 
     expect(doctorQuestions.length).toBeGreaterThanOrEqual(4);
 

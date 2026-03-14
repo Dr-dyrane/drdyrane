@@ -24,6 +24,18 @@ const findingMatchers: Array<{ label: string; positive: RegExp; negative?: RegEx
 const affirmativeAnswerPattern = /\b(yes|yeah|yep|correct|affirmative|true)\b/i;
 const negativeAnswerPattern = /\b(no|none|nope|not at all|false)\b/i;
 const unclearAnswerPattern = /\b(not sure|unsure|unknown|maybe)\b/i;
+const nonSubstantiveAnswerPattern = /^(ok|okay|alright|fine|hmm+|uh+h*|ah+h*|k|kk)$/i;
+
+const clinicalDimensionMatchers: Array<{ key: string; pattern: RegExp }> = [
+  { key: 'duration_onset', pattern: /\bhow long|since when|when did|start(?:ed)?\b/i },
+  { key: 'pattern_course', pattern: /\bpattern|intermittent|constant|day|night|cyclic|nocturnal\b/i },
+  { key: 'severity_impact', pattern: /\bseverity|how severe|most limiting|limits you|worse|better|changed\b/i },
+  { key: 'associated_symptoms', pattern: /\bassociated symptom|other symptoms|along with|stands out\b/i },
+  { key: 'risk_exposure', pattern: /\btravel|mosquito|exposure|contact|food|water\b/i },
+  { key: 'danger_signs', pattern: /\bdanger signs?|red flags?|breathlessness|confusion|bleeding|persistent vomiting\b/i },
+  { key: 'medication_response', pattern: /\bmedicine|medication|treatment|paracetamol|what helps|what makes it better\b/i },
+  { key: 'trigger_relief', pattern: /\bworse with|better with|trigger|relief|aggravating\b/i },
+];
 
 const normalize = (text: string): string => text.replace(/\s+/g, ' ').trim();
 
@@ -60,6 +72,49 @@ const inferFindingFromQuestion = (question: string): string | null => {
     }
   }
   return null;
+};
+
+const isSubstantivePatientAnswer = (answer: string): boolean => {
+  const normalized = normalize(answer);
+  if (!normalized) return false;
+  if (unclearAnswerPattern.test(normalized)) return false;
+  if (nonSubstantiveAnswerPattern.test(normalized)) return false;
+  return /[a-z0-9]/i.test(normalized);
+};
+
+const inferDimensionFromQuestion = (question: string): string | null => {
+  const normalized = normalize(question);
+  if (!normalized) return null;
+  for (const matcher of clinicalDimensionMatchers) {
+    if (matcher.pattern.test(normalized)) return matcher.key;
+  }
+  return null;
+};
+
+const extractAnsweredDimensions = (conversation: ConversationMessage[]): string[] => {
+  const answered = new Set<string>();
+
+  for (let index = 0; index < conversation.length; index += 1) {
+    const patientEntry = conversation[index];
+    if (patientEntry.role !== 'patient') continue;
+    if (!isSubstantivePatientAnswer(patientEntry.content || '')) continue;
+
+    let previousQuestion = '';
+    for (let reverse = index - 1; reverse >= 0; reverse -= 1) {
+      const doctorEntry = conversation[reverse];
+      if (doctorEntry.role !== 'doctor') continue;
+      previousQuestion = normalize(doctorEntry.metadata?.question || doctorEntry.content || '');
+      if (previousQuestion) break;
+    }
+    if (!previousQuestion) continue;
+
+    const dimension = inferDimensionFromQuestion(previousQuestion);
+    if (dimension) {
+      answered.add(dimension);
+    }
+  }
+
+  return Array.from(answered).slice(0, 12);
 };
 
 export const deriveFindingMemory = (
@@ -167,6 +222,7 @@ export const buildEncounterDossier = (state: ClinicalState): string => {
   const latestPatient = normalize(patientMessages[patientMessages.length - 1]?.content || '');
   const qaPairs = extractQaPairs(state.conversation);
   const findingMemory = deriveFindingMemory(state);
+  const answeredDimensions = extractAnsweredDimensions(state.conversation);
   const longitudinalSummary = buildLongitudinalMemorySummary(state);
 
   const lines = [
@@ -174,6 +230,9 @@ export const buildEncounterDossier = (state: ClinicalState): string => {
     latestPatient ? `Latest update: ${latestPatient}` : null,
     findingMemory.positive.length ? `Positive findings: ${findingMemory.positive.join(', ')}` : null,
     findingMemory.negative.length ? `Negative findings: ${findingMemory.negative.join(', ')}` : null,
+    answeredDimensions.length
+      ? `Answered dimensions: ${answeredDimensions.join(', ')}`
+      : null,
     longitudinalSummary ? `Longitudinal memory: ${longitudinalSummary}` : null,
     state.profile.age ? `Age: ${state.profile.age}` : null,
     state.profile.weight_kg ? `Weight: ${state.profile.weight_kg} kg` : null,

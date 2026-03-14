@@ -184,6 +184,10 @@ CONVERSATION PROTOCOLS:
 22. Follow clinician-grade history order: onset/duration -> qualifiers -> associated symptoms -> exposures/risk factors -> red flags -> impact.
 23. If enough data is already present, avoid repeating intake boilerplate and move to the next discriminating question.
 24. Before final output, recap the working impression briefly and ask if the patient wants the final plan now.
+25. Use telemedicine interview tone: concise, warm, clinical, and natural; avoid survey-like wording.
+26. Avoid repetitive prefixes like "I understand..." on every turn.
+27. If patient provides contradiction or new change, pivot to that update immediately.
+28. Ask questions as a doctor in conversation, not as a form label.
 
 RESPONSE JSON:
 {
@@ -1841,7 +1845,7 @@ const classifyChiefComplaint = (corpus: string): {
     return {
       engineId: 'general',
       label: 'General Intake Engine',
-      starterQuestion: 'What symptom is bothering you the most right now?',
+      starterQuestion: 'Tell me the one symptom troubling you most right now.',
       mustNotMiss: ['Acute collapse', 'Severe respiratory distress', 'Uncontrolled bleeding'],
       confidence: 32,
       reason: 'No clear chief complaint token detected',
@@ -1858,7 +1862,7 @@ const classifyChiefComplaint = (corpus: string): {
     return {
       engineId: 'general',
       label: 'General Intake Engine',
-      starterQuestion: 'What symptom is bothering you the most right now?',
+      starterQuestion: 'Tell me the one symptom troubling you most right now.',
       mustNotMiss: ['Acute collapse', 'Severe respiratory distress', 'Uncontrolled bleeding'],
       confidence: 36,
       reason: 'No direct engine keyword match',
@@ -2330,13 +2334,13 @@ const INTENT_PATTERNS: Record<QuestionIntent, RegExp> = {
 };
 
 const INTENT_SEQUENCE: Array<{ intent: QuestionIntent; question: string }> = [
-  { intent: 'most_limiting', question: 'Which one symptom is most limiting right now?' },
-  { intent: 'symptom_change', question: 'How has that symptom changed since it began?' },
-  { intent: 'pattern', question: 'What pattern do you notice most: day, night, intermittent, or constant?' },
+  { intent: 'most_limiting', question: 'What single symptom is troubling you most right now?' },
+  { intent: 'symptom_change', question: 'Since this started, has that symptom improved, worsened, or stayed the same?' },
+  { intent: 'pattern', question: 'Does it follow a pattern: daytime, nighttime, intermittent, or constant?' },
   {
     intent: 'danger_signs',
     question:
-      'Any danger signs now: breathlessness, confusion, chest pain, persistent vomiting, or bleeding?',
+      'Any danger signs now such as breathlessness, confusion, chest pain, persistent vomiting, or bleeding?',
   },
 ];
 
@@ -2348,7 +2352,7 @@ const SUMMARY_READY_PATIENT_PATTERN =
   /\bready for summary\b|\bsummary\b|\bdone\b|\bno more\b|\bnothing else\b|\bthat'?s all\b|\bproceed\b/i;
 const CONTRADICTION_SIGNAL_PATTERN =
   /\bactually\b|\bbut now\b|\bhowever\b|\binstead\b|\bnew symptom\b|\bnow also\b|\bchanged\b|\bworse now\b|\bbetter now\b/i;
-const FINAL_SUMMARY_QUESTION = 'Would you like your working diagnosis and plan now?';
+const FINAL_SUMMARY_QUESTION = 'Would you like me to finalize your working diagnosis and treatment plan now?';
 
 const detectQuestionIntent = (question: string): QuestionIntent | null => {
   const normalized = sanitizeText(question);
@@ -2586,7 +2590,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
   );
 
   const genericQuestionPattern =
-    /(what symptom is bothering you the most right now|what changed most since symptoms began|what one detail should i clarify before i summarize your working diagnosis)/i;
+    /(what symptom is bothering you the most right now|tell me the one symptom troubling you most right now|what changed most since symptoms began|what one detail should i clarify before i summarize your working diagnosis)/i;
   const progressionFallbackQuestion =
     getNextProgressiveIntentQuestion(body.state?.conversation || [], null) ||
     FINAL_SUMMARY_QUESTION;
@@ -2601,7 +2605,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
         ? payload.question
         : conversationalFallbackQuestion;
   const safeguardedQuestion = enforceQuestionProgression(
-    resolvedQuestion || 'What symptom is bothering you the most right now?',
+    resolvedQuestion || 'Tell me the one symptom troubling you most right now.',
     body.state?.conversation || [],
     body.patientInput || ''
   );
@@ -2627,7 +2631,7 @@ const applyClinicalHeuristics = (body: ConsultRequest, payload: ConsultPayload):
     },
     question:
       safeguardedQuestion ||
-      'What symptom is bothering you the most right now?',
+      'Tell me the one symptom troubling you most right now.',
   }, complaintRoute, lead);
 };
 
