@@ -57,6 +57,7 @@ const PRESENTING_COMPLAINT_MAX_ADDITIONAL = 3;
 const ASSISTIVE_OPTION_SOFT_CAP = 4;
 const HYBRID_CHAT_FIRST_MODE = import.meta.env.VITE_CONSULT_STRUCTURED_GATE !== 'true';
 const ENABLE_STACKED_SYMPTOM_GATE = import.meta.env.VITE_CONSULT_STACKED_GATE === 'true';
+const STRICT_OPTION_CONTRACT_MODE = import.meta.env.VITE_CONSULT_OPTION_CONTRACT_STRICT !== 'false';
 const STACKED_SYMPTOM_SURVEY_PATTERN =
   /(which|what).*(associated symptom|symptom).*(stand out|most|prominent)|most prominent symptom with fever|associated symptom stands out/i;
 const SYMPTOM_SURVEY_SIGNAL_PATTERN =
@@ -136,6 +137,7 @@ const OPTION_INTENT_HINT_PATTERNS = {
 
 export class AgentCoordinator {
   private state: ClinicalState;
+  private interactionTurn = 0;
 
   constructor(initialState: ClinicalState) {
     this.state = initialState;
@@ -144,6 +146,7 @@ export class AgentCoordinator {
   async processPatientInput(input: string): Promise<Partial<ClinicalState>> {
     const normalizedInput = input.trim();
     if (!normalizedInput) return {};
+    this.interactionTurn += 1;
 
     if (isEmergencyInput(normalizedInput)) {
       return {
@@ -1508,7 +1511,14 @@ export class AgentCoordinator {
     const questionIntent = this.detectQuestionIntent(question);
     if (!questionIntent) return false;
     const optionIntent = this.detectOptionIntent(responseOptions);
-    if (!optionIntent) return false;
+    if (!optionIntent) {
+      return (
+        questionIntent === 'danger_signs' ||
+        questionIntent === 'duration' ||
+        questionIntent === 'yes_no' ||
+        questionIntent === 'summary'
+      );
+    }
 
     if (questionIntent === 'danger_signs') {
       return optionIntent !== 'danger_signs' && optionIntent !== 'yes_no';
@@ -1523,6 +1533,74 @@ export class AgentCoordinator {
       return optionIntent !== 'summary' && optionIntent !== 'yes_no';
     }
     return false;
+  }
+
+  private buildStrictOptionContractOptions(
+    question: string,
+    profile: ClinicalState['profile'],
+    questionIntent: QuestionIntent | null
+  ): ResponseOptions {
+    if (questionIntent === 'duration') {
+      return {
+        mode: 'single',
+        ui_variant: 'stack',
+        options: [
+          { id: 'today', text: 'Started today' },
+          { id: 'd1-2', text: '1-2 days ago' },
+          { id: 'd3-4', text: '3-4 days ago' },
+          { id: 'd5-7', text: '5-7 days ago' },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Choose when symptoms began.',
+      };
+    }
+    if (questionIntent === 'danger_signs') {
+      return {
+        mode: 'single',
+        ui_variant: 'grid',
+        options: [
+          { id: 'none', text: 'None of these' },
+          { id: 'breathless', text: 'Breathlessness' },
+          { id: 'confusion', text: 'Confusion' },
+          { id: 'chest', text: 'Chest pain' },
+          { id: 'vomiting', text: 'Persistent vomiting' },
+          { id: 'bleeding', text: 'Bleeding' },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Select any danger sign, or choose none.',
+      };
+    }
+    if (questionIntent === 'summary') {
+      return {
+        mode: 'single',
+        ui_variant: 'segmented',
+        options: [
+          { id: 'summary-ready', text: 'Ready for summary', category: 'summary' },
+          { id: 'summary-add-detail', text: 'Add one detail', category: 'summary' },
+          { id: 'summary-not-sure', text: 'Not sure', category: 'summary' },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Choose to summarize now or add one last detail.',
+      };
+    }
+    if (questionIntent === 'yes_no') {
+      return {
+        mode: 'single',
+        ui_variant: 'segmented',
+        options: [
+          { id: 'yes', text: 'Yes' },
+          { id: 'no', text: 'No' },
+          { id: 'unsure', text: 'Not sure' },
+        ],
+        allow_custom_input: true,
+        context_hint: 'Yes or No.',
+      };
+    }
+    return buildLocalOptions(question, profile);
+  }
+
+  private getOptionContractTurnTag(): string {
+    return this.interactionTurn > 0 ? `turn:${this.interactionTurn}` : 'turn:sync';
   }
 
   private getLatestDoctorQuestion(conversation: ClinicalState['conversation']): string {
@@ -1553,26 +1631,58 @@ export class AgentCoordinator {
     const latestQuestion = activePrompt || this.getLatestDoctorQuestion(conversation);
     if (!latestQuestion) return responseOptions;
 
-    const questionIntent = this.detectQuestionIntent(latestQuestion) || 'none';
+    const questionIntent = this.detectQuestionIntent(latestQuestion);
+    const questionIntentLabel = questionIntent || 'none';
     const incomingOptionIntent = this.detectOptionIntent(responseOptions) || 'none';
+    const turnTag = this.getOptionContractTurnTag();
     const aligned = this.ensureOptionIntentAlignment(latestQuestion, responseOptions, profile);
     if (aligned !== responseOptions) {
       const alignedOptionIntent = this.detectOptionIntent(aligned) || 'none';
       recordInvariantEvent(
         'options_corrected',
-        `aligned:${questionIntent}:${incomingOptionIntent}->${alignedOptionIntent}`
+        `aligned:${questionIntentLabel}:${incomingOptionIntent}->${alignedOptionIntent}`
+      );
+      recordInvariantEvent(
+        'option_contract_enforced',
+        `${turnTag}:aligned:${questionIntentLabel}:${incomingOptionIntent}->${alignedOptionIntent}`
       );
     }
     if (!this.isOptionIntentMismatch(latestQuestion, aligned)) {
       return aligned;
     }
+
     const fallback = buildLocalOptions(latestQuestion, profile);
     const fallbackOptionIntent = this.detectOptionIntent(fallback) || 'none';
     recordInvariantEvent(
       'options_corrected',
-      `fallback:${questionIntent}:${this.detectOptionIntent(aligned) || 'none'}->${fallbackOptionIntent}`
+      `fallback:${questionIntentLabel}:${this.detectOptionIntent(aligned) || 'none'}->${fallbackOptionIntent}`
     );
-    return fallback;
+    if (!this.isOptionIntentMismatch(latestQuestion, fallback)) {
+      recordInvariantEvent(
+        'option_contract_enforced',
+        `${turnTag}:fallback:${questionIntentLabel}:${this.detectOptionIntent(aligned) || 'none'}->${fallbackOptionIntent}`
+      );
+      return fallback;
+    }
+
+    const strictFallback = STRICT_OPTION_CONTRACT_MODE
+      ? this.buildStrictOptionContractOptions(latestQuestion, profile, questionIntent)
+      : fallback;
+    const strictFallbackIntent = this.detectOptionIntent(strictFallback) || 'none';
+
+    if (!this.isOptionIntentMismatch(latestQuestion, strictFallback)) {
+      recordInvariantEvent(
+        'option_contract_enforced',
+        `${turnTag}:strict:${questionIntentLabel}:${fallbackOptionIntent}->${strictFallbackIntent}`
+      );
+      return strictFallback;
+    }
+
+    recordInvariantEvent(
+      'option_contract_failed',
+      `${turnTag}:strict:${questionIntentLabel}:${fallbackOptionIntent}->${strictFallbackIntent}`
+    );
+    return strictFallback;
   }
 
   private ensureProgressiveQuestion(

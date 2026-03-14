@@ -1,0 +1,1588 @@
+{
+  "scenarios": [
+    {
+      "id": "fever.ambiguous_transition",
+      "description": "Fever Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have fever with chills.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I just feel warm on and off, not sure if true fever.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "fever.contradiction_transition",
+      "description": "Fever Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have fever with chills.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I said fever but temperature is normal and no heat sensation now.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "chest_pain.ambiguous_transition",
+      "description": "Chest Pain Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have chest pain.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "It is mild, brief, and hard to describe.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "chest_pain.contradiction_transition",
+      "description": "Chest Pain Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have chest pain.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Pain is present but no pain when asked about location or trigger.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "shortness_of_breath.ambiguous_transition",
+      "description": "Shortness of Breath Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have shortness of breath.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Sometimes I feel air hunger but it comes and goes.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "shortness_of_breath.contradiction_transition",
+      "description": "Shortness of Breath Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have shortness of breath.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I report breathlessness but can run without symptoms.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "headache.ambiguous_transition",
+      "description": "Headache Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have severe headache.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Headache is vague and shifts location during the day.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "headache.contradiction_transition",
+      "description": "Headache Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have severe headache.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I report severe headache but pain score is near zero.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "abdominal_pain.ambiguous_transition",
+      "description": "Abdominal Pain Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have abdominal pain.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Discomfort is diffuse and changes after meals.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "abdominal_pain.contradiction_transition",
+      "description": "Abdominal Pain Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have abdominal pain.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I report pain but no tenderness or worsening pattern.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "vomiting_nausea.ambiguous_transition",
+      "description": "Vomiting/Nausea Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have nausea and vomiting.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Nausea is mild and inconsistent through the day.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "vomiting_nausea.contradiction_transition",
+      "description": "Vomiting/Nausea Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have nausea and vomiting.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I report vomiting but no episodes in the last 24 hours.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "diarrhea.ambiguous_transition",
+      "description": "Diarrhea Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have diarrhea.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Loose stool occurs occasionally without clear pattern.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "diarrhea.contradiction_transition",
+      "description": "Diarrhea Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have diarrhea.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I report diarrhea but bowel frequency is normal.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "rash.ambiguous_transition",
+      "description": "Rash Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have a new rash.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Skin spots are intermittent and not clearly visible now.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "rash.contradiction_transition",
+      "description": "Rash Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have a new rash.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "I report rash but there is no visible skin change.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "joint_pain.ambiguous_transition",
+      "description": "Joint Pain Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have joint pain.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Joint pain shifts and has no clear swelling.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "joint_pain.contradiction_transition",
+      "description": "Joint Pain Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I have joint pain.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Pain reported but no movement limitation or tenderness.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "weakness_fatigue.ambiguous_transition",
+      "description": "Weakness/Fatigue Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I feel weak and fatigued.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Fatigue is present but fluctuates with sleep.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "weakness_fatigue.contradiction_transition",
+      "description": "Weakness/Fatigue Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I feel weak and fatigued.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Severe weakness reported but normal activity maintained.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "bleeding.ambiguous_transition",
+      "description": "Bleeding Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I noticed bleeding.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Minor spotting occurred once and stopped.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "bleeding.contradiction_transition",
+      "description": "Bleeding Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I noticed bleeding.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Bleeding reported but no source identified.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "altered_mental_status.ambiguous_transition",
+      "description": "Altered Mental Status Engine ambiguous-path transition replay.",
+      "transcript": [
+        {
+          "input": "I am confused and not thinking clearly.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Mild forgetfulness without clear acute trigger.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Not sure",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    },
+    {
+      "id": "altered_mental_status.contradiction_transition",
+      "description": "Altered Mental Status Engine contradiction-path transition replay.",
+      "transcript": [
+        {
+          "input": "I am confused and not thinking clearly.",
+          "assert": {
+            "intent": "duration",
+            "option_intent": "timeline"
+          }
+        },
+        {
+          "input": "1-2 days ago",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "pattern",
+              "danger_signs"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "Confusion reported but orientation is fully intact.",
+          "assert": {
+            "intent_one_of": [
+              "yes_no",
+              "most_limiting",
+              "symptom_change",
+              "pattern",
+              "danger_signs",
+              "summary"
+            ],
+            "option_intent_one_of": [
+              "yes_no",
+              "danger_signs",
+              "timeline",
+              "summary"
+            ]
+          }
+        },
+        {
+          "input": "No",
+          "assert": {
+            "status_one_of": [
+              "active",
+              "complete",
+              "emergency"
+            ]
+          }
+        }
+      ],
+      "final": {
+        "status_one_of": [
+          "active",
+          "complete",
+          "emergency"
+        ]
+      }
+    }
+  ]
+}

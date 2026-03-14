@@ -6,6 +6,8 @@ export type InvariantEventType =
   | 'gate_progress_preserved'
   | 'conversation_regression_blocked'
   | 'gate_dropped_chat_first'
+  | 'option_contract_enforced'
+  | 'option_contract_failed'
   | 'options_corrected'
   | 'selections_cleared';
 
@@ -33,6 +35,8 @@ const createEmptyCounts = (): Record<InvariantEventType, number> => ({
   gate_progress_preserved: 0,
   conversation_regression_blocked: 0,
   gate_dropped_chat_first: 0,
+  option_contract_enforced: 0,
+  option_contract_failed: 0,
   options_corrected: 0,
   selections_cleared: 0,
 });

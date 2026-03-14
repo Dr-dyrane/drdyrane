@@ -133,6 +133,8 @@ test.describe('Consult Invariant Audit', () => {
       const payload = host.__drDyraneInvariantAudit?.getSnapshot?.();
       return {
         optionsCorrected: payload?.counts?.options_corrected || 0,
+        optionContractEnforced: payload?.counts?.option_contract_enforced || 0,
+        optionContractFailed: payload?.counts?.option_contract_failed || 0,
         selectionsCleared: payload?.counts?.selections_cleared || 0,
         details: Array.isArray(payload?.events)
           ? payload.events.map((event) => String(event?.detail || ''))
@@ -141,8 +143,10 @@ test.describe('Consult Invariant Audit', () => {
     });
 
     expect(snapshot.optionsCorrected).toBeGreaterThan(0);
+    expect(snapshot.optionContractEnforced).toBeGreaterThan(0);
+    expect(snapshot.optionContractFailed).toBe(0);
     expect(snapshot.selectionsCleared).toBeGreaterThan(0);
     expect(snapshot.details.some((detail) => detail.includes('danger_signs:timeline'))).toBeTruthy();
+    expect(snapshot.details.some((detail) => detail.includes('turn:'))).toBeTruthy();
   });
 });
-

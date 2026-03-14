@@ -16,6 +16,7 @@
     "e2e:deterministic": "npm run e2e:matrix",
     "e2e:integration": "node scripts/e2e-transcript-replay.mjs",
     "e2e:integration:strict": "node scripts/e2e-transcript-replay.mjs --require-llm",
+    "e2e:integration:transitions": "node scripts/e2e-transcript-replay.mjs --spec scripts/specs/transcript-engine-transitions.json",
     "test:ui": "playwright test",
     "test:ui:engines": "playwright test tests/playwright/engine-smoke.spec.ts",
     "test:ui:scan": "playwright test tests/playwright/scan-treatment-synthesis.spec.ts",

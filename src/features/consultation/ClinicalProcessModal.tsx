@@ -81,10 +81,15 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
     { label: 'Gate progress preserved', value: invariantAudit.counts.gate_progress_preserved },
     { label: 'Conversation preserved', value: invariantAudit.counts.conversation_regression_blocked },
     { label: 'Gate dropped (chat-first)', value: invariantAudit.counts.gate_dropped_chat_first },
+    { label: 'Option contract enforced', value: invariantAudit.counts.option_contract_enforced },
+    { label: 'Option contract failed', value: invariantAudit.counts.option_contract_failed },
     { label: 'Options corrected', value: invariantAudit.counts.options_corrected },
     { label: 'Selections cleared', value: invariantAudit.counts.selections_cleared },
   ] as const;
   const recentInvariantEvents = invariantAudit.events.slice(0, 4);
+  const recentOptionContractFailures = invariantAudit.events
+    .filter((event) => event.type === 'option_contract_failed')
+    .slice(0, 4);
   const confidence = normalizePercentage(
     state.probability || state.agent_state.confidence || 0,
     0
@@ -261,7 +266,26 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
                               minute: '2-digit',
                               second: '2-digit',
                             })}
-                            {event.detail ? ` · ${event.detail}` : ''}
+                            {event.detail ? ` | ${event.detail}` : ''}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {recentOptionContractFailures.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[11px] text-content-dim">Option contract fail reasons</p>
+                      {recentOptionContractFailures.map((event) => (
+                        <div key={`${event.id}-contract`} className="surface-raised rounded-2xl px-3 py-2">
+                          <p className="text-[11px] text-content-secondary">
+                            {new Date(event.timestamp).toLocaleTimeString([], {
+                              hour: 'numeric',
+                              minute: '2-digit',
+                              second: '2-digit',
+                            })}
+                          </p>
+                          <p className="text-[11px] text-content-dim mt-0.5">
+                            {event.detail || 'No detail'}
                           </p>
                         </div>
                       ))}
@@ -311,4 +335,5 @@ export const ClinicalProcessModal: React.FC<ClinicalProcessModalProps> = ({ isOp
     </OverlayPortal>
   );
 };
+
 

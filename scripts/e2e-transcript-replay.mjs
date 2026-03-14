@@ -11,8 +11,7 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const specPath = path.join(__dirname, 'specs', 'transcript-replay.json');
-const spec = JSON.parse(fs.readFileSync(specPath, 'utf-8'));
+const defaultSpecPath = path.join(__dirname, 'specs', 'transcript-replay.json');
 
 const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:4173';
 
@@ -21,6 +20,7 @@ const parseArgs = (argv) => {
     strict: true,
     requireLlm: false,
     scenarios: [],
+    spec: defaultSpecPath,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -38,6 +38,12 @@ const parseArgs = (argv) => {
         .split(',')
         .map((value) => value.trim())
         .filter(Boolean);
+      index += 1;
+      continue;
+    }
+    if (arg === '--spec' && argv[index + 1]) {
+      const next = argv[index + 1].trim();
+      args.spec = path.isAbsolute(next) ? next : path.resolve(process.cwd(), next);
       index += 1;
     }
   }
@@ -171,6 +177,14 @@ const assertTurnContract = ({ scenario, turnIndex, response, options, assertion 
     );
   }
 
+  if (Array.isArray(assertion.option_intent_one_of) && assertion.option_intent_one_of.length > 0) {
+    const actualOptionIntent = detectOptionIntent(options);
+    ensure(
+      assertion.option_intent_one_of.includes(actualOptionIntent),
+      `${label}: expected option intent in [${assertion.option_intent_one_of.join(', ')}], got ${actualOptionIntent || 'none'}`
+    );
+  }
+
   if (Array.isArray(assertion.status_one_of) && assertion.status_one_of.length > 0) {
     ensure(
       assertion.status_one_of.includes(response.status),
@@ -258,6 +272,7 @@ const runScenario = async ({ scenario, strict }) => {
 
 const run = async () => {
   const args = parseArgs(process.argv.slice(2));
+  const spec = JSON.parse(fs.readFileSync(args.spec, 'utf-8'));
   if (!hasAnyLlmKey() && !args.requireLlm) {
     console.log('SKIP transcript replay: no OPENAI_API_KEY or ANTHROPIC_API_KEY in environment.');
     return;
