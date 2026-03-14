@@ -30,6 +30,7 @@ export type OptionsRequest = {
   lastQuestion: string;
   agentState: Record<string, unknown>;
   currentSOAP: Record<string, unknown>;
+  recentConversation?: ConversationEntry[];
 };
 
 export type VisionRequest = {
@@ -240,13 +241,21 @@ PHASE DISCIPLINE:
 - DO NOT jump to "working diagnosis and plan" until you have completed adequate history
 - DO NOT ask "would you like your working diagnosis" until you have enough information to make one
 
+ANTI-REPETITION & SPOT DIAGNOSIS RULES:
+- You will receive a list of "QUESTIONS YOU HAVE ALREADY ASKED" in the context
+- NEVER repeat any question from that list
+- If you need clarification, rephrase significantly or ask about a different aspect
+- SPOT DIAGNOSIS: If diagnosis is obvious from presenting complaint alone (e.g., tetanus prophylaxis after rusty nail injury, simple viral URTI), offer diagnosis immediately - don't force full clerking
+- When asking questions to rule out differentials, state your reasoning in "thinking" field (e.g., "Ruling out meningitis with neck stiffness question")
+- Each question should target a DIFFERENT differential or clinical aspect
+- If patient has already provided information, use it - don't ask again
+
 CONVERSATION STYLE:
 - Ask ONE focused question per turn
 - Conversational but professional tone
 - Avoid robotic phrases like "Thank you for confirming"
 - Mirror patient language to build rapport
 - Keep questions <140 characters when possible
-- Never repeat questions already asked
 - If patient gives new/contradictory information, pivot immediately
 
 TECHNICAL REQUIREMENTS:
@@ -291,6 +300,12 @@ RESPONSE JSON:
 
 export const OPTIONS_SYSTEM_PROMPT = `You are an expert clinical decision support system generating patient response options.
 Your goal is to help patients answer clinical history questions naturally while maintaining their own voice.
+
+CRITICAL: You will receive the recent conversation history. Use it to:
+- Avoid suggesting responses that contradict what the patient has already said
+- Build on previous answers to maintain consistency
+- Match the patient's tone and language style
+- Provide options that make sense in the context of the ongoing conversation
 
 CORE RULES:
 - Return only valid JSON.
@@ -3182,10 +3197,10 @@ const runCollaborative = async <T>(
 };
 
 const buildConversationPrompt = (body: ConsultRequest): string => {
-  const recentDoctorQuestions = (body.state?.conversation || [])
+  // Extract ALL doctor questions to prevent repetition
+  const allDoctorQuestions = (body.state?.conversation || [])
     .filter((entry) => entry.role === 'doctor')
-    .map((entry) => entry.content)
-    .slice(-4);
+    .map((entry) => entry.content);
 
   return `CONTEXT:
 Current SOAP: ${JSON.stringify(body.state?.soap || {})}
@@ -3193,13 +3208,22 @@ Agent State: ${JSON.stringify(body.state?.agent_state || {})}
 Differential (DDX): ${(body.state?.ddx || []).join(', ')}
 Urgency: ${body.state?.urgency || 'low'}
 Confidence: ${body.state?.probability || 0}%
-Recent Doctor Questions: ${JSON.stringify(recentDoctorQuestions)}
 Positive Findings Memory: ${JSON.stringify((body.state?.agent_state as Record<string, unknown>)?.positive_findings || [])}
 Negative Findings Memory: ${JSON.stringify((body.state?.agent_state as Record<string, unknown>)?.negative_findings || [])}
 Safety Checkpoint Memory: ${JSON.stringify((body.state?.agent_state as Record<string, unknown>)?.must_not_miss_checkpoint || {})}
 Clinical Memory Dossier: ${body.state?.memory_dossier || 'No structured dossier yet.'}
 Deployment Region: Nigeria (default context)
 Interview Mode: Conversational telemedicine history-taking (free chat with optional guided suggestions)
+
+QUESTIONS YOU HAVE ALREADY ASKED:
+${allDoctorQuestions.length > 0 ? allDoctorQuestions.map((q, i) => `${i + 1}. ${q}`).join('\n') : 'None yet (this is the first question).'}
+
+CRITICAL ANTI-REPETITION RULE:
+- DO NOT ask any question from the list above
+- If you need clarification on something already asked, rephrase significantly or ask about a different aspect
+- If patient has already answered a question, use that information - don't ask again
+- Remember: Sometimes it's a SPOT DIAGNOSIS - if the diagnosis is obvious and no differentials need ruling out, offer the diagnosis immediately
+- If you're asking questions to rule out differentials, make sure each question targets a DIFFERENT differential or aspect
 
 Patient Input: "${body.patientInput || ''}"
 
@@ -3243,9 +3267,22 @@ const executeOptionsWithProvider = async (
   provider: LlmProvider,
   body: OptionsRequest
 ): Promise<OptionsPayload> => {
+  // Build conversation context
+  const conversationContext = (body.recentConversation || [])
+    .map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`)
+    .join('\n');
+
   const userPrompt = `LAST DOCTOR QUESTION: "${body.lastQuestion || ''}"
 AGENT STATE: ${JSON.stringify(body.agentState || {})}
 CURRENT SOAP: ${JSON.stringify(body.currentSOAP || {})}
+
+RECENT CONVERSATION:
+${conversationContext || 'No conversation history available.'}
+
+CRITICAL: Use the conversation history above to:
+- Avoid suggesting responses that contradict what the patient has already said
+- Match the patient's tone and language style from previous answers
+- Provide options that make sense in the context of the ongoing conversation
 
 Return only valid JSON.`;
 

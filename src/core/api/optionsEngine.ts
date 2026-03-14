@@ -245,7 +245,8 @@ const normalizeResponseOptions = (
 export const generateResponseOptions = async (
   lastQuestion: string,
   agentState: ClinicalState['agent_state'],
-  currentSOAP: ClinicalState['soap']
+  currentSOAP: ClinicalState['soap'],
+  recentConversation: ClinicalState['conversation'] = []
 ): Promise<ResponseOptions> => {
   const activity = beginAiTask({
     scope: 'consult',
@@ -258,6 +259,12 @@ export const generateResponseOptions = async (
   });
   activity.start('prepare', 'Building options request');
 
+  // Extract recent conversation for context
+  const conversationContext = recentConversation.slice(-10).map((msg) => ({
+    role: msg.role,
+    content: msg.content,
+  }));
+
   const optionsCacheKey = [
     'options',
     lastQuestion.trim().toLowerCase(),
@@ -265,6 +272,7 @@ export const generateResponseOptions = async (
     agentState.focus_area,
     JSON.stringify(currentSOAP?.S || {}),
     JSON.stringify(currentSOAP?.A || {}),
+    JSON.stringify(conversationContext),
   ].join('::');
 
   const cached = getPromptCache<ResponseOptions>(optionsCacheKey);
@@ -290,6 +298,7 @@ export const generateResponseOptions = async (
         lastQuestion,
         agentState,
         currentSOAP,
+        recentConversation: conversationContext,
       })
     });
 

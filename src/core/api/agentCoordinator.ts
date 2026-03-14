@@ -1334,7 +1334,12 @@ export class AgentCoordinator {
     const localFallback = buildLocalOptions(question, profile);
     const structuredQuestion = isStructuredLocalQuestion(question);
     try {
-      const aiOptions = await generateResponseOptions(question, agentState, currentSOAP);
+      const aiOptions = await generateResponseOptions(
+        question,
+        agentState,
+        currentSOAP,
+        this.state.conversation // Pass conversation history to options engine
+      );
       const alignedOptions = this.ensureOptionIntentAlignment(question, aiOptions, profile);
       if (!isOptionSetRelevant(question, alignedOptions)) {
         return this.ensureOptionIntentAlignment(question, localFallback, profile);
