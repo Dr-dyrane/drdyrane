@@ -368,6 +368,7 @@ const initialState: ClinicalState = {
   probability: 0,
   urgency: 'low',
   thinking: 'Ready to begin clinical assessment',
+  working_contract: null,
   question_gate: null,
   profile: defaultProfile(),
   settings: defaultSettings(),
@@ -459,6 +460,7 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
     status: target.status,
     redFlag: target.redFlag,
     pillars: target.pillars,
+    working_contract: target.working_contract,
     conversation: [...target.conversation],
     agent_state: { ...target.agent_state },
     probability: target.probability,
@@ -857,6 +859,7 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
         probability: snapshot.probability,
         urgency: snapshot.urgency,
         thinking: snapshot.thinking,
+        working_contract: snapshot.working_contract || null,
         response_options: null,
         selected_options: [],
         question_gate: null,
@@ -914,6 +917,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         );
         if (parsed.probability === undefined) parsed.probability = 0;
         if (parsed.urgency === undefined) parsed.urgency = 'low';
+        parsed.working_contract = parsed.working_contract ?? null;
         if (!parsed.agent_state) parsed.agent_state = { ...defaultAgentState() };
         if (!Array.isArray(parsed.agent_state.positive_findings)) {
           parsed.agent_state.positive_findings = [];
@@ -980,6 +984,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             probability: (record as { probability?: number }).probability ?? 0,
             urgency: (record as { urgency?: ClinicalState['urgency'] }).urgency || 'low',
             thinking: (record as { thinking?: string }).thinking || '',
+            working_contract: (record as { working_contract?: ClinicalState['working_contract'] }).working_contract || null,
             clerking: record.clerking || {
               ...defaultClerking(),
               hpc: legacyClerkingNotes.join('\n'),

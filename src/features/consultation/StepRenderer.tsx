@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ImagePlus, Loader2 } from 'lucide-react';
+import { ArrowUp, ChevronDown, ChevronRight, ImagePlus, Loader2 } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
@@ -123,6 +123,7 @@ export const StepRenderer: React.FC = () => {
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
+  const [showWorkingDetails, setShowWorkingDetails] = useState(false);
   const [interactionError, setInteractionError] = useState<UserFacingError | null>(null);
   const [guardNotice, setGuardNotice] = useState<{
     id: string;
@@ -687,6 +688,11 @@ export const StepRenderer: React.FC = () => {
   }, [activeResponseOptions, isSafetyCheckpoint]);
   const showInput = true;
   const loadingPhaseLabel = LOADING_PHASES[loadingPhaseIndex] || 'Analyzing history';
+  const workingContract = state.working_contract;
+
+  useEffect(() => {
+    setShowWorkingDetails(false);
+  }, [workingContract?.diagnosis?.label, workingContract?.diagnosis?.icd10]);
 
   if (state.status === 'complete') return null;
 
@@ -882,6 +888,101 @@ export const StepRenderer: React.FC = () => {
                     </div>
                   </div>
                 </motion.div>
+              )}
+
+              {workingContract && (
+                <div className="ml-10">
+                  <section className="surface-raised rounded-[20px] shadow-glass p-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowWorkingDetails((prev) => !prev)}
+                      className="w-full inline-flex items-center justify-between gap-2 tap-compact interactive-tap"
+                      aria-label={
+                        showWorkingDetails
+                          ? 'Collapse working diagnosis details'
+                          : 'Expand working diagnosis details'
+                      }
+                    >
+                      <div className="min-w-0 space-y-0.5 text-left">
+                        <p className="text-[10px] uppercase tracking-wide text-content-dim">Working Diagnosis</p>
+                        <p className="text-sm text-content-primary font-semibold truncate">
+                          {workingContract.diagnosis.label}
+                        </p>
+                      </div>
+                      <div className="shrink-0 inline-flex items-center gap-1.5">
+                        <span className="h-7 px-2.5 rounded-full surface-chip text-[10px] text-content-secondary font-semibold">
+                          {workingContract.diagnosis.icd10}
+                        </span>
+                        <span className="h-7 px-2 rounded-full surface-chip text-[10px] text-content-secondary font-semibold">
+                          {Math.max(0, Math.min(100, Math.round(workingContract.diagnosis.confidence || 0)))}%
+                        </span>
+                        {showWorkingDetails ? (
+                          <ChevronDown size={13} className="text-content-dim" />
+                        ) : (
+                          <ChevronRight size={13} className="text-content-dim" />
+                        )}
+                      </div>
+                    </button>
+
+                    <AnimatePresence initial={false}>
+                      {showWorkingDetails && (
+                        <motion.div
+                          initial={{ opacity: 0, y: -4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.16 }}
+                          className="pt-2.5 space-y-2.5"
+                        >
+                          {workingContract.differentials.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-[10px] uppercase tracking-wide text-content-dim">
+                                Differentials
+                              </p>
+                              {workingContract.differentials.slice(0, 3).map((entry) => (
+                                <p key={`${entry.label}-${entry.icd10}`} className="text-xs text-content-secondary">
+                                  {entry.label} ({entry.icd10})
+                                </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {workingContract.management.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-[10px] uppercase tracking-wide text-content-dim">Management</p>
+                              {workingContract.management.slice(0, 2).map((line, index) => (
+                                <p key={`mgmt-${index}`} className="text-xs text-content-secondary">
+                                  {line}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {workingContract.investigations.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-[10px] uppercase tracking-wide text-content-dim">Investigations</p>
+                              {workingContract.investigations.slice(0, 2).map((line, index) => (
+                                <p key={`inv-${index}`} className="text-xs text-content-secondary">
+                                  {line}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+
+                          {workingContract.counseling.length > 0 && (
+                            <div className="space-y-1">
+                              <p className="text-[10px] uppercase tracking-wide text-content-dim">Counseling</p>
+                              {workingContract.counseling.slice(0, 2).map((line, index) => (
+                                <p key={`csl-${index}`} className="text-xs text-content-secondary">
+                                  {line}
+                                </p>
+                              ))}
+                            </div>
+                          )}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </section>
+                </div>
               )}
 
               {busy && hasDoctorInTranscript && (

@@ -237,6 +237,7 @@ export interface ConsultationSnapshot {
   status: ConsultationStatus;
   redFlag: boolean;
   pillars: PillarData | null;
+  working_contract?: ClinicalOutputContract | null;
   conversation: ConversationMessage[];
   agent_state: AgentState;
   probability: number;
@@ -269,6 +270,7 @@ export interface ClinicalState {
   probability: number; // 0-100 certainty
   urgency: 'low' | 'medium' | 'high' | 'critical';
   thinking?: string; // Dr's current clinical focus
+  working_contract: ClinicalOutputContract | null;
   question_gate: QuestionGateState | null;
   profile: UserProfile;
   settings: AppSettings;

@@ -558,6 +558,7 @@ export class AgentCoordinator {
         profile: profileForTurn,
         clerking: buildAutoClerking(this.state.clerking, this.state.soap, conversation, profileForTurn),
         pillars: finalPlan,
+        working_contract: this.lastClinicalContract || this.state.working_contract || null,
         agent_state: nextAgentState,
         question_gate: null,
         response_options: null,
@@ -986,6 +987,7 @@ export class AgentCoordinator {
         thinking: 'Running mandatory must-not-miss safety exclusion before final output.',
         status: 'active',
         pillars: null,
+        working_contract: conversationResult.clinical_contract,
         question_gate: checkpointGate,
         response_options: {
           ...checkpointOptions,
@@ -1107,6 +1109,7 @@ export class AgentCoordinator {
       thinking: conversationResult.thinking,
       status: nextStatus,
       pillars: nextPillars,
+      working_contract: conversationResult.clinical_contract,
       question_gate: resolvedQuestionGate,
       response_options: resolvedResponseOptions,
       selected_options: [],
