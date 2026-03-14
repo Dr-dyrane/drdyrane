@@ -26,6 +26,7 @@
     "test:quality": "npm run lint && npm run e2e:deterministic && npm run test:ui:engines && npm run test:ui:scan && npm run test:ui:consult:regression"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.35.1",
     "jspdf": "^4.2.0",
