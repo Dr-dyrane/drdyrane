@@ -40,6 +40,25 @@ export interface PillarData {
   };
 }
 
+export interface ClinicalOutputContract {
+  diagnosis: {
+    label: string;
+    icd10: string;
+    confidence: number;
+    rationale?: string;
+  };
+  differentials: Array<{
+    label: string;
+    icd10: string;
+    likelihood: 'high' | 'medium' | 'low';
+    rationale?: string;
+  }>;
+  management: string[];
+  investigations: string[];
+  counseling: string[];
+  red_flags: string[];
+}
+
 export interface ClerkingSchema {
   hpc: string;
   pmh: string;

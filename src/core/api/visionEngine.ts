@@ -63,6 +63,116 @@ const sanitizeLikelihood = (value: unknown): 'high' | 'medium' | 'low' => {
   return 'medium';
 };
 
+const ICD10_PATTERN = /\(ICD-10:\s*([A-Z0-9.-]+)\)/i;
+
+const parseDxSeed = (value: string, fallbackCode: string): { label: string; icd10: string } | null => {
+  const text = sanitizeText(value);
+  if (!text) return null;
+  const code = sanitizeText(text.match(ICD10_PATTERN)?.[1]).toUpperCase() || fallbackCode;
+  const label = text.replace(ICD10_PATTERN, '').replace(/\s+/g, ' ').trim();
+  if (!label) return null;
+  return { label, icd10: code };
+};
+
+const ensureVisionResultContract = (
+  result: Partial<VisionAnalysisResult>
+): VisionAnalysisResult => {
+  const summary = sanitizeText(result.summary) || 'Image reviewed with clinically relevant findings identified.';
+  const findings = (result.findings || []).slice(0, 8);
+  const redFlags = (result.red_flags || []).slice(0, 8);
+  const fallbackLeadFromSummary = parseDxSeed(summary.split(/[.;]/)[0] || '', 'R69');
+  const existingLead = result.spot_diagnosis?.label
+    ? {
+        label: sanitizeText(result.spot_diagnosis.label),
+        icd10: sanitizeText(result.spot_diagnosis.icd10).toUpperCase() || 'R69',
+        confidence: clampVisionConfidencePercent(result.spot_diagnosis.confidence),
+        rationale: sanitizeText(result.spot_diagnosis.rationale) || undefined,
+      }
+    : null;
+  const lead = existingLead || {
+    label: fallbackLeadFromSummary?.label || 'Undifferentiated clinical finding',
+    icd10: fallbackLeadFromSummary?.icd10 || 'R69',
+    confidence: Math.max(clampVisionConfidencePercent(result.confidence), 1),
+    rationale: 'Lead diagnosis selected from highest-consistency visual pattern.',
+  };
+
+  const differentialSeeds = (result.differentials || [])
+    .map((entry) => {
+      const seed = parseDxSeed(entry.label, sanitizeText(entry.icd10).toUpperCase() || lead.icd10);
+      if (!seed) return null;
+      return {
+        label: seed.label,
+        icd10: seed.icd10,
+        likelihood: sanitizeLikelihood(entry.likelihood),
+        rationale: sanitizeText(entry.rationale) || undefined,
+      };
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => Boolean(entry));
+
+  const fallbackDifferentials = [
+    { label: lead.label, icd10: lead.icd10, likelihood: 'high' as const },
+    { label: 'Infective process', icd10: 'A49.9', likelihood: 'medium' as const },
+    { label: 'Inflammatory process', icd10: 'R69', likelihood: 'medium' as const },
+  ];
+
+  const dedupedDifferentials = [...differentialSeeds, ...fallbackDifferentials]
+    .reduce<Array<NonNullable<VisionAnalysisResult['differentials']>[number]>>((acc, entry) => {
+      if (acc.some((current) => current.label.toLowerCase() === entry.label.toLowerCase())) return acc;
+      acc.push(entry);
+      return acc;
+    }, [])
+    .slice(0, 6);
+
+  const treatmentLines =
+    result.treatment_lines && result.treatment_lines.length > 0
+      ? result.treatment_lines.slice(0, 8)
+      : [
+          'Start diagnosis-directed treatment protocol now.',
+          'Control pain/fever and maintain hydration while monitoring progression.',
+        ];
+  const investigations =
+    result.investigations && result.investigations.length > 0
+      ? result.investigations.slice(0, 8)
+      : [
+          'Order targeted confirmatory test for the lead diagnosis.',
+          'Run baseline safety labs and interval reassessment.',
+        ];
+  const counseling =
+    result.counseling && result.counseling.length > 0
+      ? result.counseling.slice(0, 8)
+      : [
+          'Follow treatment exactly as prescribed.',
+          'Escalate immediately for any red-flag symptom progression.',
+        ];
+
+  return {
+    summary,
+    findings,
+    red_flags:
+      redFlags.length > 0
+        ? redFlags
+        : [
+            'Rapid lesion progression',
+            'Symptoms persisting beyond two weeks',
+            'New widespread mucosal involvement',
+            'Escalating pain despite treatment',
+            'Reduced oral intake',
+          ],
+    confidence: Math.max(clampVisionConfidencePercent(result.confidence), 1),
+    recommendation:
+      sanitizeText(result.recommendation) ||
+      'Proceed with definitive management and complete targeted investigations now.',
+    spot_diagnosis: lead,
+    differentials: dedupedDifferentials,
+    treatment_summary:
+      sanitizeText(result.treatment_summary) ||
+      'Definitive management pathway prepared from diagnosis and risk profile.',
+    treatment_lines: treatmentLines,
+    investigations,
+    counseling,
+  };
+};
+
 const parseSpotDiagnosis = (
   value: unknown
 ): VisionAnalysisResult['spot_diagnosis'] => {
@@ -267,7 +377,7 @@ export const analyzeClinicalImage = async (payload: {
     const counseling = sanitizeList(data.counseling, 8);
     const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
     const differentials = parseDifferentials(data.differentials);
-    const result = {
+    const result = ensureVisionResultContract({
       summary: sanitizeText(data.summary) || 'No conclusive visual finding.',
       findings: sanitizeList(data.findings, 8),
       red_flags: sanitizeList(data.red_flags, 6),
@@ -281,7 +391,7 @@ export const analyzeClinicalImage = async (payload: {
       treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
       investigations: investigations.length > 0 ? investigations : undefined,
       counseling: counseling.length > 0 ? counseling : undefined,
-    };
+    });
     task.succeed('structure', 'Structured output ready');
     task.finishSuccess('Review complete');
     return result;
@@ -335,17 +445,22 @@ export const synthesizeScanTreatment = async (payload: {
     const spotDiagnosis = parseSpotDiagnosis(data.spot_diagnosis);
     const differentials = parseDifferentials(data.differentials);
 
-    const result = {
-      summary: sanitizeText(data.summary) || undefined,
-      red_flags: redFlags.length > 0 ? redFlags : undefined,
-      recommendation: sanitizeText(data.recommendation) || undefined,
-      spot_diagnosis: spotDiagnosis,
-      differentials,
-      treatment_summary: sanitizeText(data.treatment_summary) || undefined,
-      treatment_lines: treatmentLines.length > 0 ? treatmentLines : undefined,
-      investigations: investigations.length > 0 ? investigations : undefined,
-      counseling: counseling.length > 0 ? counseling : undefined,
-    };
+    const result = ensureVisionResultContract({
+      summary: sanitizeText(data.summary) || payload.analysis.summary,
+      findings: payload.analysis.findings || [],
+      red_flags: redFlags.length > 0 ? redFlags : payload.analysis.red_flags,
+      confidence: payload.analysis.confidence,
+      recommendation: sanitizeText(data.recommendation) || payload.analysis.recommendation,
+      spot_diagnosis: spotDiagnosis || payload.analysis.spot_diagnosis,
+      differentials: differentials || payload.analysis.differentials,
+      treatment_summary:
+        sanitizeText(data.treatment_summary) || payload.analysis.treatment_summary,
+      treatment_lines:
+        treatmentLines.length > 0 ? treatmentLines : payload.analysis.treatment_lines,
+      investigations:
+        investigations.length > 0 ? investigations : payload.analysis.investigations,
+      counseling: counseling.length > 0 ? counseling : payload.analysis.counseling,
+    });
     task.succeed('structure', 'Plan ready');
     task.finishSuccess('Management synthesis complete');
     return result;

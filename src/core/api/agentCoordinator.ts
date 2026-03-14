@@ -1,5 +1,6 @@
 import {
   ClinicalState,
+  ClinicalOutputContract,
   ConversationMessage,
   QuestionGateState,
   ResponseOptions,
@@ -138,6 +139,7 @@ const OPTION_INTENT_HINT_PATTERNS = {
 export class AgentCoordinator {
   private state: ClinicalState;
   private interactionTurn = 0;
+  private lastClinicalContract: ClinicalOutputContract | null = null;
 
   constructor(initialState: ClinicalState) {
     this.state = initialState;
@@ -543,6 +545,7 @@ export class AgentCoordinator {
         soap: this.state.soap,
         urgency: this.state.urgency,
         profile: profileForTurn,
+        contract: this.lastClinicalContract || undefined,
       });
       const nextState: Partial<ClinicalState> = {
         status: 'complete',
@@ -840,6 +843,7 @@ export class AgentCoordinator {
     stateForTurn: ClinicalState
   ): Promise<Partial<ClinicalState>> {
     const conversationResult = await callConversationEngine(input, stateForTurn);
+    this.lastClinicalContract = conversationResult.clinical_contract;
 
     const nextConversation: ConversationMessage[] = [...stateForTurn.conversation, patientMessage];
     const nextSoap = {
@@ -1073,6 +1077,7 @@ export class AgentCoordinator {
           soap: nextSoap,
           urgency: conversationResult.urgency,
           profile: stateForTurn.profile,
+          contract: conversationResult.clinical_contract,
         })
       : stateForTurn.pillars;
     const resolvedQuestionGate = autoComplete ? null : questionGate;

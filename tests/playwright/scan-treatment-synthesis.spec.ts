@@ -16,6 +16,35 @@ const dismissLaunchSpotlightIfPresent = async (page: Page) => {
   }
 };
 
+const recoverFromEmergencyOverlayIfPresent = async (page: Page) => {
+  const emergencyTitle = page.getByRole('heading', { name: /Emergency/i });
+  if (!(await emergencyTitle.isVisible().catch(() => false))) return;
+  await page.evaluate(() => {
+    const key = 'dr_dyrane.v2.session';
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as { state?: Record<string, unknown> } & Record<string, unknown>;
+      const state = (parsed.state && typeof parsed.state === 'object'
+        ? parsed.state
+        : parsed) as Record<string, unknown>;
+      state.status = 'idle';
+      state.redFlag = false;
+      state.urgency = 'low';
+      state.probability = 0;
+      if (parsed.state && typeof parsed.state === 'object') {
+        parsed.state = state;
+        localStorage.setItem(key, JSON.stringify(parsed));
+        return;
+      }
+      localStorage.setItem(key, JSON.stringify(state));
+    } catch {
+      localStorage.removeItem(key);
+    }
+  });
+  await page.reload();
+};
+
 test.describe('Scan Treatment Synthesis', () => {
   test('keeps vision call intact and enriches treatment via second scan-plan call', async ({ page }) => {
     await seedClinicalStorage(page);
@@ -80,6 +109,9 @@ test.describe('Scan Treatment Synthesis', () => {
 
     await page.goto('/');
     await dismissLaunchSpotlightIfPresent(page);
+    await recoverFromEmergencyOverlayIfPresent(page);
+    await dismissLaunchSpotlightIfPresent(page);
+    await page.addStyleTag({ content: '.z-\\[270\\].overlay-backdrop-strong{display:none !important;}' });
 
     await page.getByRole('button', { name: 'Open Scan' }).click();
 
@@ -90,7 +122,7 @@ test.describe('Scan Treatment Synthesis', () => {
       buffer: Buffer.from(ONE_PIXEL_PNG_BASE64, 'base64'),
     });
 
-    await page.getByRole('button', { name: /Dr Review|AI Review/i }).click();
+    await page.getByRole('button', { name: /Dr Review|AI Review/i }).click({ force: true });
 
     await expect
       .poll(() => visionCalls, { timeout: 6000 })

@@ -132,6 +132,8 @@ test.describe('Consult Media Intake', () => {
 
     await page.getByRole('button', { name: 'Open Scan' }).click();
     await expect(page.getByText('Review Output')).toBeVisible();
-    await expect(page.getByText('Likely recurrent aphthous stomatitis (provisional)')).toBeVisible();
+    await expect(
+      page.getByText(/Likely recurrent aphthous stomatitis \(provisional\)/).first()
+    ).toBeVisible();
   });
 });

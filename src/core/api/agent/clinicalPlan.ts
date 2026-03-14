@@ -1,10 +1,11 @@
-import { ClinicalState, PillarData } from '../../types/clinical';
+import { ClinicalOutputContract, ClinicalState, PillarData } from '../../types/clinical';
 
 interface ClinicalPlanInput {
   ddx: string[];
   soap: ClinicalState['soap'];
   urgency: ClinicalState['urgency'];
   profile: ClinicalState['profile'];
+  contract?: ClinicalOutputContract;
 }
 
 type DoseFactor = number | 'ACTFactor' | 'ZincFactor' | 'ORSFactor';
@@ -45,6 +46,81 @@ const ensureIcdLabel = (value: string): string => {
 const getTopDiagnosis = (ddx: string[]): string => {
   const first = ddx.find((entry) => entry && entry.trim().length > 0) || 'Undifferentiated febrile illness';
   return ensureIcdLabel(first);
+};
+
+const toLikelihoodLabel = (value: ClinicalOutputContract['differentials'][number]['likelihood']): string => {
+  if (value === 'high') return 'High likelihood';
+  if (value === 'low') return 'Low likelihood';
+  return 'Medium likelihood';
+};
+
+const dedupeList = (items: string[], maxItems: number): string[] =>
+  [...new Set(items.map((item) => item.trim()).filter(Boolean))].slice(0, maxItems);
+
+const buildDifferentialDisplay = (
+  ddx: string[],
+  contract?: ClinicalOutputContract
+): string[] => {
+  const fromContract = (contract?.differentials || []).map((entry) => {
+    const coded = entry.icd10 ? `${entry.label} (ICD-10: ${entry.icd10})` : entry.label;
+    return `${coded} - ${toLikelihoodLabel(entry.likelihood)}`;
+  });
+  const fromDdx = ddx.map((entry) => ensureIcdLabel(entry));
+  return dedupeList([...fromContract, ...fromDdx], 6);
+};
+
+const mergeContractIntoPlan = (
+  plan: PillarData,
+  ddx: string[],
+  contract?: ClinicalOutputContract
+): PillarData => {
+  const leadDiagnosis = contract?.diagnosis
+    ? `${contract.diagnosis.label} (ICD-10: ${contract.diagnosis.icd10})`
+    : plan.diagnosis.split('\n')[0] || plan.diagnosis;
+  const differentials = buildDifferentialDisplay(ddx, contract);
+  const managementLines = contract?.management || [];
+  const mergedInvestigations = dedupeList(
+    [...(contract?.investigations || []), ...(plan.encounter?.investigations || [])],
+    10
+  );
+  const mergedCounseling = dedupeList(
+    [...(contract?.counseling || []), ...(plan.encounter?.counseling || [])],
+    10
+  );
+  const redFlags = dedupeList(contract?.red_flags || [], 8);
+  const mergedFollowUp = dedupeList(
+    [
+      ...(plan.encounter?.follow_up || []),
+      ...redFlags.map((flag) => `Urgent escalation if ${flag.toLowerCase()}.`),
+    ],
+    10
+  );
+
+  const diagnosisBlock = [
+    `Most likely diagnosis: ${ensureIcdLabel(leadDiagnosis)}`,
+    differentials.length > 0
+      ? `Differential diagnosis:\n${differentials.map((entry, index) => `${index + 1}. ${entry}`).join('\n')}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  const managementBlock = managementLines.length > 0
+    ? managementLines.map((entry, index) => `${index + 1}. ${entry}`).join('\n')
+    : plan.management;
+
+  return {
+    ...plan,
+    diagnosis: diagnosisBlock || plan.diagnosis,
+    management: managementBlock,
+    encounter: {
+      source: plan.encounter?.source || 'Dr Dyrane contract synthesis',
+      investigations: mergedInvestigations,
+      prescriptions: plan.encounter?.prescriptions || [],
+      counseling: mergedCounseling,
+      follow_up: mergedFollowUp,
+    },
+  };
 };
 
 const hasMalariaSignal = (diagnosis: string): boolean => /\bmalaria\b/i.test(diagnosis);
@@ -328,7 +404,7 @@ const buildMalariaPlan = (
   ].join('\n');
 
   return {
-    diagnosis: `${diagnosis}\nPattern checkpoint: confirm intermittent/nocturnal fever and mosquito exposure before final lock.`,
+    diagnosis: `${diagnosis}\nClinical pattern is consistent with malaria and management pathway is activated.`,
     management: managementSummary,
     prognosis:
       'With early confirmed treatment, response is usually favorable. Risk rises with delayed treatment, dehydration, or severe features.',
@@ -347,18 +423,27 @@ const buildMalariaPlan = (
 const buildGenericPlan = (diagnosis: string): PillarData => ({
   diagnosis: diagnosis,
   management: [
-    'Investigations: focused labs guided by top differential and red flags.',
-    'Prescription pathway: start treatment only after clinician confirmation of most likely diagnosis.',
-    'Pharmacy counseling: explain dose schedule, side effects, interactions, and strict return precautions.',
-    'Follow-up: short interval review to confirm clinical response.',
+    '1. Start diagnosis-directed management for the lead condition.',
+    '2. Run focused investigations now and trend response over 24-48 hours.',
+    '3. Deliver full medication and counseling instructions with strict return precautions.',
+    '4. Reassess early and refine treatment based on investigation results.',
   ].join('\n'),
-  prognosis: 'Prognosis depends on confirmation and early targeted treatment.',
-  prevention: 'Preventive advice should match confirmed diagnosis and patient risk profile.',
+  prognosis: 'Early targeted management improves outcome and lowers escalation risk.',
+  prevention: 'Preventive strategy is aligned to diagnosis, exposures, and recurrence risk.',
   encounter: {
-    investigations: ['Focused labs and bedside tests guided by highest-risk differentials.'],
+    investigations: [
+      'Focused labs and bedside tests guided by highest-risk differentials.',
+      'Baseline safety markers with repeat interval reassessment.',
+    ],
     prescriptions: [],
-    counseling: ['Use clinician-confirmed treatment only after focused diagnosis.'],
-    follow_up: ['Short interval review to confirm response and revise differential if needed.'],
+    counseling: [
+      'Follow medication instructions exactly and avoid unsupervised additions.',
+      'Seek urgent review if any danger signs emerge or symptoms worsen.',
+    ],
+    follow_up: [
+      'Short-interval review to confirm response and refine differential ranking.',
+      'Escalate same-day if red-flag symptoms appear.',
+    ],
   },
 });
 
@@ -384,7 +469,8 @@ export const buildClinicalPlan = (input: ClinicalPlanInput): PillarData => {
   const basePlan = hasMalariaSignal(diagnosis)
     ? buildMalariaPlan(diagnosis, input.urgency, input.soap, input.profile)
     : buildGenericPlan(diagnosis);
-  const withSoap = injectSoapSummary(basePlan, input.soap);
+  const withContract = mergeContractIntoPlan(basePlan, input.ddx, input.contract);
+  const withSoap = injectSoapSummary(withContract, input.soap);
   const profileLine = buildProfileLine(input.profile);
   if (!profileLine) return withSoap;
   return {
