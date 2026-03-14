@@ -45,6 +45,17 @@ export type ScanPlanRequest = {
   lens?: 'general' | 'lab' | 'radiology';
 };
 
+export type PrescriptionRequest = {
+  diagnosis: string;
+  icd10?: string;
+  age?: number;
+  weight_kg?: number;
+  sex?: string;
+  pregnancy?: boolean;
+  urgency: 'low' | 'medium' | 'high' | 'critical';
+  soap?: Record<string, unknown>;
+};
+
 type ConsultPayload = {
   statement?: string;
   question?: string;
@@ -3457,5 +3468,190 @@ export const runVision = async (body: VisionRequest): Promise<unknown> => {
     const reason = error instanceof Error ? error.message : String(error);
     console.warn('[runVision] enrichment skipped, returning base payload', { reason });
     return finalizeVisionContract(applyVisionMinimumEnrichment(basePayload));
+  }
+};
+
+const PRESCRIPTION_GENERATION_SYSTEM_PROMPT = `You are a clinical pharmacology expert generating evidence-based prescriptions.
+
+RULES:
+1. Use WHO/UpToDate/BNF guideline-concordant medications
+2. Provide weight-based dosing when appropriate (dose_per_kg in mg/kg)
+3. Include formulation (Tab/Syrup/IM/IV/Cream), dose, frequency, duration
+4. Consider patient age (pediatric vs adult formulations)
+5. Adjust for urgency (mild/moderate/severe presentations)
+6. Include symptomatic relief + definitive treatment
+7. Maximum 8 prescription lines
+8. Return strict JSON format
+
+OUTPUT FORMAT:
+{
+  "prescriptions": [
+    {
+      "medication": "Paracetamol",
+      "form": "Tab",
+      "dose_per_kg": 15,
+      "max_dose": 1000,
+      "unit": "mg",
+      "frequency": "tds",
+      "duration": "5/7",
+      "note": "For fever control"
+    }
+  ],
+  "rationale": "Brief clinical reasoning"
+}
+
+EXAMPLES:
+
+Lichen Simplex Chronicus (L28.0):
+{
+  "prescriptions": [
+    {"medication": "Betamethasone 0.1%", "form": "Cream", "dose_per_kg": null, "max_dose": null, "unit": "application", "frequency": "bd", "duration": "14/7", "note": "Potent topical corticosteroid"},
+    {"medication": "Cetirizine", "form": "Tab", "dose_per_kg": 0.2, "max_dose": 10, "unit": "mg", "frequency": "od (at night)", "duration": "14/7", "note": "Antihistamine for pruritus"}
+  ],
+  "rationale": "Break itch-scratch cycle with potent topical steroid + antihistamine"
+}
+
+Malaria (B54):
+{
+  "prescriptions": [
+    {"medication": "ACT (Artemether-Lumefantrine)", "form": "Tab", "dose_per_kg": null, "max_dose": 480, "unit": "mg", "frequency": "bd", "duration": "3/7", "note": "Weight-band dosing: <15kg=120mg, 15-25kg=240mg, 25-35kg=360mg, >35kg=480mg"},
+    {"medication": "Paracetamol", "form": "Tab", "dose_per_kg": 15, "max_dose": 1000, "unit": "mg", "frequency": "tds", "duration": "3/7", "note": "Antipyretic"}
+  ],
+  "rationale": "First-line ACT for uncomplicated malaria + symptomatic fever control"
+}
+
+Generate prescriptions now. Return ONLY valid JSON.`;
+
+type PrescriptionResponse = {
+  prescriptions: Array<{
+    medication: string;
+    form: string;
+    dose_per_kg?: number | null;
+    max_dose?: number | null;
+    unit: string;
+    frequency: string;
+    duration: string;
+    note?: string;
+  }>;
+  rationale: string;
+};
+
+const buildPrescriptionPrompt = (request: PrescriptionRequest): string => {
+  const soapSummary =
+    request.soap && typeof request.soap === 'object'
+      ? JSON.stringify(request.soap)
+      : 'No clinical features documented';
+  const patientContext = [
+    request.age ? `${request.age}y` : '',
+    request.weight_kg ? `${request.weight_kg}kg` : '',
+    request.sex || '',
+    request.pregnancy ? 'pregnant' : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+
+  return `DIAGNOSIS: ${request.diagnosis}${request.icd10 ? ` (ICD-10: ${request.icd10})` : ''}
+PATIENT: ${patientContext || 'No patient context provided'}
+URGENCY: ${request.urgency}
+CLINICAL FEATURES: ${soapSummary}
+
+Generate evidence-based prescriptions now. Return ONLY valid JSON.`;
+};
+
+const selectPrimaryProviderForPrescription = (request: PrescriptionRequest): LlmProvider => {
+  const forced = normalizeProvider(
+    process.env.LLM_PRESCRIPTION_PROVIDER || process.env.LLM_PROVIDER
+  );
+  if (forced) return forced;
+
+  // Use Anthropic for complex/rare diagnoses, OpenAI for common conditions
+  const diagnosisLower = request.diagnosis.toLowerCase();
+  if (
+    /(rare|complex|syndrome|disorder|chronic|autoimmune)/i.test(diagnosisLower) ||
+    request.urgency === 'critical'
+  ) {
+    return 'anthropic';
+  }
+  return 'openai';
+};
+
+const executePrescriptionGenerationWithProvider = async (
+  provider: LlmProvider,
+  request: PrescriptionRequest
+): Promise<PrescriptionResponse> => {
+  const userPrompt = buildPrescriptionPrompt(request);
+
+  const raw =
+    provider === 'anthropic'
+      ? await callAnthropic({
+          maxTokens: 800,
+          systemPrompt: PRESCRIPTION_GENERATION_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: userPrompt }],
+          temperature: 0.2,
+        })
+      : await callOpenAI({
+          maxTokens: 800,
+          forceJson: true,
+          temperature: 0.2,
+          messages: [
+            { role: 'system', content: PRESCRIPTION_GENERATION_SYSTEM_PROMPT },
+            { role: 'user', content: userPrompt },
+          ],
+        });
+
+  const parsed = parseFirstJsonObject(raw) as Record<string, unknown>;
+  const prescriptionsRaw = Array.isArray(parsed.prescriptions) ? parsed.prescriptions : [];
+  const prescriptions = prescriptionsRaw
+    .map((rx: unknown) => {
+      if (!rx || typeof rx !== 'object') return null;
+      const obj = rx as Record<string, unknown>;
+      const medication = typeof obj.medication === 'string' ? obj.medication.trim() : '';
+      const form = typeof obj.form === 'string' ? obj.form.trim() : '';
+      const unit = typeof obj.unit === 'string' ? obj.unit.trim() : '';
+      const frequency = typeof obj.frequency === 'string' ? obj.frequency.trim() : '';
+      const duration = typeof obj.duration === 'string' ? obj.duration.trim() : '';
+
+      if (!medication || !form || !unit || !frequency || !duration) return null;
+
+      return {
+        medication,
+        form,
+        dose_per_kg:
+          typeof obj.dose_per_kg === 'number' && Number.isFinite(obj.dose_per_kg)
+            ? obj.dose_per_kg
+            : null,
+        max_dose:
+          typeof obj.max_dose === 'number' && Number.isFinite(obj.max_dose) ? obj.max_dose : null,
+        unit,
+        frequency,
+        duration,
+        note: typeof obj.note === 'string' ? obj.note.trim() : undefined,
+      };
+    })
+    .filter((rx): rx is NonNullable<typeof rx> => rx !== null)
+    .slice(0, 8);
+
+  return {
+    prescriptions,
+    rationale: typeof parsed.rationale === 'string' ? parsed.rationale : 'Prescription generated',
+  };
+};
+
+export const runPrescriptionGeneration = async (
+  request: PrescriptionRequest
+): Promise<PrescriptionResponse> => {
+  const primary = selectPrimaryProviderForPrescription(request);
+  const providers = resolveProviderOrder(primary);
+
+  try {
+    return await runWithProviderFailover(providers, (provider) =>
+      executePrescriptionGenerationWithProvider(provider, request)
+    );
+  } catch (error) {
+    console.error('[runPrescriptionGeneration] All providers failed:', error);
+    return {
+      prescriptions: [],
+      rationale: error instanceof Error ? error.message : 'Unable to generate prescriptions',
+    };
   }
 };
