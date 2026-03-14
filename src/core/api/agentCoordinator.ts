@@ -141,6 +141,43 @@ const OPTION_INTENT_HINT_PATTERNS = {
   summary: /\bready for summary\b|\badd one detail\b/i,
 };
 
+// Phase progression validation
+const WORKING_DIAGNOSIS_PATTERN = /\b(working diagnosis|diagnosis and plan|would you like.*diagnosis|finalize.*diagnosis)\b/i;
+const MIN_QUESTIONS_FOR_DIAGNOSIS = 5; // Minimum questions before offering diagnosis
+const MIN_HPC_QUESTIONS = 3; // Minimum HPC questions (onset, character, associated symptoms, etc.)
+
+const hasAdequateHistoryForDiagnosis = (
+  conversation: ConversationMessage[],
+  soap: ClinicalState['soap'],
+  agentState: ClinicalState['agent_state']
+): boolean => {
+  const doctorQuestions = conversation.filter((msg) => msg.role === 'doctor');
+
+  // Need minimum number of questions
+  if (doctorQuestions.length < MIN_QUESTIONS_FOR_DIAGNOSIS) {
+    return false;
+  }
+
+  // Check if we have adequate HPC elements in SOAP
+  const soapEntries = Object.keys(soap.S || {}).length;
+  if (soapEntries < MIN_HPC_QUESTIONS) {
+    return false;
+  }
+
+  // Check if we have positive findings
+  const hasFindings = (agentState.positive_findings || []).length > 0;
+  if (!hasFindings) {
+    return false;
+  }
+
+  // Phase should be at least 'differential' before offering diagnosis
+  if (agentState.phase === 'intake' || agentState.phase === 'assessment') {
+    return false;
+  }
+
+  return true;
+};
+
 export class AgentCoordinator {
   private state: ClinicalState;
   private interactionTurn = 0;
@@ -1373,11 +1410,12 @@ export class AgentCoordinator {
     const priorityOrder: QuestionIntent[] = [
       'danger_signs',
       'summary',
+      // Direct binary prompts must be classified before timeline/pattern keyword matches.
+      'yes_no',
       'duration',
       'pattern',
       'most_limiting',
       'symptom_change',
-      'yes_no',
     ];
     for (const intent of priorityOrder) {
       if (QUESTION_INTENT_PATTERNS[intent].test(normalized)) return intent;
@@ -1719,6 +1757,25 @@ export class AgentCoordinator {
     phase: ClinicalState['agent_state']['phase']
   ): string {
     const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
+
+    // Block premature working diagnosis questions
+    if (WORKING_DIAGNOSIS_PATTERN.test(sanitized)) {
+      const hasAdequateHistory = hasAdequateHistoryForDiagnosis(
+        conversation,
+        this.state.soap,
+        this.state.agent_state
+      );
+      if (!hasAdequateHistory) {
+        recordInvariantEvent(
+          'premature_diagnosis_blocked',
+          `Blocked premature diagnosis question at ${conversation.length} turns, phase: ${phase}`
+        );
+        // Return a question to continue history-taking
+        return this.getContextAwareFallbackQuestion(phase, conversation) ||
+               'What else should I know about how this has been affecting you?';
+      }
+    }
+
     const hardBlockIntentRepeat = CONSULT_RELAXED_GUARDS_MODE
       ? false
       : this.shouldHardBlockIntentRepeat(sanitized, conversation);

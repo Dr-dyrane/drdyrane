@@ -9,7 +9,8 @@ export type InvariantEventType =
   | 'option_contract_enforced'
   | 'option_contract_failed'
   | 'options_corrected'
-  | 'selections_cleared';
+  | 'selections_cleared'
+  | 'premature_diagnosis_blocked';
 
 export interface InvariantAuditEvent {
   id: string;
@@ -39,6 +40,7 @@ const createEmptyCounts = (): Record<InvariantEventType, number> => ({
   option_contract_failed: 0,
   options_corrected: 0,
   selections_cleared: 0,
+  premature_diagnosis_blocked: 0,
 });
 
 const state: InvariantAuditSnapshot = {
