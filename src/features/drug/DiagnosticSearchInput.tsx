@@ -85,6 +85,144 @@ const COMMON_DIAGNOSES: DiagnosticSuggestion[] = [
   { label: 'Generalized Anxiety Disorder', icd10: 'F41.1', category: 'Psychiatric' },
   { label: 'Bipolar Disorder', icd10: 'F31.9', category: 'Psychiatric' },
   { label: 'Schizophrenia', icd10: 'F20.9', category: 'Psychiatric' },
+  { label: 'Panic Disorder', icd10: 'F41.0', category: 'Psychiatric' },
+  { label: 'Post-Traumatic Stress Disorder', icd10: 'F43.10', category: 'Psychiatric' },
+  { label: 'Obsessive-Compulsive Disorder', icd10: 'F42.9', category: 'Psychiatric' },
+  { label: 'Insomnia', icd10: 'G47.00', category: 'Psychiatric' },
+  { label: 'Alcohol Use Disorder', icd10: 'F10.20', category: 'Psychiatric' },
+  { label: 'Substance Use Disorder', icd10: 'F19.20', category: 'Psychiatric' },
+
+  // More Infectious Diseases
+  { label: 'Acute Tonsillitis', icd10: 'J03.90', category: 'Infectious' },
+  { label: 'Acute Sinusitis', icd10: 'J01.90', category: 'Infectious' },
+  { label: 'Acute Otitis Media', icd10: 'H66.90', category: 'Infectious' },
+  { label: 'Conjunctivitis', icd10: 'H10.9', category: 'Infectious' },
+  { label: 'Skin Abscess', icd10: 'L02.91', category: 'Infectious' },
+  { label: 'Herpes Zoster (Shingles)', icd10: 'B02.9', category: 'Infectious' },
+  { label: 'Herpes Simplex', icd10: 'B00.9', category: 'Infectious' },
+  { label: 'Chickenpox', icd10: 'B01.9', category: 'Infectious' },
+  { label: 'Measles', icd10: 'B05.9', category: 'Infectious' },
+  { label: 'Mumps', icd10: 'B26.9', category: 'Infectious' },
+  { label: 'Hepatitis A', icd10: 'B15.9', category: 'Infectious' },
+  { label: 'Hepatitis B', icd10: 'B16.9', category: 'Infectious' },
+  { label: 'Hepatitis C', icd10: 'B17.10', category: 'Infectious' },
+  { label: 'Influenza', icd10: 'J11.1', category: 'Infectious' },
+  { label: 'COVID-19', icd10: 'U07.1', category: 'Infectious' },
+  { label: 'Scabies', icd10: 'B86', category: 'Infectious' },
+  { label: 'Lice Infestation', icd10: 'B85.2', category: 'Infectious' },
+  { label: 'Candidiasis', icd10: 'B37.9', category: 'Infectious' },
+  { label: 'Bacterial Vaginosis', icd10: 'N76.0', category: 'Genitourinary' },
+  { label: 'Pelvic Inflammatory Disease', icd10: 'N73.9', category: 'Genitourinary' },
+
+  // More Gastrointestinal
+  { label: 'Constipation', icd10: 'K59.00', category: 'Gastrointestinal' },
+  { label: 'Diarrhea', icd10: 'K59.1', category: 'Gastrointestinal' },
+  { label: 'Hemorrhoids', icd10: 'K64.9', category: 'Gastrointestinal' },
+  { label: 'Anal Fissure', icd10: 'K60.2', category: 'Gastrointestinal' },
+  { label: 'Cholecystitis', icd10: 'K81.9', category: 'Gastrointestinal' },
+  { label: 'Cholelithiasis', icd10: 'K80.20', category: 'Gastrointestinal' },
+  { label: 'Pancreatitis', icd10: 'K85.90', category: 'Gastrointestinal' },
+  { label: 'Diverticulitis', icd10: 'K57.92', category: 'Gastrointestinal' },
+  { label: 'Gastritis', icd10: 'K29.70', category: 'Gastrointestinal' },
+  { label: 'Dyspepsia', icd10: 'K30', category: 'Gastrointestinal' },
+  { label: 'Helicobacter Pylori Infection', icd10: 'B96.81', category: 'Gastrointestinal' },
+
+  // More Cardiovascular
+  { label: 'Deep Vein Thrombosis', icd10: 'I82.40', category: 'Cardiovascular' },
+  { label: 'Pulmonary Embolism', icd10: 'I26.99', category: 'Cardiovascular' },
+  { label: 'Peripheral Artery Disease', icd10: 'I73.9', category: 'Cardiovascular' },
+  { label: 'Cardiomyopathy', icd10: 'I42.9', category: 'Cardiovascular' },
+  { label: 'Valvular Heart Disease', icd10: 'I38', category: 'Cardiovascular' },
+  { label: 'Pericarditis', icd10: 'I30.9', category: 'Cardiovascular' },
+  { label: 'Endocarditis', icd10: 'I33.0', category: 'Cardiovascular' },
+
+  // More Respiratory
+  { label: 'Pleural Effusion', icd10: 'J90', category: 'Respiratory' },
+  { label: 'Pneumothorax', icd10: 'J93.9', category: 'Respiratory' },
+  { label: 'Bronchiectasis', icd10: 'J47.9', category: 'Respiratory' },
+  { label: 'Interstitial Lung Disease', icd10: 'J84.9', category: 'Respiratory' },
+  { label: 'Sleep Apnea', icd10: 'G47.33', category: 'Respiratory' },
+  { label: 'Allergic Rhinitis', icd10: 'J30.9', category: 'Respiratory' },
+
+  // More Endocrine
+  { label: 'Diabetic Ketoacidosis', icd10: 'E10.10', category: 'Endocrine' },
+  { label: 'Hyperosmolar Hyperglycemic State', icd10: 'E11.00', category: 'Endocrine' },
+  { label: 'Hypoglycemia', icd10: 'E16.2', category: 'Endocrine' },
+  { label: 'Thyroid Nodule', icd10: 'E04.1', category: 'Endocrine' },
+  { label: 'Goiter', icd10: 'E04.9', category: 'Endocrine' },
+  { label: 'Adrenal Insufficiency', icd10: 'E27.40', category: 'Endocrine' },
+  { label: 'Cushings Syndrome', icd10: 'E24.9', category: 'Endocrine' },
+  { label: 'Polycystic Ovary Syndrome', icd10: 'E28.2', category: 'Endocrine' },
+
+  // More Neurological
+  { label: 'Transient Ischemic Attack', icd10: 'G45.9', category: 'Neurological' },
+  { label: 'Hemorrhagic Stroke', icd10: 'I61.9', category: 'Neurological' },
+  { label: 'Parkinsons Disease', icd10: 'G20', category: 'Neurological' },
+  { label: 'Multiple Sclerosis', icd10: 'G35', category: 'Neurological' },
+  { label: 'Alzheimers Disease', icd10: 'G30.9', category: 'Neurological' },
+  { label: 'Dementia', icd10: 'F03.90', category: 'Neurological' },
+  { label: 'Bell\'s Palsy', icd10: 'G51.0', category: 'Neurological' },
+  { label: 'Trigeminal Neuralgia', icd10: 'G50.0', category: 'Neurological' },
+  { label: 'Vertigo', icd10: 'R42', category: 'Neurological' },
+  { label: 'Benign Paroxysmal Positional Vertigo', icd10: 'H81.10', category: 'Neurological' },
+
+  // More Musculoskeletal
+  { label: 'Neck Pain', icd10: 'M54.2', category: 'Musculoskeletal' },
+  { label: 'Shoulder Pain', icd10: 'M25.519', category: 'Musculoskeletal' },
+  { label: 'Rotator Cuff Syndrome', icd10: 'M75.10', category: 'Musculoskeletal' },
+  { label: 'Tennis Elbow', icd10: 'M77.10', category: 'Musculoskeletal' },
+  { label: 'Carpal Tunnel Syndrome', icd10: 'G56.00', category: 'Musculoskeletal' },
+  { label: 'Knee Pain', icd10: 'M25.569', category: 'Musculoskeletal' },
+  { label: 'Meniscal Tear', icd10: 'M23.209', category: 'Musculoskeletal' },
+  { label: 'Plantar Fasciitis', icd10: 'M72.2', category: 'Musculoskeletal' },
+  { label: 'Fibromyalgia', icd10: 'M79.7', category: 'Musculoskeletal' },
+  { label: 'Osteoporosis', icd10: 'M81.0', category: 'Musculoskeletal' },
+  { label: 'Fracture', icd10: 'T14.90', category: 'Musculoskeletal' },
+  { label: 'Sprain', icd10: 'T14.3', category: 'Musculoskeletal' },
+
+  // More Dermatological
+  { label: 'Urticaria (Hives)', icd10: 'L50.9', category: 'Dermatological' },
+  { label: 'Contact Dermatitis', icd10: 'L25.9', category: 'Dermatological' },
+  { label: 'Seborrheic Dermatitis', icd10: 'L21.9', category: 'Dermatological' },
+  { label: 'Rosacea', icd10: 'L71.9', category: 'Dermatological' },
+  { label: 'Vitiligo', icd10: 'L80', category: 'Dermatological' },
+  { label: 'Warts', icd10: 'B07.9', category: 'Dermatological' },
+  { label: 'Molluscum Contagiosum', icd10: 'B08.1', category: 'Dermatological' },
+  { label: 'Impetigo', icd10: 'L01.00', category: 'Dermatological' },
+
+  // Genitourinary
+  { label: 'Chronic Kidney Disease', icd10: 'N18.9', category: 'Genitourinary' },
+  { label: 'Acute Kidney Injury', icd10: 'N17.9', category: 'Genitourinary' },
+  { label: 'Kidney Stones', icd10: 'N20.0', category: 'Genitourinary' },
+  { label: 'Benign Prostatic Hyperplasia', icd10: 'N40.0', category: 'Genitourinary' },
+  { label: 'Prostatitis', icd10: 'N41.9', category: 'Genitourinary' },
+  { label: 'Erectile Dysfunction', icd10: 'N52.9', category: 'Genitourinary' },
+  { label: 'Menstrual Irregularities', icd10: 'N92.6', category: 'Genitourinary' },
+  { label: 'Dysmenorrhea', icd10: 'N94.6', category: 'Genitourinary' },
+  { label: 'Endometriosis', icd10: 'N80.9', category: 'Genitourinary' },
+  { label: 'Ovarian Cyst', icd10: 'N83.20', category: 'Genitourinary' },
+
+  // Hematological
+  { label: 'Iron Deficiency Anemia', icd10: 'D50.9', category: 'Hematological' },
+  { label: 'Vitamin B12 Deficiency Anemia', icd10: 'D51.9', category: 'Hematological' },
+  { label: 'Folate Deficiency Anemia', icd10: 'D52.9', category: 'Hematological' },
+  { label: 'Sickle Cell Disease', icd10: 'D57.1', category: 'Hematological' },
+  { label: 'Thalassemia', icd10: 'D56.9', category: 'Hematological' },
+  { label: 'Thrombocytopenia', icd10: 'D69.6', category: 'Hematological' },
+
+  // Ophthalmological
+  { label: 'Cataract', icd10: 'H26.9', category: 'Ophthalmological' },
+  { label: 'Glaucoma', icd10: 'H40.9', category: 'Ophthalmological' },
+  { label: 'Diabetic Retinopathy', icd10: 'E11.319', category: 'Ophthalmological' },
+  { label: 'Macular Degeneration', icd10: 'H35.30', category: 'Ophthalmological' },
+  { label: 'Dry Eye Syndrome', icd10: 'H04.129', category: 'Ophthalmological' },
+
+  // Oncological
+  { label: 'Breast Cancer', icd10: 'C50.919', category: 'Oncological' },
+  { label: 'Lung Cancer', icd10: 'C34.90', category: 'Oncological' },
+  { label: 'Colorectal Cancer', icd10: 'C18.9', category: 'Oncological' },
+  { label: 'Prostate Cancer', icd10: 'C61', category: 'Oncological' },
+  { label: 'Cervical Cancer', icd10: 'C53.9', category: 'Oncological' },
 ];
 
 export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
@@ -144,7 +282,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
   const showQuickPicks = !value.trim() && quickPicks.length > 0;
 
   return (
-    <div ref={containerRef} className="relative w-full z-[100]">
+    <div ref={containerRef} className="relative w-full z-[200]">
       {/* Search Input */}
       <div
         className={`h-12 rounded-2xl surface-strong px-4 inline-flex items-center gap-3 w-full transition-all ${
@@ -194,7 +332,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 right-0 mt-2 surface-raised rounded-2xl p-2 shadow-xl z-[110] max-h-[320px] overflow-y-auto"
+            className="absolute top-full left-0 right-0 mt-2 surface-raised rounded-2xl p-2 shadow-xl z-[210] max-h-[320px] overflow-y-auto"
           >
             {/* Recent Searches */}
             {recentSearches.length > 0 && !value.trim() && (
