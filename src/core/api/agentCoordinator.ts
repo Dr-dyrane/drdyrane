@@ -58,6 +58,9 @@ const PRESENTING_COMPLAINT_MAX_ADDITIONAL = 3;
 const ASSISTIVE_OPTION_SOFT_CAP = 4;
 const HYBRID_CHAT_FIRST_MODE = true;
 const ENABLE_STACKED_SYMPTOM_GATE = false;
+const CONSULT_RELAXED_GUARDS_MODE = import.meta.env.VITE_CONSULT_RELAXED_GUARDS !== 'false';
+const CONSULT_REQUIRE_SUMMARY_READY_FOR_COMPLETE =
+  import.meta.env.VITE_CONSULT_REQUIRE_SUMMARY_READY !== 'false';
 const STRICT_OPTION_CONTRACT_MODE = import.meta.env.VITE_CONSULT_OPTION_CONTRACT_STRICT !== 'false';
 const STACKED_SYMPTOM_SURVEY_PATTERN =
   /(which|what).*(associated symptom|symptom).*(stand out|most|prominent)|most prominent symptom with fever|associated symptom stands out/i;
@@ -1460,6 +1463,16 @@ export class AgentCoordinator {
       return this.getProgressiveInvariantFallback(phase, conversation);
     }
 
+    if (CONSULT_RELAXED_GUARDS_MODE) {
+      if (summaryReady && intent !== 'danger_signs' && intent !== 'summary') {
+        if (!this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28)) {
+          return FINAL_SAFETY_PROMPT;
+        }
+        return SUMMARY_FINALIZE_PROMPT;
+      }
+      return sanitized;
+    }
+
     if (summaryReady && intent !== 'danger_signs' && intent !== 'summary') {
       if (!this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28)) {
         return FINAL_SAFETY_PROMPT;
@@ -1696,9 +1709,13 @@ export class AgentCoordinator {
     phase: ClinicalState['agent_state']['phase']
   ): string {
     const sanitized = sanitizeQuestion(question) || getFallbackQuestion();
-    const hardBlockIntentRepeat = this.shouldHardBlockIntentRepeat(sanitized, conversation);
+    const hardBlockIntentRepeat = CONSULT_RELAXED_GUARDS_MODE
+      ? false
+      : this.shouldHardBlockIntentRepeat(sanitized, conversation);
     const immediateRepeat = this.isImmediateRepeatedIntent(sanitized, conversation);
-    const loopRisk = this.hasRecentIntentLoopRisk(sanitized, conversation);
+    const loopRisk = CONSULT_RELAXED_GUARDS_MODE
+      ? false
+      : this.hasRecentIntentLoopRisk(sanitized, conversation);
     const recentQuestions = getRecentDoctorQuestions(conversation, 8);
     const lastQuestion = recentQuestions[recentQuestions.length - 1];
     const fallbackReasons: string[] = [];
@@ -1706,19 +1723,28 @@ export class AgentCoordinator {
     if (immediateRepeat) fallbackReasons.push('immediate_repeat');
     if (loopRisk) fallbackReasons.push('loop_risk');
     if (isLikelyRepeatedQuestion(sanitized, recentQuestions)) fallbackReasons.push('near_duplicate');
-    if (isLikelyAnsweredTopicQuestion(sanitized, conversation)) fallbackReasons.push('answered_topic');
-    if (isRecentlyAnsweredQuestionIntent(sanitized, conversation)) fallbackReasons.push('answered_intent');
+    if (isLikelyAnsweredTopicQuestion(sanitized, conversation)) {
+      fallbackReasons.push('answered_topic');
+    }
+    if (!CONSULT_RELAXED_GUARDS_MODE && isRecentlyAnsweredQuestionIntent(sanitized, conversation)) {
+      fallbackReasons.push('answered_intent');
+    }
     if (isLoopingGenericPrompt(sanitized, conversation)) fallbackReasons.push('generic_loop');
     if (this.isNearDuplicateQuestion(sanitized, lastQuestion)) fallbackReasons.push('duplicate_last');
-    const shouldFallback =
-      hardBlockIntentRepeat ||
-      immediateRepeat ||
-      loopRisk ||
-      fallbackReasons.includes('near_duplicate') ||
-      fallbackReasons.includes('answered_topic') ||
-      fallbackReasons.includes('answered_intent') ||
-      fallbackReasons.includes('generic_loop') ||
-      fallbackReasons.includes('duplicate_last');
+    const shouldFallback = CONSULT_RELAXED_GUARDS_MODE
+      ? immediateRepeat ||
+        fallbackReasons.includes('near_duplicate') ||
+        fallbackReasons.includes('answered_topic') ||
+        fallbackReasons.includes('generic_loop') ||
+        fallbackReasons.includes('duplicate_last')
+      : hardBlockIntentRepeat ||
+        immediateRepeat ||
+        loopRisk ||
+        fallbackReasons.includes('near_duplicate') ||
+        fallbackReasons.includes('answered_topic') ||
+        fallbackReasons.includes('answered_intent') ||
+        fallbackReasons.includes('generic_loop') ||
+        fallbackReasons.includes('duplicate_last');
     if (!shouldFallback) {
       return this.enforceTurnInvariantQuestion(sanitized, phase, conversation);
     }
@@ -2091,6 +2117,9 @@ export class AgentCoordinator {
       subjectiveDensity >= 4 &&
       supportSignals >= 3;
     const summaryReady = this.hasSummaryReadySignal(conversation);
+    if (CONSULT_REQUIRE_SUMMARY_READY_FOR_COMPLETE && !summaryReady) {
+      return false;
+    }
     const dangerSignsCovered =
       this.hasRecentlyAnsweredIntent(conversation, DANGER_SIGNS_QUESTION_PATTERN, 28) ||
       /no immediate danger signs|no danger signs|none of these/.test(evidenceCorpus);

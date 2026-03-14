@@ -180,6 +180,9 @@ CONVERSATION PROTOCOLS:
 19. Recommend targeted confirmatory tests only after history has produced a focused working differential.
 20. Maintain explicit agent_state memory for both positive_findings and negative_findings.
 21. If final output is near, include must_not_miss_checkpoint status and the last safety question/response.
+22. Follow clinician-grade history order: onset/duration -> qualifiers -> associated symptoms -> exposures/risk factors -> red flags -> impact.
+23. If enough data is already present, avoid repeating intake boilerplate and move to the next discriminating question.
+24. Before final output, recap the working impression briefly and ask if the patient wants the final plan now.
 
 RESPONSE JSON:
 {
@@ -3022,6 +3025,7 @@ Negative Findings Memory: ${JSON.stringify((body.state?.agent_state as Record<st
 Safety Checkpoint Memory: ${JSON.stringify((body.state?.agent_state as Record<string, unknown>)?.must_not_miss_checkpoint || {})}
 Clinical Memory Dossier: ${body.state?.memory_dossier || 'No structured dossier yet.'}
 Deployment Region: Nigeria (default context)
+Interview Mode: Conversational telemedicine history-taking (free chat with optional guided suggestions)
 
 Patient Input: "${body.patientInput || ''}"
 

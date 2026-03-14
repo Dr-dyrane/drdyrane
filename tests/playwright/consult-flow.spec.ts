@@ -72,7 +72,7 @@ test.describe('Consult Room UX Smoke', () => {
     await page.reload();
     await dismissLaunchSpotlightIfPresent(page);
 
-    await expect(page.getByText('fever')).toBeVisible();
+    await expect(page.getByText('fever', { exact: true })).toBeVisible();
     const resumedQuestion = page.locator('.consult-chat-bubble-doctor').last();
     await expect(resumedQuestion).toContainText('?');
 
