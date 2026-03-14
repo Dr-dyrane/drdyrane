@@ -19,16 +19,72 @@ interface DiagnosticSearchInputProps {
 }
 
 const COMMON_DIAGNOSES: DiagnosticSuggestion[] = [
+  // Infectious Diseases
   { label: 'Uncomplicated Malaria', icd10: 'B54', category: 'Infectious' },
-  { label: 'Peptic Ulcer Disease', icd10: 'K27.9', category: 'Gastrointestinal' },
-  { label: 'Hypertension', icd10: 'I10', category: 'Cardiovascular' },
-  { label: 'Type 2 Diabetes Mellitus', icd10: 'E11.9', category: 'Endocrine' },
+  { label: 'Typhoid Fever', icd10: 'A01.0', category: 'Infectious' },
+  { label: 'Dengue Fever', icd10: 'A90', category: 'Infectious' },
+  { label: 'Tuberculosis', icd10: 'A15.9', category: 'Infectious' },
+  { label: 'HIV Disease', icd10: 'B20', category: 'Infectious' },
+  { label: 'Pneumonia', icd10: 'J18.9', category: 'Infectious' },
   { label: 'Acute Upper Respiratory Infection', icd10: 'J06.9', category: 'Respiratory' },
   { label: 'Urinary Tract Infection', icd10: 'N39.0', category: 'Genitourinary' },
+  { label: 'Cellulitis', icd10: 'L03.90', category: 'Infectious' },
+  { label: 'Sepsis', icd10: 'A41.9', category: 'Infectious' },
+
+  // Gastrointestinal
+  { label: 'Peptic Ulcer Disease', icd10: 'K27.9', category: 'Gastrointestinal' },
   { label: 'Acute Gastroenteritis', icd10: 'K52.9', category: 'Gastrointestinal' },
+  { label: 'Gastroesophageal Reflux Disease', icd10: 'K21.9', category: 'Gastrointestinal' },
+  { label: 'Irritable Bowel Syndrome', icd10: 'K58.9', category: 'Gastrointestinal' },
+  { label: 'Acute Appendicitis', icd10: 'K35.80', category: 'Gastrointestinal' },
+  { label: 'Chronic Liver Disease', icd10: 'K76.9', category: 'Gastrointestinal' },
+
+  // Cardiovascular
+  { label: 'Hypertension', icd10: 'I10', category: 'Cardiovascular' },
+  { label: 'Heart Failure', icd10: 'I50.9', category: 'Cardiovascular' },
+  { label: 'Atrial Fibrillation', icd10: 'I48.91', category: 'Cardiovascular' },
+  { label: 'Acute Myocardial Infarction', icd10: 'I21.9', category: 'Cardiovascular' },
+  { label: 'Angina Pectoris', icd10: 'I20.9', category: 'Cardiovascular' },
+
+  // Endocrine
+  { label: 'Type 2 Diabetes Mellitus', icd10: 'E11.9', category: 'Endocrine' },
+  { label: 'Type 1 Diabetes Mellitus', icd10: 'E10.9', category: 'Endocrine' },
+  { label: 'Hypothyroidism', icd10: 'E03.9', category: 'Endocrine' },
+  { label: 'Hyperthyroidism', icd10: 'E05.90', category: 'Endocrine' },
+  { label: 'Obesity', icd10: 'E66.9', category: 'Endocrine' },
+
+  // Respiratory
+  { label: 'Asthma', icd10: 'J45.909', category: 'Respiratory' },
+  { label: 'Chronic Obstructive Pulmonary Disease', icd10: 'J44.9', category: 'Respiratory' },
+  { label: 'Acute Bronchitis', icd10: 'J20.9', category: 'Respiratory' },
+  { label: 'Pulmonary Tuberculosis', icd10: 'A15.0', category: 'Respiratory' },
+
+  // Neurological
   { label: 'Migraine', icd10: 'G43.9', category: 'Neurological' },
-  { label: 'Lichen Simplex Chronicus', icd10: 'L28.0', category: 'Dermatological' },
   { label: 'Acute Ischemic Stroke', icd10: 'I63.9', category: 'Neurological' },
+  { label: 'Epilepsy', icd10: 'G40.909', category: 'Neurological' },
+  { label: 'Tension-Type Headache', icd10: 'G44.209', category: 'Neurological' },
+  { label: 'Peripheral Neuropathy', icd10: 'G62.9', category: 'Neurological' },
+  { label: 'Meningitis', icd10: 'G03.9', category: 'Neurological' },
+
+  // Dermatological
+  { label: 'Lichen Simplex Chronicus', icd10: 'L28.0', category: 'Dermatological' },
+  { label: 'Atopic Dermatitis', icd10: 'L20.9', category: 'Dermatological' },
+  { label: 'Psoriasis', icd10: 'L40.9', category: 'Dermatological' },
+  { label: 'Fungal Skin Infection', icd10: 'B36.9', category: 'Dermatological' },
+  { label: 'Acne Vulgaris', icd10: 'L70.0', category: 'Dermatological' },
+
+  // Musculoskeletal
+  { label: 'Osteoarthritis', icd10: 'M19.90', category: 'Musculoskeletal' },
+  { label: 'Rheumatoid Arthritis', icd10: 'M06.9', category: 'Musculoskeletal' },
+  { label: 'Low Back Pain', icd10: 'M54.5', category: 'Musculoskeletal' },
+  { label: 'Gout', icd10: 'M10.9', category: 'Musculoskeletal' },
+
+  // Psychiatric
+  { label: 'Major Depressive Disorder', icd10: 'F32.9', category: 'Psychiatric' },
+  { label: 'Generalized Anxiety Disorder', icd10: 'F41.1', category: 'Psychiatric' },
+  { label: 'Bipolar Disorder', icd10: 'F31.9', category: 'Psychiatric' },
+  { label: 'Schizophrenia', icd10: 'F20.9', category: 'Psychiatric' },
 ];
 
 export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
