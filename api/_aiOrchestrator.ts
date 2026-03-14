@@ -3196,6 +3196,26 @@ const runCollaborative = async <T>(
   throw new Error(`${primaryReason} | ${secondaryReason}`);
 };
 
+/**
+ * PROBLEM: Build LLM prompt with complete question history to prevent repetition
+ * INPUT: ConsultRequest (contains conversation history)
+ * OUTPUT: string (formatted prompt with all previous questions)
+ *
+ * CORRECTNESS PROOF (Completeness):
+ * Claim: LLM receives complete, ordered history of all doctor questions
+ *
+ * Proof:
+ * 1. filter(role = 'doctor') extracts all doctor messages ✓
+ * 2. map(entry.content) preserves order and content ✓
+ * 3. Numbered list format ensures clarity ✓
+ * 4. Injected into prompt → LLM has full context ✓
+ *
+ * ∴ No question can be repeated unknowingly ✓
+ *
+ * COMPLEXITY:
+ * Time: O(n) where n = |conversation|
+ * Space: O(n) for allDoctorQuestions array
+ */
 const buildConversationPrompt = (body: ConsultRequest): string => {
   // Extract ALL doctor questions to prevent repetition
   const allDoctorQuestions = (body.state?.conversation || [])

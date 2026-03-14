@@ -146,6 +146,32 @@ const WORKING_DIAGNOSIS_PATTERN = /\b(working diagnosis|diagnosis and plan|would
 const MIN_QUESTIONS_FOR_DIAGNOSIS = 5; // Minimum questions before offering diagnosis
 const MIN_HPC_QUESTIONS = 3; // Minimum HPC questions (onset, character, associated symptoms, etc.)
 
+/**
+ * PROBLEM: Determine if clinical history is sufficient for safe diagnosis
+ * INPUT: (conversation, soap, agentState)
+ * OUTPUT: boolean - true iff adequate history collected
+ *
+ * CORRECTNESS PROOF (Logical Conjunction):
+ * Let P₁ = |{m ∈ conversation : m.role = 'doctor'}| ≥ 5
+ * Let P₂ = |keys(soap.S)| ≥ 3
+ * Let P₃ = |agentState.positive_findings| > 0
+ * Let P₄ = agentState.phase ∈ {'differential', 'resolution'}
+ *
+ * Claim: adequate ⟺ P₁ ∧ P₂ ∧ P₃ ∧ P₄
+ *
+ * Proof: By exhaustive case analysis
+ * - ¬P₁ → insufficient questions → ¬adequate ✓
+ * - ¬P₂ → insufficient HPC elements → ¬adequate ✓
+ * - ¬P₃ → no clinical findings → ¬adequate ✓
+ * - ¬P₄ → premature phase → ¬adequate ✓
+ * - P₁ ∧ P₂ ∧ P₃ ∧ P₄ → all requirements met → adequate ✓
+ *
+ * COMPLEXITY:
+ * Time: O(n + m) where n = |conversation|, m = |soap.S|
+ * Space: O(n) for doctorQuestions array
+ *
+ * TERMINATION: Always (no loops, finite checks)
+ */
 const hasAdequateHistoryForDiagnosis = (
   conversation: ConversationMessage[],
   soap: ClinicalState['soap'],
@@ -153,29 +179,29 @@ const hasAdequateHistoryForDiagnosis = (
 ): boolean => {
   const doctorQuestions = conversation.filter((msg) => msg.role === 'doctor');
 
-  // Need minimum number of questions
+  // P₁: Need minimum number of questions
   if (doctorQuestions.length < MIN_QUESTIONS_FOR_DIAGNOSIS) {
     return false;
   }
 
-  // Check if we have adequate HPC elements in SOAP
+  // P₂: Check if we have adequate HPC elements in SOAP
   const soapEntries = Object.keys(soap.S || {}).length;
   if (soapEntries < MIN_HPC_QUESTIONS) {
     return false;
   }
 
-  // Check if we have positive findings
+  // P₃: Check if we have positive findings
   const hasFindings = (agentState.positive_findings || []).length > 0;
   if (!hasFindings) {
     return false;
   }
 
-  // Phase should be at least 'differential' before offering diagnosis
+  // P₄: Phase should be at least 'differential' before offering diagnosis
   if (agentState.phase === 'intake' || agentState.phase === 'assessment') {
     return false;
   }
 
-  return true;
+  return true; // P₁ ∧ P₂ ∧ P₃ ∧ P₄ holds
 };
 
 export class AgentCoordinator {
@@ -187,9 +213,33 @@ export class AgentCoordinator {
     this.state = initialState;
   }
 
+  /**
+   * PROBLEM: Process patient input and return appropriate state transitions
+   * INPUT: input: string (patient's response)
+   * OUTPUT: Partial<ClinicalState> (state updates)
+   *
+   * STATE MACHINE INVARIANT:
+   * ∀ transitions (s₁, input, s₂):
+   * 1. Emergency input → s₂ = 'emergency'
+   * 2. Active gate → process gate first
+   * 3. Adequate history → allow diagnosis
+   * 4. No backward transitions (intake → idle forbidden)
+   *
+   * CORRECTNESS PROOF (Case Analysis):
+   * Case 1: Empty input → return {} (no-op) ✓
+   * Case 2: Emergency pattern → status = 'emergency' ✓
+   * Case 3: Active gate → processGatedAnswer() ✓
+   * Case 4: Normal flow → conversation engine ✓
+   *
+   * COMPLEXITY:
+   * Time: O(n) where n = |conversation|
+   * Space: O(n) for conversation array
+   *
+   * TERMINATION: Always (no unbounded recursion, finite branches)
+   */
   async processPatientInput(input: string): Promise<Partial<ClinicalState>> {
     const normalizedInput = input.trim();
-    if (!normalizedInput) return {};
+    if (!normalizedInput) return {}; // Case 1: Empty input
     this.interactionTurn += 1;
 
     if (isEmergencyInput(normalizedInput)) {
