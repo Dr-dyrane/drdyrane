@@ -122,10 +122,11 @@ const recordIdFromProtocol = (value: string): string =>
 
 export const DrugProtocolsView: React.FC = () => {
   const { state, dispatch } = useClinical();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [protocols, setProtocols] = useState<DrugProtocolEntry[]>([]);
+  const [llmProtocols, setLlmProtocols] = useState<DrugProtocolEntry[]>([]);
   const [activeProtocol, setActiveProtocol] = useState<DrugProtocolEntry | null>(null);
   const [calculatorOpen, setCalculatorOpen] = useState(false);
   const [weightInput, setWeightInput] = useState<string>(
@@ -148,15 +149,14 @@ export const DrugProtocolsView: React.FC = () => {
       audioEnabled: state.settings.audio_enabled,
     });
 
+  // Load fallback protocols from JSON (for offline/quick access)
   useEffect(() => {
     let isMounted = true;
 
     const loadProtocols = async () => {
-      setLoading(true);
-      setError('');
       try {
         const response = await fetch('/data/drug-protocols.json');
-        if (!response.ok) throw new Error('Unable to load treatment dataset.');
+        if (!response.ok) return; // Silently fail - LLM will handle searches
         const payload = (await response.json()) as DrugProtocolEntry[];
         const sanitized = Array.isArray(payload)
           ? payload
@@ -166,10 +166,8 @@ export const DrugProtocolsView: React.FC = () => {
         if (!isMounted) return;
         setProtocols(sanitized);
       } catch (loadError) {
-        if (!isMounted) return;
-        setError(loadError instanceof Error ? loadError.message : 'Unable to load treatment dataset.');
-      } finally {
-        if (isMounted) setLoading(false);
+        // Silently fail - LLM will handle searches
+        console.warn('[DrugProtocolsView] Fallback protocols unavailable:', loadError);
       }
     };
 
@@ -198,6 +196,83 @@ export const DrugProtocolsView: React.FC = () => {
     };
   }, []);
 
+  // LLM-driven prescription search
+  useEffect(() => {
+    let isMounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+
+    const searchWithLLM = async () => {
+      const trimmedQuery = query.trim();
+      if (!trimmedQuery || trimmedQuery.length < 3) {
+        setLlmProtocols([]);
+        setLoading(false);
+        setError('');
+        return;
+      }
+
+      setLoading(true);
+      setError('');
+
+      try {
+        const response = await fetch('/api/generate-prescription', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            diagnosis: trimmedQuery,
+            age: state.profile.age,
+            weight_kg: state.profile.weight_kg,
+            sex: state.profile.sex,
+            urgency: 'medium',
+            soap: { S: {}, O: {}, A: {}, P: {} },
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error('Unable to generate prescription. Please try again.');
+        }
+
+        const llmResponse = await response.json();
+
+        if (!isMounted) return;
+
+        // Transform LLM response to DrugProtocolEntry format
+        const llmProtocol: DrugProtocolEntry = {
+          value: `llm-${normalize(trimmedQuery)}-${Date.now()}`,
+          label: trimmedQuery,
+          drugs: (llmResponse.prescriptions || []).map((rx: any) => ({
+            name: rx.medication || rx.name || 'Unknown medication',
+            form: rx.form || 'Tablet',
+            factor: rx.dose_per_kg || 0,
+            max: rx.max_dose || 9999,
+            unit: rx.unit || 'mg',
+            frequency: rx.frequency || 'Once daily',
+            duration: rx.duration || '7 days',
+          })),
+        };
+
+        setLlmProtocols([llmProtocol]);
+        setError('');
+      } catch (searchError) {
+        if (!isMounted) return;
+        console.error('[DrugProtocolsView] LLM search failed:', searchError);
+        setError(searchError instanceof Error ? searchError.message : 'Unable to generate prescription.');
+        setLlmProtocols([]);
+      } finally {
+        if (isMounted) setLoading(false);
+      }
+    };
+
+    // Debounce search by 800ms
+    timeoutId = setTimeout(() => {
+      void searchWithLLM();
+    }, 800);
+
+    return () => {
+      isMounted = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [query, state.profile.age, state.profile.weight_kg, state.profile.sex]);
+
   const protocolSearchIndex = useMemo(
     () =>
       protocols.map((entry) => {
@@ -212,22 +287,44 @@ export const DrugProtocolsView: React.FC = () => {
 
   const filteredProtocols = useMemo(() => {
     const normalizedQuery = normalize(query);
-    if (!normalizedQuery) return protocols;
+
+    // If no query, show fallback protocols
+    if (!normalizedQuery) return protocols.slice(0, 20);
+
+    // Search hardcoded protocols first
     const queryTokens = normalizedQuery.split(' ').filter(Boolean);
-    return protocolSearchIndex
+    const hardcodedMatches = protocolSearchIndex
       .filter(({ searchable }) => queryTokens.every((token) => searchable.includes(token)))
       .map(({ entry }) => entry);
-  }, [protocolSearchIndex, protocols, query]);
 
-  const quickPickProtocols = useMemo(
-    () =>
-      protocols
-        .filter((entry) =>
-          /(malaria|hypertension|asthma|diabetes|pneumonia|gastro|urti|uti)/i.test(entry.label)
-        )
-        .slice(0, 8),
-    [protocols]
-  );
+    // Combine hardcoded matches with LLM-generated protocols
+    // LLM protocols appear first (more relevant for arbitrary diagnoses)
+    return [...llmProtocols, ...hardcodedMatches];
+  }, [protocolSearchIndex, protocols, llmProtocols, query]);
+
+  const quickPickProtocols = useMemo(() => {
+    // Prioritize common conditions from hardcoded protocols
+    const commonConditions = protocols
+      .filter((entry) =>
+        /(malaria|hypertension|asthma|diabetes|pneumonia|gastro|urti|uti)/i.test(entry.label)
+      )
+      .slice(0, 8);
+
+    // If we have enough, return them
+    if (commonConditions.length >= 6) return commonConditions;
+
+    // Otherwise, add some suggested searches
+    const suggestions: DrugProtocolEntry[] = [
+      { value: 'suggest-malaria', label: 'Malaria', drugs: [] },
+      { value: 'suggest-hypertension', label: 'Hypertension', drugs: [] },
+      { value: 'suggest-diabetes', label: 'Type 2 Diabetes', drugs: [] },
+      { value: 'suggest-asthma', label: 'Acute Asthma', drugs: [] },
+    ].filter(
+      (suggestion) => !commonConditions.some((protocol) => protocol.label.toLowerCase().includes(suggestion.label.toLowerCase()))
+    );
+
+    return [...commonConditions, ...suggestions].slice(0, 8);
+  }, [protocols]);
 
   const parsedWeight = Number(weightInput);
   const parsedAge = Number(ageInput);
@@ -434,8 +531,15 @@ export const DrugProtocolsView: React.FC = () => {
                 <button
                   key={`quick-${entry.value}`}
                   onClick={() => {
-                    setQuery('');
-                    openProtocol(entry);
+                    // If it's a real protocol with drugs, open it directly
+                    if (entry.drugs.length > 0) {
+                      setQuery('');
+                      openProtocol(entry);
+                    } else {
+                      // Otherwise, trigger a search
+                      setQuery(entry.label);
+                      feedback('select');
+                    }
                   }}
                   className="h-9 px-3.5 rounded-full surface-strong text-xs font-medium text-content-primary interactive-tap shrink-0"
                   title={entry.label}
@@ -453,10 +557,19 @@ export const DrugProtocolsView: React.FC = () => {
             <p className="text-xs text-content-dim">{filteredProtocols.length} match(es)</p>
           </div>
 
-          {loading && <p className="text-sm text-content-secondary">Loading treatment data...</p>}
+          {loading && (
+            <p className="text-sm text-content-secondary">
+              {query.trim().length >= 3 ? 'Generating prescription...' : 'Loading treatment data...'}
+            </p>
+          )}
           {error && !loading && <p className="text-sm text-danger-primary">{error}</p>}
-          {!loading && !error && filteredProtocols.length === 0 && (
-            <p className="text-sm text-content-secondary">No result found. Try another search term.</p>
+          {!loading && !error && filteredProtocols.length === 0 && query.trim().length >= 3 && (
+            <p className="text-sm text-content-secondary">
+              No prescription generated. Try refining your search or check your connection.
+            </p>
+          )}
+          {!loading && !error && filteredProtocols.length === 0 && query.trim().length < 3 && query.trim().length > 0 && (
+            <p className="text-sm text-content-secondary">Type at least 3 characters to search...</p>
           )}
 
           {!loading && !error && filteredProtocols.length > 0 && (
