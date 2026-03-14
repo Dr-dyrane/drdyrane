@@ -93,12 +93,17 @@ const buildDose = (factor: DoseFactor, max: number, unit: string, weightKg: numb
     if (factor === 'ACTFactor') return `Weight band dosing (${max}${suffix} max)`;
     if (factor === 'ZincFactor') return `Weight-based zinc (${max}${suffix} max)`;
     if (factor === 'ORSFactor') return `Weight-based ORS volume (${max}${suffix} max)`;
+    // If no weight and no dose_per_kg, show max as fixed dose
+    if (typeof factor === 'number' && factor === 0) return `${max}${suffix}`;
     return `Weight-based (${max}${suffix} max)`;
   }
 
   if (factor === 'ACTFactor') return `${getActBandDose(weightKg)}${suffix}`;
   if (factor === 'ZincFactor') return `${getZincBandDose(weightKg)}${suffix}`;
   if (factor === 'ORSFactor') return `${getOrsBandDose(weightKg)}${suffix}`;
+
+  // If dose_per_kg is 0 or null, use max_dose as fixed dose
+  if (typeof factor === 'number' && factor === 0) return `${max}${suffix}`;
 
   const numericDose = Math.min(weightKg * factor, max);
   return `${formatDoseValue(numericDose)}${suffix}`;
