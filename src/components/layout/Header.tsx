@@ -20,7 +20,7 @@ export const Header: React.FC = () => {
     : 0;
   const isConsultView = state.view === 'consult';
   const viewLabelMap: Record<typeof state.view, string> = {
-    consult: 'Consulting Room',
+    consult: 'Consultation',
     history: 'Records',
     drug: 'Pharmacy',
     scan: 'Scan',
@@ -46,7 +46,7 @@ export const Header: React.FC = () => {
         >
           {!isConsultView && <p className="text-[11px] text-content-dim leading-none">{todayLabel}</p>}
           <p className="text-sm font-semibold text-content-primary leading-tight truncate">
-            {isConsultView ? `${viewLabel} · ${todayLabel}` : viewLabel}
+            {viewLabel}
           </p>
         </div>
 
@@ -68,4 +68,6 @@ export const Header: React.FC = () => {
     </header>
   );
 };
+
+
 

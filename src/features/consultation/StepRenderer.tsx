@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowUp, ChevronLeft, ImagePlus, Loader2, Timer, X } from 'lucide-react';
+import { ArrowUp, ImagePlus, Loader2, Timer } from 'lucide-react';
 import { useClinical } from '../../core/context/ClinicalContext';
 import { processAgentInteraction } from '../../core/api/agentCoordinator';
 import { signalFeedback, playLoadingPhaseCue } from '../../core/services/feedback';
@@ -20,7 +20,6 @@ import {
 } from '../../core/notifications/onboardingNotification';
 import { Orb } from './Orb';
 import { ResponseOptionsPanel } from './components/ResponseOptionsPanel';
-import { AiActivityTimeline } from '../../components/shared/AiActivityTimeline';
 import { InlineErrorBlade } from '../../components/shared/InlineErrorBlade';
 import { InvariantGuardBlade } from '../../components/shared/InvariantGuardBlade';
 
@@ -122,7 +121,6 @@ export const StepRenderer: React.FC = () => {
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
-  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
   const [interactionError, setInteractionError] = useState<UserFacingError | null>(null);
@@ -144,7 +142,6 @@ export const StepRenderer: React.FC = () => {
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const scrollHostRef = useRef<HTMLElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const suggestionsQuestionKeyRef = useRef('');
   const busy = loading || analyzingImage;
 
   useEffect(() => {
@@ -600,12 +597,11 @@ export const StepRenderer: React.FC = () => {
     setSelectedOptionIds([]);
   };
 
-  const canGoBack =
-    state.history.length > 0 || state.status !== 'idle' || state.conversation.length > 0;
   const currentMessage =
     state.conversation.length > 0 ? state.conversation[state.conversation.length - 1] : null;
   const conversationTimeline = state.conversation.filter((entry) => entry.role !== 'system');
   const transcriptMessages = conversationTimeline;
+  const hasDoctorInTranscript = transcriptMessages.some((entry) => entry.role === 'doctor');
   const resolvedTheme = resolveTheme(state.theme);
   const doctorAvatarSrc = resolvedTheme === 'dark' ? '/logo.png' : '/logo_light.png';
   const patientAvatarSrc = resolveProfileAvatarWithFallback(
@@ -620,9 +616,6 @@ export const StepRenderer: React.FC = () => {
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
-  const showBackControl = canGoBack && !isIntakeView && state.conversation.length > 2;
-  const showResetControl = state.status !== 'idle' && !isIntakeView && state.conversation.length > 3;
-  const showActionRow = showBackControl || showResetControl;
   const gateTimerExpired = isTimedGateStep && gateCountdown === 0;
   const activeResponseOptions = React.useMemo(() => {
     const sourceOptions = state.response_options;
@@ -668,8 +661,6 @@ export const StepRenderer: React.FC = () => {
     state.profile,
     state.response_options,
   ]);
-  const isAutomationSession =
-    typeof navigator !== 'undefined' && Boolean(navigator.webdriver);
   const assistiveResponseOptions = React.useMemo(() => {
     if (!activeResponseOptions) return null;
     if (isSafetyCheckpoint) return activeResponseOptions;
@@ -684,20 +675,7 @@ export const StepRenderer: React.FC = () => {
   }, [activeResponseOptions, isSafetyCheckpoint]);
   const showInput = true;
   const showGateStatusChips = isSafetyCheckpoint || isTimedGateStep;
-
-  useEffect(() => {
-    const nextKey = `${resolvedQuestion}:${assistiveResponseOptions?.options.length || 0}:${
-      isSafetyCheckpoint ? 'safety' : 'assist'
-    }`;
-    if (suggestionsQuestionKeyRef.current === nextKey) return;
-    suggestionsQuestionKeyRef.current = nextKey;
-    setSuggestionsOpen(isSafetyCheckpoint || isAutomationSession);
-  }, [
-    assistiveResponseOptions?.options.length,
-    isAutomationSession,
-    isSafetyCheckpoint,
-    resolvedQuestion,
-  ]);
+  const loadingPhaseLabel = LOADING_PHASES[loadingPhaseIndex] || 'Analyzing history';
 
   if (state.status === 'complete') return null;
 
@@ -711,46 +689,12 @@ export const StepRenderer: React.FC = () => {
         data-testid="consult-image-input"
         onChange={(event) => void handleImageSelected(event)}
       />
-      {showActionRow && (
-        <div className="flex items-center justify-between px-1 z-20 pt-1 consult-room-actions">
-          <div className="w-10">
-            {showBackControl && (
-              <button
-                onClick={() => dispatch({ type: 'GO_BACK' })}
-                className="h-10 w-10 surface-raised text-content-dim hover:text-accent-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
-                aria-label="Go back"
-              >
-                <ChevronLeft size={20} />
-              </button>
-            )}
-          </div>
-          <div className="w-10">
-            {showResetControl && (
-              <button
-                onClick={() => dispatch({ type: 'RESET' })}
-                className="h-10 w-10 surface-raised text-content-dim hover:text-danger-primary transition-all active:scale-95 rounded-full focus-glow inline-flex items-center justify-center"
-                aria-label="Reset consultation"
-              >
-                <X size={18} />
-              </button>
-            )}
-          </div>
-        </div>
-      )}
 
       {isIntakeView && (
         <div className="consult-room-stage">
           <div className="consult-room-presence">
               <Orb loading={loading} prominence="hero" />
             </div>
-          {busy && (
-            <AiActivityTimeline
-              scope="consult"
-              maxTasks={2}
-              className="w-full max-w-2xl mt-2"
-              showCompletedWithinMs={1200}
-            />
-          )}
           </div>
         )}
 
@@ -887,8 +831,26 @@ export const StepRenderer: React.FC = () => {
                 </div>
               )}
 
-              {busy && (
-                <AiActivityTimeline scope="consult" maxTasks={2} showCompletedWithinMs={1200} />
+              {busy && hasDoctorInTranscript && (
+                <div className="ml-10 inline-flex items-center gap-2 rounded-full surface-chip px-3 h-8">
+                  <span className="h-1.5 w-1.5 rounded-full bg-accent-primary animate-pulse" />
+                  <p className="text-[11px] text-content-secondary">Dr is thinking: {loadingPhaseLabel}</p>
+                </div>
+              )}
+
+              {!busy && assistiveResponseOptions && (
+                <div className="ml-10">
+                  <ResponseOptionsPanel
+                    responseOptions={assistiveResponseOptions}
+                    selectedOptionIds={selectedOptionIds}
+                    onSelect={(optionId, event) => void handleOptionSelect(optionId, event)}
+                    onSubmitSingle={() => void handleSingleSubmit()}
+                    onSubmitMultiple={() => void handleMultipleSubmit()}
+                    loading={loading}
+                    compact
+                    questionText={resolvedQuestion}
+                  />
+                </div>
               )}
 
               {!busy && showGateStatusChips && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
@@ -923,7 +885,7 @@ export const StepRenderer: React.FC = () => {
                 />
               )}
 
-              {!busy && guardNotice && (
+              {!busy && guardNotice?.status === 'failed' && (
                 <InvariantGuardBlade
                   status={guardNotice.status}
                   summary={
@@ -937,42 +899,8 @@ export const StepRenderer: React.FC = () => {
               )}
 
               <div className="space-y-3 consult-answer-zone">
-                {assistiveResponseOptions && !isSafetyCheckpoint && !suggestionsOpen && (
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setSuggestionsOpen(true)}
-                      className="h-8 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center justify-center interactive-tap"
-                    >
-                      Suggestions ({assistiveResponseOptions.options.length})
-                    </button>
-                  </div>
-                )}
-
-                {assistiveResponseOptions && (isSafetyCheckpoint || suggestionsOpen) && (
-                  <div className="space-y-2">
-                    {!isSafetyCheckpoint && (
-                      <div className="flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => setSuggestionsOpen(false)}
-                          className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-dim inline-flex items-center interactive-tap"
-                        >
-                          Hide suggestions
-                        </button>
-                      </div>
-                    )}
-                    <ResponseOptionsPanel
-                      responseOptions={assistiveResponseOptions}
-                      selectedOptionIds={selectedOptionIds}
-                      onSelect={(optionId, event) => void handleOptionSelect(optionId, event)}
-                      onSubmitSingle={() => void handleSingleSubmit()}
-                      onSubmitMultiple={() => void handleMultipleSubmit()}
-                      loading={loading}
-                      compact
-                      questionText={resolvedQuestion}
-                    />
-                  </div>
+                {inputHint && (
+                  <p className="px-1 text-[11px] text-content-dim">{inputHint}</p>
                 )}
 
                 {showInput && (
@@ -996,7 +924,7 @@ export const StepRenderer: React.FC = () => {
                       type="button"
                       onClick={openImagePicker}
                       disabled={busy}
-                      className="h-11 w-11 flex items-center justify-center surface-strong rounded-xl text-content-secondary focus-glow interactive-tap disabled:opacity-50"
+                      className="h-10 w-10 flex items-center justify-center surface-strong rounded-xl text-content-secondary focus-glow interactive-tap disabled:opacity-50"
                       aria-label="Attach image"
                     >
                       {analyzingImage ? (
@@ -1005,25 +933,14 @@ export const StepRenderer: React.FC = () => {
                         <ImagePlus size={16} />
                       )}
                     </button>
-                    {val.trim() && !busy && (
-                      <button
-                        onClick={() => void handleInitialInput()}
-                        className="h-11 w-11 flex items-center justify-center cta-live-icon rounded-xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95"
-                        aria-label="Send response"
-                      >
-                        <ArrowUp size={16} />
-                      </button>
-                    )}
-                  </div>
-                )}
-                {showInput && (inputHint || val.length > 0) && (
-                  <div className="flex items-center justify-between px-1">
-                    <p className="text-[11px] text-content-dim">
-                      {inputHint || 'Press Enter to send'}
-                    </p>
-                    <p className="text-[11px] text-content-dim">
-                      {val.length}/{INPUT_CHAR_LIMIT}
-                    </p>
+                    <button
+                      onClick={() => void handleInitialInput()}
+                      disabled={busy || !val.trim()}
+                      className="h-10 w-10 flex items-center justify-center cta-live-icon rounded-xl shadow-glass focus-glow hover:scale-[1.02] active:scale-95 disabled:opacity-45 disabled:cursor-not-allowed"
+                      aria-label="Send response"
+                    >
+                      <ArrowUp size={16} />
+                    </button>
                   </div>
                 )}
               </div>

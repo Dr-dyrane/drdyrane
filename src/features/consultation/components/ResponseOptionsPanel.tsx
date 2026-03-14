@@ -133,7 +133,7 @@ export const ResponseOptionsPanel: React.FC<ResponseOptionsPanelProps> = ({
   const baseVariant = getVariant(responseOptions);
   const variant =
     compact &&
-    !['scale', 'ladder', 'segmented', 'binary'].includes(baseVariant) &&
+    !['scale', 'ladder', 'segmented', 'binary', 'chips'].includes(baseVariant) &&
     responseOptions.options.length <= 8
       ? 'grid'
       : baseVariant;

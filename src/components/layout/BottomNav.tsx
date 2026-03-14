@@ -3,6 +3,7 @@ import { useClinical } from '../../core/context/ClinicalContext';
 import { AppView } from '../../core/types/clinical';
 import {
   Camera,
+  ChevronLeft,
   ClipboardList,
   History,
   LineChart,
@@ -158,6 +159,8 @@ export const BottomNav: React.FC = () => {
   const hasCompletedEncounter = state.status === 'complete' && Boolean(state.pillars);
   const hasHistoryRecord = state.view === 'history' && hasArchives;
   const canExportPdf = hasCompletedEncounter || hasHistoryRecord;
+  const canGoBack =
+    state.history.length > 0 || state.status !== 'idle' || state.conversation.length > 0;
   const smartTabs = useMemo(() => PRIMARY_TABS, []);
 
   const openProcess = useCallback(() => {
@@ -202,6 +205,13 @@ export const BottomNav: React.FC = () => {
     switch (state.view) {
       case 'consult':
         return [
+          {
+            key: 'back',
+            label: 'Back',
+            icon: ChevronLeft,
+            onClick: () => dispatch({ type: 'GO_BACK' }),
+            disabled: !canGoBack,
+          },
           { key: 'record', label: 'Record', icon: ClipboardList, onClick: () => dispatch({ type: 'TOGGLE_HX' }) },
           { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !hasCompletedEncounter },
@@ -238,6 +248,7 @@ export const BottomNav: React.FC = () => {
     }
   }, [
     canExportPdf,
+    canGoBack,
     dispatch,
     emitEvent,
     exportPdf,
