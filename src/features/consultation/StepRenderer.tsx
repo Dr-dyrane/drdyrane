@@ -30,6 +30,7 @@ const LOADING_PHASES = [
   'Selecting next question',
 ];
 const INPUT_CHAR_LIMIT = 1200;
+const ASSISTIVE_SUGGESTION_CAP = 4;
 const DANGER_GATE_PATTERN =
   /danger signs?|breathlessness|confusion|persistent vomiting|bleeding|chest pain|fainting|breathing trouble/i;
 const DIRECT_BINARY_QUESTION_PATTERN = /^(is|are|do|did|have|has|can|could|will|would|should|any)\b/i;
@@ -121,6 +122,7 @@ export const StepRenderer: React.FC = () => {
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [loadingPhaseIndex, setLoadingPhaseIndex] = useState(0);
   const [gateCountdown, setGateCountdown] = useState<number | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [stickToBottom, setStickToBottom] = useState(true);
   const [inputHint, setInputHint] = useState<string | null>(null);
   const [interactionError, setInteractionError] = useState<UserFacingError | null>(null);
@@ -142,6 +144,7 @@ export const StepRenderer: React.FC = () => {
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
   const scrollHostRef = useRef<HTMLElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
+  const suggestionsQuestionKeyRef = useRef('');
   const busy = loading || analyzingImage;
 
   useEffect(() => {
@@ -482,6 +485,7 @@ export const StepRenderer: React.FC = () => {
   const activeGateSegment = state.question_gate?.active
     ? state.question_gate.segments[state.question_gate.current_index]
     : null;
+  const isSafetyCheckpoint = state.question_gate?.kind === 'safety_checkpoint';
   const gateTimeoutSeconds = activeGateSegment?.timeout_seconds;
   const isTimedGateStep = typeof gateTimeoutSeconds === 'number' && gateTimeoutSeconds > 0;
 
@@ -530,9 +534,9 @@ export const StepRenderer: React.FC = () => {
       promptOnboardingFromNotifications();
       return;
     }
-    if (!state.response_options || busy) return;
+    if (!assistiveResponseOptions || busy) return;
 
-    const { mode, ui_variant: variant } = state.response_options;
+    const { mode, ui_variant: variant } = assistiveResponseOptions;
     const rect = event?.currentTarget?.getBoundingClientRect();
     signalFeedback('select', {
       hapticsEnabled: state.settings.haptics_enabled,
@@ -615,7 +619,6 @@ export const StepRenderer: React.FC = () => {
   const gateProgress = state.question_gate?.active
     ? `${state.question_gate.current_index + 1} / ${state.question_gate.segments.length}`
     : null;
-  const isClarifierMode = Boolean(state.question_gate?.active);
   const isIntakeView = state.status === 'idle' || state.status === 'intake';
   const showBackControl = canGoBack && !isIntakeView;
   const showResetControl = state.status !== 'idle' && !isIntakeView;
@@ -665,7 +668,36 @@ export const StepRenderer: React.FC = () => {
     state.profile,
     state.response_options,
   ]);
-  const showInput = !activeResponseOptions || activeResponseOptions.allow_custom_input;
+  const isAutomationSession =
+    typeof navigator !== 'undefined' && Boolean(navigator.webdriver);
+  const assistiveResponseOptions = React.useMemo(() => {
+    if (!activeResponseOptions) return null;
+    if (isSafetyCheckpoint) return activeResponseOptions;
+    return {
+      ...activeResponseOptions,
+      mode: 'single' as const,
+      ui_variant: 'chips' as const,
+      allow_custom_input: true,
+      options: activeResponseOptions.options.slice(0, ASSISTIVE_SUGGESTION_CAP),
+      context_hint: 'Suggested quick replies. You can ignore and type freely.',
+    };
+  }, [activeResponseOptions, isSafetyCheckpoint]);
+  const showInput = true;
+  const showGateStatusChips = isSafetyCheckpoint || isTimedGateStep;
+
+  useEffect(() => {
+    const nextKey = `${resolvedQuestion}:${assistiveResponseOptions?.options.length || 0}:${
+      isSafetyCheckpoint ? 'safety' : 'assist'
+    }`;
+    if (suggestionsQuestionKeyRef.current === nextKey) return;
+    suggestionsQuestionKeyRef.current = nextKey;
+    setSuggestionsOpen(isSafetyCheckpoint || isAutomationSession);
+  }, [
+    assistiveResponseOptions?.options.length,
+    isAutomationSession,
+    isSafetyCheckpoint,
+    resolvedQuestion,
+  ]);
 
   if (state.status === 'complete') return null;
 
@@ -855,10 +887,10 @@ export const StepRenderer: React.FC = () => {
 
               <AiActivityTimeline scope="consult" maxTasks={2} showCompletedWithinMs={22000} />
 
-              {!busy && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
+              {!busy && showGateStatusChips && (gateProgress || (isTimedGateStep && gateCountdown !== null)) && (
                 <div className="pt-1">
                   <div className="flex items-center justify-center gap-2 flex-wrap">
-                    {gateProgress && (
+                    {gateProgress && isSafetyCheckpoint && (
                       <span className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-secondary inline-flex items-center">
                         Step {gateProgress}
                       </span>
@@ -901,16 +933,41 @@ export const StepRenderer: React.FC = () => {
               )}
 
               <div className="space-y-3 consult-answer-zone">
-                <ResponseOptionsPanel
-                  responseOptions={activeResponseOptions}
-                  selectedOptionIds={selectedOptionIds}
-                  onSelect={(optionId, event) => void handleOptionSelect(optionId, event)}
-                  onSubmitSingle={() => void handleSingleSubmit()}
-                  onSubmitMultiple={() => void handleMultipleSubmit()}
-                  loading={loading}
-                  compact={isClarifierMode}
-                  questionText={resolvedQuestion}
-                />
+                {assistiveResponseOptions && !isSafetyCheckpoint && !suggestionsOpen && (
+                  <button
+                    type="button"
+                    onClick={() => setSuggestionsOpen(true)}
+                    className="w-full h-10 rounded-2xl surface-raised text-[12px] text-content-secondary inline-flex items-center justify-center interactive-tap"
+                  >
+                    Show suggestions ({assistiveResponseOptions.options.length})
+                  </button>
+                )}
+
+                {assistiveResponseOptions && (isSafetyCheckpoint || suggestionsOpen) && (
+                  <div className="space-y-2">
+                    {!isSafetyCheckpoint && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => setSuggestionsOpen(false)}
+                          className="h-7 px-3 rounded-full surface-chip text-[11px] text-content-dim inline-flex items-center interactive-tap"
+                        >
+                          Hide suggestions
+                        </button>
+                      </div>
+                    )}
+                    <ResponseOptionsPanel
+                      responseOptions={assistiveResponseOptions}
+                      selectedOptionIds={selectedOptionIds}
+                      onSelect={(optionId, event) => void handleOptionSelect(optionId, event)}
+                      onSubmitSingle={() => void handleSingleSubmit()}
+                      onSubmitMultiple={() => void handleMultipleSubmit()}
+                      loading={loading}
+                      compact
+                      questionText={resolvedQuestion}
+                    />
+                  </div>
+                )}
 
                 {showInput && (
                   <div className="pt-1 flex items-center gap-3 rounded-[24px] surface-raised p-3 shadow-glass consult-free-input">

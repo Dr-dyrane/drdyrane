@@ -56,8 +56,8 @@ const STACKED_BINARY_TIMEOUT_SECONDS = 10;
 const PRESENTING_COMPLAINT_BINARY_TIMEOUT_SECONDS = 10;
 const PRESENTING_COMPLAINT_MAX_ADDITIONAL = 3;
 const ASSISTIVE_OPTION_SOFT_CAP = 4;
-const HYBRID_CHAT_FIRST_MODE = import.meta.env.VITE_CONSULT_STRUCTURED_GATE !== 'true';
-const ENABLE_STACKED_SYMPTOM_GATE = import.meta.env.VITE_CONSULT_STACKED_GATE === 'true';
+const HYBRID_CHAT_FIRST_MODE = true;
+const ENABLE_STACKED_SYMPTOM_GATE = false;
 const STRICT_OPTION_CONTRACT_MODE = import.meta.env.VITE_CONSULT_OPTION_CONTRACT_STRICT !== 'false';
 const STACKED_SYMPTOM_SURVEY_PATTERN =
   /(which|what).*(associated symptom|symptom).*(stand out|most|prominent)|most prominent symptom with fever|associated symptom stands out/i;
