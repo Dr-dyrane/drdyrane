@@ -1691,11 +1691,17 @@ const ENGINE_CONTRACT_DEFAULTS: Record<ChiefComplaintEngineId, EngineContractDef
     fallbackIcd10: 'R21',
     management: [
       'Begin focused dermatologic triage with infection and severe drug reaction exclusion.',
+      'For chronic itching with lichenification: Consider lichen simplex chronicus (L28.0) - itch-scratch cycle.',
       'Escalate urgently for systemic instability or mucosal involvement.',
     ],
-    investigations: ['Full skin and mucosal examination', 'CBC and inflammatory markers when systemic signs exist'],
+    investigations: [
+      'Full skin and mucosal examination',
+      'CBC and inflammatory markers when systemic signs exist',
+      'For chronic itch: Assess for lichenification, post-inflammatory hyperpigmentation, excoriation marks',
+    ],
     counseling: [
       'Avoid new topical or oral triggers until reviewed.',
+      'For chronic itch: Break itch-scratch cycle with topical steroids and antihistamines.',
       'Seek emergency care for breathing difficulty, facial swelling, or rapidly spreading painful rash.',
     ],
     redFlags: ['Rapidly spreading rash', 'Mucosal involvement', 'Breathing difficulty', 'Bleeding lesions'],
@@ -1775,7 +1781,13 @@ const ENGINE_FALLBACK_DIFFERENTIALS: Record<ChiefComplaintEngineId, string[]> = 
   abdominal_pain: ['Appendicitis', 'Gastroenteritis', 'Pancreatitis', 'Peritonitis'],
   vomiting_nausea: ['Acute gastroenteritis', 'Dehydration', 'Medication reaction', 'Metabolic disturbance'],
   diarrhea: ['Acute gastroenteritis', 'Food-borne illness', 'Inflammatory bowel process', 'GI bleeding'],
-  rash: ['Allergic dermatitis', 'Viral exanthem', 'Drug reaction', 'Invasive infection'],
+  rash: [
+    'Lichen simplex chronicus (L28.0)',
+    'Allergic dermatitis',
+    'Viral exanthem',
+    'Drug reaction',
+    'Invasive infection',
+  ],
   joint_pain: ['Rheumatoid arthritis flare', 'Septic arthritis', 'Gout flare', 'Reactive arthritis'],
   weakness_fatigue: ['Anemia', 'Viral illness', 'Endocrine disturbance', 'Stroke'],
   bleeding: ['Hemorrhoidal bleeding', 'Upper GI bleeding', 'Coagulopathy', 'Major hemorrhage'],
@@ -1859,6 +1871,15 @@ const FEATURE_CUES: FeatureCue[] = [
     question: 'Have you noticed rash, gum bleeding, or easy bruising?',
   },
   {
+    id: 'chronic_itch',
+    positive: [
+      /\bitch(ing|y)?.*years?|chronic itch|persistent itch|always itch/i,
+      /\bdry skin.*dark patches|dark patches.*itch|lichenification|thickened skin/i,
+      /\bitch.*scratch.*cycle|scratch.*itch/i,
+    ],
+    question: 'How long have you had the itching, and do you notice dark patches where you scratch?',
+  },
+  {
     id: 'confusion_or_neuro',
     positive: [
       /\bconfusion|disoriented|seizure|fits|focal weakness|one[-\s]?sided weakness|unilateral weakness|speech difficulty|facial droop\b/i,
@@ -1884,6 +1905,17 @@ const DIAGNOSIS_HINTS: DiagnosisHint[] = [
     supports: ['fever', 'headache', 'rash_or_bleeding', 'vomiting'],
     followUpQuestion: 'Any rash, bleeding, or severe abdominal pain suggesting dengue warning signs?',
     pendingActions: ['Assess dengue warning signs', 'Order CBC with platelet trend'],
+  },
+  {
+    pattern: /\blichen simplex chronicus|chronic itch.*lichenification|itch.*scratch.*cycle\b/i,
+    supports: ['chronic_itch', 'rash_or_bleeding'],
+    followUpQuestion: 'Is the itching worse at night, and do you notice thickened or darkened skin where you scratch?',
+    pendingActions: [
+      'Confirm chronic itch-scratch cycle (years duration)',
+      'Assess for lichenification and post-inflammatory hyperpigmentation',
+      'Rule out underlying causes: atopy, contact dermatitis, systemic disease',
+      'Prescribe potent topical steroid + antihistamine to break cycle',
+    ],
   },
   {
     pattern: /\btyphoid\b/i,
