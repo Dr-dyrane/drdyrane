@@ -144,7 +144,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
   const showQuickPicks = !value.trim() && quickPicks.length > 0;
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div ref={containerRef} className="relative w-full z-[100]">
       {/* Search Input */}
       <div
         className={`h-12 rounded-2xl surface-strong px-4 inline-flex items-center gap-3 w-full transition-all ${
@@ -194,7 +194,7 @@ export const DiagnosticSearchInput: React.FC<DiagnosticSearchInputProps> = ({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.15 }}
-            className="absolute top-full left-0 right-0 mt-2 surface-raised rounded-2xl p-2 shadow-xl z-50 max-h-[320px] overflow-y-auto"
+            className="absolute top-full left-0 right-0 mt-2 surface-raised rounded-2xl p-2 shadow-xl z-[110] max-h-[320px] overflow-y-auto"
           >
             {/* Recent Searches */}
             {recentSearches.length > 0 && !value.trim() && (
