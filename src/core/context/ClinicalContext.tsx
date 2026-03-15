@@ -14,6 +14,9 @@ import {
   SheetType,
   DiagnosticReviewRecord,
   QuestionGateState,
+  CycleLog,
+  CycleState,
+  LifeStage,
 } from '../types/clinical';
 import { loadSessionState } from '../storage/sessionStore';
 import { initSessionSyncWorker, queueSessionSync } from '../storage/sessionSync';
@@ -48,6 +51,8 @@ export type Action =
   | { type: 'UPSERT_ARCHIVE'; payload: SessionRecord }
   | { type: 'DELETE_ARCHIVE'; payload: string }
   | { type: 'RESTORE_ARCHIVE'; payload: string }
+  | { type: 'LOG_CYCLE_EVENT'; payload: Omit<CycleLog, 'id'> }
+  | { type: 'UPDATE_CYCLE_SETTINGS'; payload: Partial<CycleState> }
   | { type: 'RESET' };
 
 const defaultProfile = (): UserProfile => ({
@@ -133,10 +138,42 @@ const defaultAgentState = (): ClinicalState['agent_state'] => ({
   },
 });
 
+const defaultCycleState = (): CycleState => ({
+  logs: [],
+  cycle_length: 28,
+  period_length: 5,
+  life_stage: 'adult',
+  discreet_mode: false,
+});
+
+const sanitizeCycleState = (value: unknown): CycleState => {
+  const defaults = defaultCycleState();
+  if (!value || typeof value !== 'object') return defaults;
+  const raw = value as Partial<CycleState>;
+
+  const lifeStage = (['teen', 'adult', 'ttc', 'postpartum', 'perimenopause'] as LifeStage[]).includes(
+    raw.life_stage as LifeStage
+  )
+    ? (raw.life_stage as LifeStage)
+    : defaults.life_stage;
+
+  return {
+    logs: Array.isArray(raw.logs) ? raw.logs.slice(0, 100) : defaults.logs,
+    last_period_date: typeof raw.last_period_date === 'number' ? raw.last_period_date : undefined,
+    cycle_length: typeof raw.cycle_length === 'number' ? raw.cycle_length : defaults.cycle_length,
+    period_length: typeof raw.period_length === 'number' ? raw.period_length : defaults.period_length,
+    life_stage: lifeStage,
+    discreet_mode:
+      typeof raw.discreet_mode === 'boolean' ? raw.discreet_mode : defaults.discreet_mode,
+    partner_name: typeof raw.partner_name === 'string' ? raw.partner_name : undefined,
+  };
+};
+
 const sanitizeDiagnosticReviewRecord = (
   record: Partial<DiagnosticReviewRecord> | null | undefined
 ): DiagnosticReviewRecord | null => {
-  if (!record || typeof record !== 'object') return null;
+  if (!record) return null;
+
   const id = typeof record.id === 'string' && record.id.trim() ? record.id.trim() : '';
   const imageDataUrl =
     typeof record.image_data_url === 'string' ? record.image_data_url.trim() : '';
@@ -155,7 +192,7 @@ const sanitizeDiagnosticReviewRecord = (
     return Math.max(0, Math.min(100, Math.round(scaled)));
   };
   const differentials = Array.isArray(record.analysis?.differentials)
-    ? record.analysis.differentials
+    ? record.analysis!.differentials
         .map((entry) => {
           if (!entry || typeof entry !== 'object') return null;
           const raw = entry as {
@@ -184,13 +221,13 @@ const sanitizeDiagnosticReviewRecord = (
         .slice(0, 6)
     : [];
   const treatmentLines = Array.isArray(record.analysis?.treatment_lines)
-    ? record.analysis.treatment_lines.map(String).filter(Boolean).slice(0, 8)
+    ? record.analysis!.treatment_lines.map(String).filter(Boolean).slice(0, 8)
     : [];
   const investigations = Array.isArray(record.analysis?.investigations)
-    ? record.analysis.investigations.map(String).filter(Boolean).slice(0, 8)
+    ? record.analysis!.investigations.map(String).filter(Boolean).slice(0, 8)
     : [];
   const counseling = Array.isArray(record.analysis?.counseling)
-    ? record.analysis.counseling.map(String).filter(Boolean).slice(0, 8)
+    ? record.analysis!.counseling.map(String).filter(Boolean).slice(0, 8)
     : [];
   const analysis = record.analysis && typeof record.analysis === 'object'
     ? {
@@ -247,7 +284,7 @@ const sanitizeDiagnosticReviewRecord = (
     image_data_url: imageDataUrl,
     image_name: imageName || undefined,
     context_note: note || undefined,
-    analysis,
+    analysis: analysis || undefined,
     created_at: createdAt,
     updated_at: updatedAt,
   };
@@ -398,6 +435,7 @@ const initialState: ClinicalState = {
   active_sheet: null,
   clerking: defaultClerking(),
   diagnostic_reviews: [],
+  cycle: defaultCycleState(),
   isHxOpen: false,
   history: [],
   archives: [],
@@ -875,6 +913,37 @@ function clinicalReducer(state: ClinicalState, action: Action): ClinicalState {
       });
     }
     
+    case 'LOG_CYCLE_EVENT': {
+      const logEntry: CycleLog = {
+        ...action.payload,
+        id: `cycle-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        timestamp: action.payload.timestamp || Date.now(),
+      };
+
+      const nextCycle = {
+        ...state.cycle,
+        logs: [logEntry, ...state.cycle.logs].slice(0, 100),
+        last_period_date:
+          logEntry.flow && logEntry.flow !== 'none'
+            ? logEntry.timestamp
+            : state.cycle.last_period_date,
+      };
+
+      return {
+        ...state,
+        cycle: nextCycle,
+      };
+    }
+
+    case 'UPDATE_CYCLE_SETTINGS':
+      return {
+        ...state,
+        cycle: sanitizeCycleState({
+          ...state.cycle,
+          ...action.payload,
+        }),
+      };
+
     case 'RESET': {
       // Manual reset still tries to archive if not already recorded
       const archivesUpdate = archiveSession(state.archives, state);
@@ -935,6 +1004,7 @@ export const ClinicalProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         parsed.question_gate = sanitizeQuestionGate(
           parsed.question_gate === undefined ? null : parsed.question_gate
         );
+        parsed.cycle = sanitizeCycleState(parsed.cycle);
         if (!parsed.profile) parsed.profile = defaultProfile();
         parsed.profile.weight_kg = sanitizeWeightKg(parsed.profile.weight_kg);
         parsed.settings = sanitizeSettings(parsed.settings as Partial<AppSettings> | undefined);

@@ -46,6 +46,9 @@ const ScanReviewView = lazy(() =>
 const AboutView = lazy(() =>
   import('./features/about/AboutView').then((module) => ({ default: module.AboutView }))
 );
+const CycleView = lazy(() =>
+  import('./features/cycle/CycleView').then((module) => ({ default: module.CycleView }))
+);
 const ProfileSheet = lazy(() =>
   import('./features/profile/ProfileSheet').then((module) => ({ default: module.ProfileSheet }))
 );
@@ -309,6 +312,20 @@ const MainApp: React.FC = () => {
               >
                 <Suspense fallback={<RouteFallback />}>
                   <AboutView />
+                </Suspense>
+              </motion.div>
+            )}
+
+            {state.view === 'cycle' && (
+              <motion.div
+                key="cycle"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -16 }}
+                className="flex flex-1 min-w-0"
+              >
+                <Suspense fallback={<RouteFallback />}>
+                  <CycleView />
                 </Suspense>
               </motion.div>
             )}

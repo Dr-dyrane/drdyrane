@@ -118,6 +118,23 @@ export interface DiagnosticReviewPdfInput {
   contextNote?: string;
 }
 
+export interface CycleReportPdfInput {
+  filename?: string;
+  generatedAt?: number;
+  patient?: PatientMeta;
+  cycleLength: number;
+  periodLength: number;
+  lifeStage: string;
+  lastPeriodDate?: number;
+  logs: Array<{
+    timestamp: number;
+    flow?: string;
+    symptoms: string[];
+    mood?: string;
+    notes?: string;
+  }>;
+}
+
 const COLORS = {
   pageBg: [244, 247, 252] as [number, number, number],
   sheetBg: [255, 255, 255] as [number, number, number],
@@ -706,4 +723,51 @@ export const exportDiagnosticReviewPdf = (input: DiagnosticReviewPdfInput) => {
   frame.doc.save(
     input.filename || toFileName('dr-dyrane-diagnostic-review', likelyDx?.label || input.pageLabel)
   );
+};
+
+export const exportCycleReportPdf = (input: CycleReportPdfInput) => {
+  const frame = createFrame();
+  const generatedAt = formatTimestamp(input.generatedAt || Date.now());
+  const patientMetaLine = buildPatientMetaLine(input.patient);
+
+  const cycleSummary = [
+    `Average Cycle Length: ${input.cycleLength} days`,
+    `Average Period Length: ${input.periodLength} days`,
+    `Current Life Stage: ${input.lifeStage}`,
+    input.lastPeriodDate ? `Last Period: ${new Date(input.lastPeriodDate).toLocaleDateString()}` : null,
+  ].filter(Boolean) as string[];
+
+  drawHeader(
+    frame,
+    'Cycle Scientist Report',
+    'Comprehensive reproductive health history and cycle analysis.',
+    [`Generated: ${generatedAt}`, patientMetaLine],
+    ['AI Insights', 'Cycle Trends', 'Symptom History']
+  );
+
+  drawListSection(frame, 'Cycle Summary', cycleSummary);
+
+  if (input.logs.length > 0) {
+    drawTableSection(
+      frame,
+      'Symptom Log History',
+      [
+        { key: 'date', title: 'Date', ratio: 1.0 },
+        { key: 'flow', title: 'Flow', ratio: 0.8 },
+        { key: 'symptoms', title: 'Symptoms', ratio: 2.2 },
+        { key: 'notes', title: 'Notes', ratio: 2.0 },
+      ],
+      input.logs.map((log) => ({
+        date: new Date(log.timestamp).toLocaleDateString(),
+        flow: log.flow || '-',
+        symptoms: log.symptoms.join(', ') || '-',
+        notes: log.notes || '-',
+      }))
+    );
+  } else {
+    drawParagraphSection(frame, 'Log History', 'No logs recorded yet.');
+  }
+
+  drawFooters(frame, 'Dr Dyrane - Cycle Scientist Report');
+  frame.doc.save(input.filename || toFileName('dr-dyrane-cycle-report', input.lifeStage));
 };

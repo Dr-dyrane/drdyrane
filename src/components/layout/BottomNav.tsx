@@ -18,6 +18,8 @@ import {
   Upload,
   X,
   Calculator,
+  Activity,
+  Sparkles,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { signalFeedback } from '../../core/services/feedback';
@@ -58,12 +60,14 @@ const TAB_REGISTRY: Record<AppView, SmartTab> = {
   drug: { id: 'drug', label: 'Rx', icon: Pill },
   scan: { id: 'scan', label: 'Scan', icon: ScanLine },
   about: { id: 'about', label: 'System', icon: LineChart },
+  cycle: { id: 'cycle', label: 'Cycle', icon: Activity },
 };
 
 const PRIMARY_TABS: SmartTab[] = [
   TAB_REGISTRY.consult,
   TAB_REGISTRY.history,
   TAB_REGISTRY.drug,
+  TAB_REGISTRY.cycle,
   TAB_REGISTRY.scan,
 ];
 
@@ -215,6 +219,7 @@ export const BottomNav: React.FC = () => {
             disabled: !canGoBack,
           },
           { key: 'record', label: 'Record', icon: ClipboardList, onClick: () => dispatch({ type: 'TOGGLE_HX' }) },
+          { key: 'cycle', label: 'Cycle', icon: Activity, onClick: () => setView('cycle') },
           { key: 'process', label: 'Process', icon: LineChart, onClick: openProcess },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !hasCompletedEncounter },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
@@ -222,6 +227,7 @@ export const BottomNav: React.FC = () => {
       case 'history':
         return [
           { key: 'new', label: 'New', icon: Plus, onClick: () => emitEvent('drdyrane:history:create-record') },
+          { key: 'cycle', label: 'Cycle', icon: Activity, onClick: () => setView('cycle') },
           { key: 'revisit', label: 'Revisit', icon: RotateCcw, onClick: revisitLatest, disabled: !hasArchives },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !hasArchives },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
@@ -229,16 +235,26 @@ export const BottomNav: React.FC = () => {
       case 'drug':
         return [
           { key: 'volume', label: 'Volume', icon: Calculator, onClick: () => emitEvent('drdyrane:drug:open-calculator') },
+          { key: 'cycle', label: 'Cycle', icon: Activity, onClick: () => setView('cycle') },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf, disabled: !canExportPdf },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       case 'scan':
         return [
           { key: 'upload', label: 'Upload', icon: Upload, onClick: () => triggerDiagnostic('open-upload') },
+          { key: 'cycle', label: 'Cycle', icon: Activity, onClick: () => setView('cycle') },
           { key: 'scan', label: 'Scan', icon: Camera, onClick: () => triggerDiagnostic('open-scanner') },
           { key: 'review', label: 'Review', icon: LineChart, onClick: () => triggerDiagnostic('run-review') },
           { key: 'send', label: 'Send', icon: SendHorizontal, onClick: () => triggerDiagnostic('send-consult') },
           { key: 'pdf', label: 'PDF', icon: Printer, onClick: () => triggerDiagnostic('print-review'), disabled: !hasScanAnalysis },
+          { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
+        ];
+      case 'cycle':
+        return [
+          { key: 'log', label: 'Log', icon: Plus, onClick: () => emitEvent('drdyrane:cycle:open-logger') },
+          { key: 'ask', label: 'Ask Ava', icon: Sparkles, onClick: () => emitEvent('drdyrane:cycle:open-ai') },
+          { key: 'history', label: 'Cycle history', icon: History, onClick: () => emitEvent('drdyrane:cycle:view-history') },
+          { key: 'pdf', label: 'PDF', icon: Printer, onClick: exportPdf },
           { key: 'reset', label: 'Reset', icon: RotateCcw, onClick: resetVisit },
         ];
       default:
@@ -290,6 +306,8 @@ export const BottomNav: React.FC = () => {
           return { label: 'Print Review', icon: Printer, onClick: () => triggerDiagnostic('print-review'), tone: 'primary', kind: 'action' };
         }
         return { label: 'Open Scanner', icon: Camera, onClick: () => triggerDiagnostic('open-scanner'), tone: 'primary', kind: 'action' };
+      case 'cycle':
+        return { label: 'Log Symptom', icon: Plus, onClick: () => emitEvent('drdyrane:cycle:open-logger'), tone: 'primary', kind: 'action' };
       default:
         return { label: 'Consult', icon: Stethoscope, onClick: () => openView('consult'), tone: 'primary', kind: 'action' };
     }
@@ -326,15 +344,14 @@ export const BottomNav: React.FC = () => {
           >
             {smartTabs.map((tab) => {
               const isActive = state.view === tab.id;
-              const showActiveLabel = isActive && state.view !== 'consult';
+              const showActiveLabel = isActive;
               const Icon = tab.icon;
               return (
                 <button
                   key={tab.id}
                   onClick={() => openView(tab.id)}
-                  className={`relative h-10 rounded-full inline-flex items-center gap-1 transition-all interactive-tap tap-compact ${
-                    isActive ? 'px-2.5 bg-surface-active text-content-active selected-elevation' : 'px-2 text-content-dim'
-                  }`}
+                  className={`relative h-10 rounded-full inline-flex items-center gap-1 transition-all interactive-tap tap-compact ${isActive ? 'px-2.5 bg-surface-active text-content-active selected-elevation' : 'px-2 text-content-dim'
+                    }`}
                   aria-label={`Open ${tab.label}`}
                 >
                   <Icon size={16} />
@@ -360,9 +377,8 @@ export const BottomNav: React.FC = () => {
             <motion.button
               whileTap={{ scale: 0.95 }}
               onClick={triggerPrimaryAction}
-              className={`h-14 w-14 rounded-full inline-flex items-center justify-center shadow-float interactive-tap ${
-                primaryAction.tone === 'subtle' ? 'ios-tabbar-surface text-content-secondary' : 'cta-live'
-              }`}
+              className={`h-14 w-14 rounded-full inline-flex items-center justify-center shadow-float interactive-tap ${primaryAction.tone === 'subtle' ? 'ios-tabbar-surface text-content-secondary' : 'cta-live'
+                }`}
               aria-label={menuOpen ? 'Close actions' : primaryAction.label}
             >
               {menuOpen ? <X size={19} /> : <PrimaryIcon size={19} />}

@@ -1,6 +1,6 @@
 export type ConsultationStatus = 'idle' | 'intake' | 'active' | 'lens' | 'emergency' | 'complete';
 export type AppTheme = 'system' | 'dark' | 'light';
-export type AppView = 'consult' | 'history' | 'drug' | 'scan' | 'about';
+export type AppView = 'consult' | 'history' | 'drug' | 'scan' | 'about' | 'cycle';
 export type SheetType = 'profile' | 'notifications' | 'onboarding' | null;
 export type DiagnosticReviewKind = 'scan' | 'lab' | 'radiology';
 export type DiagnosticScanLens = 'general' | 'lab' | 'radiology';
@@ -145,12 +145,72 @@ export interface AppSettings {
   gratification_enabled: boolean;
 }
 
+export interface DiagnosticReviewRecord {
+  id: string;
+  kind: DiagnosticReviewKind;
+  lens: DiagnosticScanLens;
+  image_data_url: string;
+  image_name?: string;
+  context_note?: string;
+  analysis?: DiagnosticReviewAnalysis | null;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface UserProfile {
+  id: string;
+  display_name: string;
+  avatar_url: string;
+  age?: number;
+  weight_kg?: number;
+  sex?: 'female' | 'male' | 'intersex' | 'other' | 'prefer_not_to_say';
+  pronouns?: string;
+  allergies?: string;
+  chronic_conditions?: string;
+  medications?: string;
+  updated_at: number;
+}
+
+export interface AppSettings {
+  haptics_enabled: boolean;
+  audio_enabled: boolean;
+  reduced_motion: boolean;
+  notifications_enabled: boolean;
+  text_scale: 'sm' | 'md' | 'lg';
+  motion_style: 'subtle' | 'balanced' | 'expressive';
+  gratification_enabled: boolean;
+}
+
 export interface AppNotification {
   id: string;
   title: string;
   body: string;
   created_at: number;
   read: boolean;
+}
+
+export type CycleFlow = 'none' | 'spotting' | 'light' | 'medium' | 'heavy';
+export type LifeStage = 'teen' | 'adult' | 'ttc' | 'postpartum' | 'perimenopause';
+
+export interface CycleLog {
+  id: string;
+  timestamp: number;
+  flow?: CycleFlow;
+  symptoms: string[];
+  mood?: string;
+  basal_temp?: number;
+  medications?: string[];
+  notes?: string;
+}
+
+export interface CycleState {
+  logs: CycleLog[];
+  last_period_date?: number;
+  cycle_length: number; // average
+  period_length: number; // average
+  life_stage: LifeStage;
+  discreet_mode: boolean;
+  partner_name?: string;
 }
 
 export interface ConversationMessage {
@@ -278,6 +338,7 @@ export interface ClinicalState {
   active_sheet: SheetType;
   clerking: ClerkingSchema;
   diagnostic_reviews: DiagnosticReviewRecord[];
+  cycle: CycleState;
   isHxOpen: boolean; // Controls the Hx drawer
   history: ClinicalState[];
   archives: SessionRecord[];

@@ -777,13 +777,24 @@ select {
     0 8px 18px rgba(10, 132, 255, 0.08);
 }
 
-::-webkit-scrollbar {
-  display: none;
+* {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 .no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none !important;
 }
 
 @keyframes orb-pulse {

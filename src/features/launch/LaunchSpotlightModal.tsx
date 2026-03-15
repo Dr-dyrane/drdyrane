@@ -108,6 +108,27 @@ export const LaunchSpotlightModal: React.FC<LaunchSpotlightModalProps> = ({
               </button>
             </div>
 
+            <button
+              type="button"
+              onClick={() => onNavigate('cycle')}
+              className="w-full text-left surface-raised rounded-[24px] p-4 space-y-2 interactive-tap option-live option-tone-rose"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="inline-flex items-center gap-2">
+                  <span className="h-9 w-9 rounded-xl surface-chip inline-flex items-center justify-center text-neon-rose">
+                    <Sparkles size={15} />
+                  </span>
+                  <p className="text-sm font-semibold text-content-primary">Cycle Scientist</p>
+                </div>
+                <span className="h-6 px-2.5 rounded-full badge-accent bg-neon-rose text-[10px] font-semibold inline-flex items-center">
+                  Ava AI
+                </span>
+              </div>
+              <p className="text-xs text-content-secondary leading-relaxed">
+                Reproductive health OS, symptom logging, AI cycle intelligence, and fertility guidance.
+              </p>
+            </button>
+
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
