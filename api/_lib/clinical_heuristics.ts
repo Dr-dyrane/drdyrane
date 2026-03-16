@@ -1,7 +1,6 @@
 import {
   ConsultRequest,
   ConsultPayload,
-  AgentPhase,
 } from './types';
 import {
   URGENCY_RANK,

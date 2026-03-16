@@ -9,6 +9,8 @@ import {
   VisionPayload,
   LlmProvider,
   PrescriptionResponse,
+  CycleRequest,
+  CyclePayload,
 } from './_lib/types';
 import {
   normalizeBooleanEnv,
@@ -48,6 +50,7 @@ import {
   VISION_ENRICHMENT_PROMPT,
   SCAN_PLAN_SYSTEM_PROMPT,
   PRESCRIPTION_GENERATION_SYSTEM_PROMPT,
+  CYCLE_SYSTEM_PROMPT,
 } from './_prompts';
 import { applyClinicalHeuristics } from './_lib/clinical_heuristics';
 
@@ -496,4 +499,44 @@ export const runPrescriptionGeneration = async (
       rationale: error instanceof Error ? error.message : 'Unable to generate prescriptions',
     };
   }
+};
+
+export const runCycle = async (body: CycleRequest): Promise<CyclePayload> => {
+  const providers = resolveProviderOrder('anthropic'); // Default to anthropic for scientist role
+  
+  const userPrompt = `
+    CYCLE DATA: ${JSON.stringify(body.cycle)}
+    PATIENT PROFILE: ${JSON.stringify(body.profile)}
+    QUERY: ${body.query || 'Provide a general health and cycle scan based on recent logs.'}
+  `;
+
+  const raw = await runWithProviderFailover(providers, (provider) => 
+    provider === 'anthropic' 
+    ? callAnthropic({
+        maxTokens: 1000,
+        systemPrompt: CYCLE_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userPrompt }]
+      })
+    : callOpenAI({
+        maxTokens: 1000,
+        forceJson: true,
+        messages: [
+          { role: 'system', content: CYCLE_SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt }
+        ]
+      })
+  );
+
+  return parseFirstJsonObject(raw) as CyclePayload;
+};
+
+
+// Re-export types for server modules
+export type {
+  ConsultRequest,
+  OptionsRequest,
+  VisionRequest,
+  ScanPlanRequest,
+  PrescriptionRequest,
+  CycleRequest,
 };

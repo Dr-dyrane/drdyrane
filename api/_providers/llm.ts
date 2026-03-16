@@ -1,5 +1,5 @@
 import { LlmProvider, ConsultRequest, OptionsRequest, VisionRequest, ScanPlanRequest, PrescriptionRequest } from '../_lib/types';
-import { normalizeEnvValue, normalizeBooleanEnv, normalizeProvider, sanitizeText } from '../_lib/utils';
+import { normalizeEnvValue, normalizeProvider, sanitizeText } from '../_lib/utils';
 import { normalizeVisionPayload } from '../_lib/parsers';
 
 export const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';

@@ -239,3 +239,37 @@ export type PrescriptionResponse = {
   }>;
   rationale: string;
 };
+
+export type CycleRequest = {
+  cycle: {
+    logs: Array<{
+      id: string;
+      timestamp: number;
+      flow?: 'none' | 'spotting' | 'light' | 'medium' | 'heavy';
+      symptoms: string[];
+      mood?: string;
+      basal_temp?: number;
+      medications?: string[];
+      notes?: string;
+    }>;
+    last_period_date?: number;
+    cycle_length: number;
+    period_length: number;
+    life_stage: 'teen' | 'adult' | 'ttc' | 'postpartum' | 'perimenopause';
+    discreet_mode: boolean;
+    partner_name?: string;
+  };
+  profile: {
+    sex?: string;
+    age?: number;
+    display_name?: string;
+  };
+  query?: string;
+};
+
+export type CyclePayload = {
+  insight: string;
+  phase_analysis: string;
+  recommendations: string[];
+  partner_tips?: string[];
+};

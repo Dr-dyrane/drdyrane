@@ -3,7 +3,6 @@ import {
   OptionsPayload, 
   VisionPayload, 
   ConsultRequest, 
-  LlmProvider,
   ChiefComplaintEngineId,
   AgentPhase,
   QuestionIntent,

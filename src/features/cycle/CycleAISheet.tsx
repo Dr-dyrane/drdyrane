@@ -2,28 +2,54 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, Brain, Zap, SendHorizontal } from 'lucide-react';
 import { CycleState } from '../../core/types/clinical';
+import { useClinical } from '../../core/context/ClinicalContext';
 
 interface CycleAISheetProps {
   isOpen: boolean;
   onClose: () => void;
   cycle: CycleState;
+  prefillQuery?: string;
 }
 
-export const CycleAISheet: React.FC<CycleAISheetProps> = ({ isOpen, onClose, cycle }) => {
-  const [query, setQuery] = useState('');
+export const CycleAISheet: React.FC<CycleAISheetProps> = ({ isOpen, onClose, cycle, prefillQuery }) => {
+  const { state } = useClinical();
+  const [query, setQuery] = useState(prefillQuery || '');
+
+  React.useEffect(() => {
+    if (prefillQuery) setQuery(prefillQuery);
+  }, [prefillQuery]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [response, setResponse] = useState<string | null>(null);
 
-  const handleAsk = () => {
+  const handleAsk = async () => {
     if (!query.trim()) return;
     setIsAnalyzing(true);
     setResponse(null);
     
-    // Simulate AI thinking
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/cycle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cycle,
+          profile: state.profile,
+          query: query
+        })
+      });
+      
+      if (!res.ok) throw new Error('Analysis failed');
+      const data = await res.json();
+      
+      let formatted = `**Insight:** ${data.insight}\n\n**Analysis:** ${data.phase_analysis}\n\n**Tips:**\n${data.recommendations.map((r: string) => `• ${r}`).join('\n')}`;
+      if (state.profile.sex === 'male' && data.partner_tips?.length) {
+        formatted += `\n\n**For You:**\n${data.partner_tips.map((t: string) => `• ${t}`).join('\n')}`;
+      }
+      setResponse(formatted);
+    } catch (err) {
+      setResponse("I encountered an issue analyzing the clinical data. Please check your connection and try again.");
+    } finally {
       setIsAnalyzing(false);
-      setResponse(`Based on your recent logs and current life stage (${cycle.life_stage}), your energy levels might fluctuate over the next 48 hours. I recommend increasing magnesium intake and maintaining consistent sleep hygiene.`);
-    }, 2000);
+    }
   };
 
   return (
