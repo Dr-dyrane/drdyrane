@@ -1,4 +1,5 @@
-import { ScanPlanRequest, runScanPlan } from './_aiOrchestrator.js';
+import { ScanPlanRequest } from './_lib/types';
+import { runScanPlan } from './_aiOrchestrator';
 
 interface ApiRequest {
   method?: string;

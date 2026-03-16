@@ -1,4 +1,5 @@
-import { OptionsRequest, runOptions } from './_aiOrchestrator.js';
+import { OptionsRequest } from './_lib/types';
+import { runOptions } from './_aiOrchestrator';
 
 interface ApiRequest {
   method?: string;

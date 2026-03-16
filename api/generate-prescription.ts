@@ -1,4 +1,5 @@
-import { runPrescriptionGeneration, PrescriptionRequest } from './_aiOrchestrator.js';
+import { PrescriptionRequest } from './_lib/types';
+import { runPrescriptionGeneration } from './_aiOrchestrator';
 
 interface ApiRequest {
   method?: string;
