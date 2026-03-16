@@ -203,13 +203,13 @@ export const CycleCalendar: React.FC<CycleCalendarProps> = ({ cycle, isPartnerMo
   };
   
   return (
-    <div className="surface-raised rounded-[32px] p-6 space-y-4">
+    <div className="p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigateCalendar('prev')}
-            className="w-8 h-8 rounded-full surface-strong flex items-center justify-center interactive-tap"
+            className="w-8 h-8 surface-strong flex items-center justify-center interactive-tap"
           >
             <ChevronLeft size={16} />
           </button>
@@ -223,7 +223,7 @@ export const CycleCalendar: React.FC<CycleCalendarProps> = ({ cycle, isPartnerMo
           </div>
           <button
             onClick={() => navigateCalendar('next')}
-            className="w-8 h-8 rounded-full surface-strong flex items-center justify-center interactive-tap"
+            className="w-8 h-8 surface-strong flex items-center justify-center interactive-tap"
           >
             <ChevronRight size={16} />
           </button>
@@ -254,7 +254,7 @@ export const CycleCalendar: React.FC<CycleCalendarProps> = ({ cycle, isPartnerMo
             <button
               key={view}
               onClick={() => setCalendarView(view)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+              className={`px-3 py-1.5 text-xs font-medium transition-all ${
                 calendarView === view
                   ? 'bg-blue-500 text-white'
                   : 'bg-white/5 text-content-dim hover:text-content-primary'
@@ -265,6 +265,37 @@ export const CycleCalendar: React.FC<CycleCalendarProps> = ({ cycle, isPartnerMo
           ))}
         </div>
       )}
+      
+      {/* Color Legend - Veteran UI Approach */}
+      <div className="surface-strong p-3 space-y-2">
+        <h4 className="text-xs font-semibold text-content-primary uppercase tracking-wider">Cycle Phases</h4>
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-red-500/20"></div>
+            <span className="text-content-secondary">Period</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-green-500/20"></div>
+            <span className="text-content-secondary">Fertile</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-orange-500/20"></div>
+            <span className="text-content-secondary">High Risk</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-3 h-3 bg-blue-500/20"></div>
+            <span className="text-content-secondary">Safe</span>
+          </div>
+        </div>
+        <div className="text-xs text-content-dim">
+          {cycle.tracking_goal === 'conception' 
+            ? 'Green days are optimal for conception' 
+            : cycle.tracking_goal === 'avoidance'
+            ? 'Orange days require protection'
+            : 'Colors show cycle phases'
+          }
+        </div>
+      </div>
       
       {/* Calendar Content */}
       <AnimatePresence mode="wait">
@@ -423,11 +454,11 @@ const WeekView: React.FC<{ weekDays: any[]; cycle: CycleState; isPartnerMode: bo
         {weekDaysWithClassification.map((day, idx) => (
           <div
             key={idx}
-            className={`aspect-square rounded-2xl p-2 flex flex-col items-center justify-center transition-all ${
-              day.isToday ? 'ring-2 ring-neon-rose' : ''
+            className={`aspect-square p-2 flex flex-col items-center justify-center transition-all ${
+              day.isToday ? 'bg-white/10' : ''
             } ${getCycleDayBackground(day.cycleDay, trackingGoal)} ${day.isPast ? 'opacity-60' : ''} ${day.isFuture ? 'opacity-40' : ''}`}
           >
-            <div className="text-lg font-bold text-content-primary">
+            <div className="text-sm font-bold text-content-primary">
               {day.date.getDate()}
             </div>
             <div className="text-xs text-content-secondary">
@@ -443,7 +474,7 @@ const WeekView: React.FC<{ weekDays: any[]; cycle: CycleState; isPartnerMode: bo
         ))}
       </div>
       
-      <div className="surface-strong rounded-2xl p-4 space-y-3">
+      <div className="surface-strong p-4 space-y-3">
         <h5 className="text-sm font-semibold text-content-primary">Week Summary</h5>
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
@@ -509,8 +540,8 @@ const MonthView: React.FC<{ days: any[]; cycle: CycleState; isPartnerMode: boole
           <button
             key={idx}
             onClick={() => onDateSelect(day.date)}
-            className={`aspect-square rounded-2xl p-2 flex flex-col items-center justify-center transition-all hover:scale-105 ${
-              day.isToday ? 'ring-2 ring-neon-rose' : ''
+            className={`aspect-square p-2 flex flex-col items-center justify-center transition-all hover:scale-105 ${
+              day.isToday ? 'bg-white/10' : ''
             } ${getCycleDayBackground(day.cycleDay, trackingGoal)} ${day.isPast ? 'opacity-60' : ''} ${day.isFuture ? 'opacity-40' : ''}`}
           >
             <div className="text-sm font-bold text-content-primary">
@@ -535,7 +566,7 @@ const MonthView: React.FC<{ days: any[]; cycle: CycleState; isPartnerMode: boole
       </div>
       
       {/* Month Summary */}
-      <div className="surface-strong rounded-2xl p-4 space-y-3">
+      <div className="surface-strong p-4 space-y-3">
         <h5 className="text-sm font-semibold text-content-primary">Month Summary</h5>
         <div className="space-y-2">
           <div className="flex items-center justify-between text-xs">
