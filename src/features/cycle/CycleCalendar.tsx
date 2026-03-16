@@ -9,10 +9,53 @@ import {
   Activity,
 } from 'lucide-react';
 import { CycleState } from '../../core/types/clinical';
-import { useClinical } from '../../core/context/ClinicalContext';
 
 type ViewMode = 'day' | 'week' | 'month';
 type CalendarView = 'calendar' | 'timeline' | 'insights';
+
+// Helper function to get cycle day classification
+const getCycleDayClassification = (cycleDay: number, trackingGoal: string): 'period' | 'fertile' | 'high-risk' | 'safe' | 'unknown' => {
+  if (cycleDay <= 5) return 'period';
+  if (cycleDay >= 10 && cycleDay <= 17) {
+    return trackingGoal === 'conception' ? 'fertile' : 'high-risk';
+  }
+  if (cycleDay > 17 || cycleDay < 1) return 'safe';
+  return 'unknown';
+};
+
+// Helper function to get cycle day color
+const getCycleDayColor = (cycleDay: number, trackingGoal: string): string => {
+  const classification = getCycleDayClassification(cycleDay, trackingGoal);
+  switch (classification) {
+    case 'period':
+      return trackingGoal === 'conception' ? 'text-pink-500' : 'text-red-500';
+    case 'fertile':
+      return trackingGoal === 'conception' ? 'text-green-500' : 'text-orange-500';
+    case 'high-risk':
+      return 'text-red-500';
+    case 'safe':
+      return 'text-blue-500';
+    default:
+      return 'text-gray-500';
+  }
+};
+
+// Helper function to get cycle day background
+const getCycleDayBackground = (cycleDay: number, trackingGoal: string): string => {
+  const classification = getCycleDayClassification(cycleDay, trackingGoal);
+  switch (classification) {
+    case 'period':
+      return trackingGoal === 'conception' ? 'bg-pink-500/10' : 'bg-red-500/10';
+    case 'fertile':
+      return trackingGoal === 'conception' ? 'bg-green-500/10' : 'bg-orange-500/10';
+    case 'high-risk':
+      return 'bg-red-500/10';
+    case 'safe':
+      return 'bg-blue-500/10';
+    default:
+      return 'bg-gray-500/10';
+  }
+};
 
 interface CycleCalendarProps {
   cycle: CycleState;
@@ -24,7 +67,6 @@ export const CycleCalendar: React.FC<CycleCalendarProps> = ({ cycle, isPartnerMo
   const [calendarView, setCalendarView] = useState<CalendarView>('calendar');
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   
-  const trackingGoal = cycle.tracking_goal || 'general';
   const lastPeriodDate = cycle.last_period_date;
   
   // Calculate cycle metrics
@@ -78,7 +120,6 @@ export const CycleCalendar: React.FC<CycleCalendarProps> = ({ cycle, isPartnerMo
   const generateCalendarDays = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
-    const firstDay = new Date(year, month, 1);
     const lastDay = new Date(year, month + 1, 0);
     const daysInMonth = lastDay.getDate();
     
@@ -131,53 +172,6 @@ export const CycleCalendar: React.FC<CycleCalendarProps> = ({ cycle, isPartnerMo
     }
     
     return days;
-  };
-  
-  // Get cycle day classification
-  const getCycleDayClassification = (cycleDay: number) => {
-    if (!cycleMetrics) return 'unknown';
-    
-    if (cycleDay <= cycle.periodLength) return 'period';
-    if (cycleDay >= 10 && cycleDay <= 17) {
-      return trackingGoal === 'conception' ? 'fertile' : 'high-risk';
-    }
-    return 'safe';
-  };
-  
-  // Get cycle day color
-  const getCycleDayColor = (cycleDay: number) => {
-    const classification = getCycleDayClassification(cycleDay);
-    
-    switch (classification) {
-      case 'period':
-        return trackingGoal === 'conception' ? 'text-pink-500' : 'text-red-500';
-      case 'fertile':
-        return trackingGoal === 'conception' ? 'text-green-500' : 'text-orange-500';
-      case 'high-risk':
-        return 'text-red-500';
-      case 'safe':
-        return 'text-blue-500';
-      default:
-        return 'text-gray-500';
-    }
-  };
-  
-  // Get cycle day background
-  const getCycleDayBackground = (cycleDay: number) => {
-    const classification = getCycleDayClassification(cycleDay);
-    
-    switch (classification) {
-      case 'period':
-        return trackingGoal === 'conception' ? 'bg-pink-500/10' : 'bg-red-500/10';
-      case 'fertile':
-        return trackingGoal === 'conception' ? 'bg-green-500/10' : 'bg-orange-500/10';
-      case 'high-risk':
-        return 'bg-red-500/10';
-      case 'safe':
-        return 'bg-blue-500/10';
-      default:
-        return 'bg-gray-500/10';
-    }
   };
   
   const calendarDays = generateCalendarDays(selectedDate);
@@ -408,10 +402,11 @@ const DayView: React.FC<{ date: Date; cycle: CycleState; isPartnerMode: boolean 
 };
 
 // Week View Component
-const WeekView: React.FC<{ weekDays: any[]; cycle: CycleState; isPartnerMode: boolean }> = ({ weekDays, cycle, isPartnerMode }) => {
+const WeekView: React.FC<{ weekDays: any[]; cycle: CycleState; isPartnerMode: boolean }> = ({ weekDays, cycle }) => {
+  const trackingGoal = cycle.tracking_goal || 'general';
   const weekDaysWithClassification = weekDays.map(day => ({
     ...day,
-    classification: getCycleDayClassification(day.cycleDay),
+    classification: getCycleDayClassification(day.cycleDay, trackingGoal),
   }));
   
   return (
@@ -430,7 +425,7 @@ const WeekView: React.FC<{ weekDays: any[]; cycle: CycleState; isPartnerMode: bo
             key={idx}
             className={`aspect-square rounded-2xl p-2 flex flex-col items-center justify-center transition-all ${
               day.isToday ? 'ring-2 ring-neon-rose' : ''
-            } ${getCycleDayBackground(day.cycleDay)} ${day.isPast ? 'opacity-60' : ''} ${day.isFuture ? 'opacity-40' : ''}`}
+            } ${getCycleDayBackground(day.cycleDay, trackingGoal)} ${day.isPast ? 'opacity-60' : ''} ${day.isFuture ? 'opacity-40' : ''}`}
           >
             <div className="text-lg font-bold text-content-primary">
               {day.date.getDate()}
@@ -440,7 +435,7 @@ const WeekView: React.FC<{ weekDays: any[]; cycle: CycleState; isPartnerMode: bo
             </div>
             {day.log && (
               <div className="flex items-center gap-1 mt-1">
-                <Droplets size={12} className={getCycleDayColor(day.cycleDay)} />
+                <Droplets size={12} className={getCycleDayColor(day.cycleDay, trackingGoal)} />
                 <span className="text-xs">{day.log.flow || 'No flow'}</span>
               </div>
             )}
@@ -482,11 +477,12 @@ const MonthView: React.FC<{ days: any[]; cycle: CycleState; isPartnerMode: boole
   isPartnerMode, 
   onDateSelect 
 }) => {
+  const trackingGoal = cycle.tracking_goal || 'general';
   const firstDay = days[0]?.date;
   const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   
-  const getEmptyDays = () => {
-    if (!firstDay) return [];
+  const getEmptyDays = (): number => {
+    if (!firstDay) return 0;
     const firstDayOfWeek = firstDay.getDay();
     return firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1; // Start on Monday
   };
@@ -506,7 +502,7 @@ const MonthView: React.FC<{ days: any[]; cycle: CycleState; isPartnerMode: boole
       
       {/* Calendar Grid */}
       <div className="grid grid-cols-7 gap-1">
-        {emptyDays.map((_, idx) => (
+        {Array.from({ length: emptyDays }).map((_, idx) => (
           <div key={`empty-${idx}`} className="aspect-square" />
         ))}
         {days.map((day, idx) => (
@@ -515,7 +511,7 @@ const MonthView: React.FC<{ days: any[]; cycle: CycleState; isPartnerMode: boole
             onClick={() => onDateSelect(day.date)}
             className={`aspect-square rounded-2xl p-2 flex flex-col items-center justify-center transition-all hover:scale-105 ${
               day.isToday ? 'ring-2 ring-neon-rose' : ''
-            } ${getCycleDayBackground(day.cycleDay)} ${day.isPast ? 'opacity-60' : ''} ${day.isFuture ? 'opacity-40' : ''}`}
+            } ${getCycleDayBackground(day.cycleDay, trackingGoal)} ${day.isPast ? 'opacity-60' : ''} ${day.isFuture ? 'opacity-40' : ''}`}
           >
             <div className="text-sm font-bold text-content-primary">
               {day.date.getDate()}
@@ -525,7 +521,7 @@ const MonthView: React.FC<{ days: any[]; cycle: CycleState; isPartnerMode: boole
             </div>
             {day.log && (
               <div className="flex items-center gap-1 mt-1">
-                <Droplets size={10} className={getCycleDayColor(day.cycleDay)} />
+                <Droplets size={10} className={getCycleDayColor(day.cycleDay, trackingGoal)} />
                 <span className="text-xs">{day.log.flow || 'No flow'}</span>
               </div>
             )}
@@ -551,13 +547,13 @@ const MonthView: React.FC<{ days: any[]; cycle: CycleState; isPartnerMode: boole
           <div className="flex items-center justify-between text-xs">
             <span className="text-content-secondary">Period Days:</span>
             <span className="font-medium text-content-primary">
-              {days.filter(d => getCycleDayClassification(d.cycleDay) === 'period').length}
+              {days.filter(d => getCycleDayClassification(d.cycleDay, trackingGoal) === 'period').length}
             </span>
           </div>
           <div className="flex items-center justify-between text-xs">
             <span className="text-content-secondary">Fertile Days:</span>
             <span className="font-medium text-content-primary">
-              {days.filter(d => getCycleDayClassification(d.cycleDay) === 'fertile' || getCycleDayClassification(d.cycleDay) === 'high-risk').length}
+              {days.filter(d => getCycleDayClassification(d.cycleDay, trackingGoal) === 'fertile' || getCycleDayClassification(d.cycleDay, trackingGoal) === 'high-risk').length}
             </span>
           </div>
         </div>
@@ -641,7 +637,7 @@ const TimelineView: React.FC<{ cycle: CycleState; isPartnerMode: boolean }> = ({
     <div className="space-y-4">
       <h4 className="text-lg font-semibold text-content-primary">Cycle Timeline</h4>
       <div className="space-y-2">
-        {timeline.map((event, idx) => (
+        {timelineData.map((event, idx) => (
           <div key={idx} className="flex items-center gap-3">
             <div className={`w-3 h-3 rounded-full ${event.color}`} />
             <div className="flex-1">
@@ -649,7 +645,7 @@ const TimelineView: React.FC<{ cycle: CycleState; isPartnerMode: boolean }> = ({
               <p className="text-xs text-content-secondary">
                 {event.date 
                   ? event.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                  : `${event.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }} - ${event.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })`}
+                  : `${event.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${event.end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
                 }
               </p>
               {isPartnerMode && (
@@ -666,7 +662,7 @@ const TimelineView: React.FC<{ cycle: CycleState; isPartnerMode: boolean }> = ({
 };
 
 // Insights View Component
-const InsightsView: React.FC<{ cycle: CycleState; isPartnerMode: boolean }> = ({ cycle, isPartnerMode }) => {
+const InsightsView: React.FC<{ cycle: CycleState; isPartnerMode: boolean }> = ({ cycle }) => {
   const insights = useMemo(() => {
     if (!cycle.logs.length) return [];
     
@@ -734,40 +730,4 @@ const InsightsView: React.FC<{ cycle: CycleState; isPartnerMode: boolean }> = ({
       </div>
     </div>
   );
-};
-
-// Helper function to get cycle day classification
-const getCycleDayClassification = (cycleDay: number): 'period' | 'fertile' | 'high-risk' | 'safe' | 'unknown' => {
-  if (cycleDay <= 5) return 'period';
-  if (cycleDay >= 10 && cycleDay <= 17) {
-    return trackingGoal === 'conception' ? 'fertile' : 'high-risk';
-  }
-  if (cycleDay >= 10 && cycleDay <= 17) return 'high-risk';
-  if (cycleDay > 17 || cycleDay < 1) return 'safe';
-  return 'unknown';
-};
-
-// Helper function to get cycle day color
-const getCycleDayColor = (cycleDay: number): string => {
-  const classification = getCycleDayClassification(cycleDay);
-  switch (classification) {
-    case 'period': return 'text-pink-500';
-    case 'fertile': return 'text-green-500';
-    case 'high-risk': return 'text-red-500';
-    case 'safe': return 'text-blue-500';
-    default: return 'text-gray-500';
-  }
-};
-
-// Helper function to get cycle day background
-const getCycleDayBackground = (cycleDay: number): string => {
-  const classification = getCycleDayClassification(cycleDay);
-  switch (classification) {
-    case 'period':
-        return trackingGoal === 'conception' ? 'bg-pink-500/10' : 'bg-red-500/10';
-    case 'fertile': return trackingGoal === 'conception' ? 'bg-green-500/10' : 'bg-orange-500/10';
-    case 'high-risk': return 'bg-red-500/10';
-    case 'safe': return 'bg-blue-500/10';
-    default: return 'bg-gray-500/10';
-  }
 };
