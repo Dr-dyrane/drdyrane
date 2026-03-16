@@ -256,6 +256,7 @@ export type CycleRequest = {
     cycle_length: number;
     period_length: number;
     life_stage: 'teen' | 'adult' | 'ttc' | 'postpartum' | 'perimenopause';
+    tracking_goal?: 'general' | 'conception' | 'avoidance' | 'mood' | 'medical';
     discreet_mode: boolean;
     partner_name?: string;
   };

@@ -6,11 +6,13 @@ import {
   ScanPlanRequest,
   VisionRequest,
   PrescriptionRequest,
+  CycleRequest,
   runConsult,
   runOptions,
   runScanPlan,
   runVision,
   runPrescriptionGeneration,
+  runCycle,
 } from '../api/_aiOrchestrator';
 
 const readJsonBody = async <T>(req: IncomingMessage): Promise<T> => {
@@ -119,6 +121,12 @@ const handlePrescription = async (req: IncomingMessage, res: ServerResponse): Pr
   writeJson(res, 200, result);
 };
 
+const handleCycle = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  const body = await readJsonBody<CycleRequest>(req);
+  const result = await runCycle(body);
+  writeJson(res, 200, result);
+};
+
 const routeMiddleware: Connect.NextHandleFunction = (req, res, next) => {
   const path = (req.url || '').split('?')[0];
   const method = req.method || 'GET';
@@ -145,6 +153,11 @@ const routeMiddleware: Connect.NextHandleFunction = (req, res, next) => {
 
   if (method === 'POST' && path === '/api/generate-prescription') {
     guardAndRun(req, res, 'prescription', 30, 60_000, async () => handlePrescription(req, res));
+    return;
+  }
+
+  if (method === 'POST' && path === '/api/cycle') {
+    guardAndRun(req, res, 'cycle', 30, 60_000, async () => handleCycle(req, res));
     return;
   }
 

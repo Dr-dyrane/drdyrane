@@ -17,6 +17,7 @@ import {
   CycleLog,
   CycleState,
   LifeStage,
+  TrackingGoal,
 } from '../types/clinical';
 import { loadSessionState } from '../storage/sessionStore';
 import { initSessionSyncWorker, queueSessionSync } from '../storage/sessionSync';
@@ -143,6 +144,7 @@ const defaultCycleState = (): CycleState => ({
   cycle_length: 28,
   period_length: 5,
   life_stage: 'adult',
+  tracking_goal: 'general',
   discreet_mode: false,
 });
 
@@ -157,12 +159,19 @@ const sanitizeCycleState = (value: unknown): CycleState => {
     ? (raw.life_stage as LifeStage)
     : defaults.life_stage;
 
+  const trackingGoal = (['general', 'conception', 'avoidance', 'mood', 'medical'] as TrackingGoal[]).includes(
+    raw.tracking_goal as TrackingGoal
+  )
+    ? (raw.tracking_goal as TrackingGoal)
+    : defaults.tracking_goal;
+
   return {
     logs: Array.isArray(raw.logs) ? raw.logs.slice(0, 100) : defaults.logs,
     last_period_date: typeof raw.last_period_date === 'number' ? raw.last_period_date : undefined,
     cycle_length: typeof raw.cycle_length === 'number' ? raw.cycle_length : defaults.cycle_length,
     period_length: typeof raw.period_length === 'number' ? raw.period_length : defaults.period_length,
     life_stage: lifeStage,
+    tracking_goal: trackingGoal,
     discreet_mode:
       typeof raw.discreet_mode === 'boolean' ? raw.discreet_mode : defaults.discreet_mode,
     partner_name: typeof raw.partner_name === 'string' ? raw.partner_name : undefined,

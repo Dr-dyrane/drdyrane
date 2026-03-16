@@ -102,6 +102,12 @@ export const EmergencyOverlay: React.FC = () => {
                   <AlertCircle size={12} />
                   This guidance does not replace emergency services.
                 </p>
+                <button
+                  onClick={() => dispatch({ type: 'RESET' })}
+                  className="block mx-auto mt-2 text-[10px] font-bold text-content-dim uppercase tracking-widest opacity-60 hover:opacity-100 transition-opacity"
+                >
+                  Back to App
+                </button>
               </div>
             </motion.section>
           </div>

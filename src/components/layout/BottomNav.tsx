@@ -314,6 +314,11 @@ export const BottomNav: React.FC = () => {
   }, [emitEvent, exportPdf, hasArchives, hasCompletedEncounter, hasScanAnalysis, openView, revisitLatest, state.view, triggerDiagnostic]);
 
   const triggerPrimaryAction = () => {
+    if (menuOpen) {
+      setMenuOpen(false);
+      feedback('select');
+      return;
+    }
     if (primaryAction.disabled) return;
     if (primaryAction.kind === 'menu') {
       feedback('select');

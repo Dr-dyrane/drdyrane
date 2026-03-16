@@ -2,15 +2,16 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Calendar, Droplets, ChevronRight, TrendingUp } from 'lucide-react';
 import { GlassContainer } from '../../components/shared/GlassContainer';
-import { CycleLog } from '../../core/types/clinical';
+import { CycleState } from '../../core/types/clinical';
 
 interface CycleHistoryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  logs: CycleLog[];
+  cycle: CycleState;
 }
 
-export const CycleHistoryModal: React.FC<CycleHistoryModalProps> = ({ isOpen, onClose, logs }) => {
+export const CycleHistoryModal: React.FC<CycleHistoryModalProps> = ({ isOpen, onClose, cycle }) => {
+  const logs = cycle.logs;
   return (
     <AnimatePresence>
       {isOpen && (

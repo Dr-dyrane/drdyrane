@@ -191,6 +191,7 @@ export interface AppNotification {
 
 export type CycleFlow = 'none' | 'spotting' | 'light' | 'medium' | 'heavy';
 export type LifeStage = 'teen' | 'adult' | 'ttc' | 'postpartum' | 'perimenopause';
+export type TrackingGoal = 'general' | 'conception' | 'avoidance' | 'mood' | 'medical';
 
 export interface CycleLog {
   id: string;
@@ -209,6 +210,7 @@ export interface CycleState {
   cycle_length: number; // average
   period_length: number; // average
   life_stage: LifeStage;
+  tracking_goal: TrackingGoal;
   discreet_mode: boolean;
   partner_name?: string;
 }

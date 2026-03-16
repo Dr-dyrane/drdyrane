@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   Bell,
+  Droplets,
   History,
   Info,
   Monitor,
@@ -141,6 +142,7 @@ export const ProfileSheet: React.FC<ProfileSheetProps> = ({ isOpen, onClose }) =
     { id: 'history', label: 'History', icon: History },
     { id: 'drug', label: 'Pharmacy', icon: Pill },
     { id: 'scan', label: 'Scan', icon: ScanLine },
+    { id: 'cycle', label: 'Cycle', icon: Droplets },
     { id: 'about', label: 'System', icon: Info },
   ];
 
