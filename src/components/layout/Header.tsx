@@ -25,6 +25,7 @@ export const Header: React.FC = () => {
     drug: 'Pharmacy',
     scan: 'Scan',
     about: 'System',
+    cycle: 'Cycle',
   };
   const viewLabel = viewLabelMap[state.view];
 
