@@ -1,16 +1,16 @@
 import {
   ConsultRequest,
   ConsultPayload,
-} from './types';
+} from './types.js';
 import {
   URGENCY_RANK,
   classifyChiefComplaint,
   detectEmergencyInDifferential,
-} from './clinical';
+} from './clinical.js';
 import {
   sanitizeText,
   clampPercent,
-} from './utils';
+} from './utils.js';
 import {
   sanitizeList,
   sanitizeCheckpointStatus,
@@ -25,7 +25,7 @@ import {
   enforceQuestionProgression,
   getNextProgressiveIntentQuestion,
   FINAL_SUMMARY_QUESTION,
-} from './parsers';
+} from './parsers.js';
 
 /**
  * LLM-FIRST ARCHITECTURE: Trust the LLM's clinical reasoning

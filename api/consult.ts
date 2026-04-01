@@ -1,5 +1,5 @@
-import { ConsultRequest } from './_lib/types';
-import { runConsult } from './_aiOrchestrator';
+import { ConsultRequest } from './_lib/types.js';
+import { runConsult } from './_aiOrchestrator.js';
 
 interface ApiRequest {
   method?: string;

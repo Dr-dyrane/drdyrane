@@ -1,5 +1,5 @@
-import { VisionRequest } from './_lib/types';
-import { runVision } from './_aiOrchestrator';
+import { VisionRequest } from './_lib/types.js';
+import { runVision } from './_aiOrchestrator.js';
 
 interface ApiRequest {
   method?: string;

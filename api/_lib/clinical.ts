@@ -1,5 +1,5 @@
-import { ConsultPayload, ChiefComplaintEngineId, ChiefComplaintEngine, EngineContractDefaults } from './types';
-import { sanitizeText } from './utils';
+import { ConsultPayload, ChiefComplaintEngineId, ChiefComplaintEngine, EngineContractDefaults } from './types.js';
+import { sanitizeText } from './utils.js';
 
 export const URGENCY_RANK: Record<NonNullable<ConsultPayload['urgency']>, number> = {
   low: 0,

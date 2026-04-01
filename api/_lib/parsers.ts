@@ -6,7 +6,7 @@ import {
   ChiefComplaintEngineId,
   AgentPhase,
   QuestionIntent,
-} from './types';
+} from './types.js';
 import { 
   URGENCY_RANK, 
   STATUS_RANK, 
@@ -14,12 +14,12 @@ import {
   ICD10_CAPTURE_PATTERN, 
   ENGINE_CONTRACT_DEFAULTS, 
   ENGINE_FALLBACK_DIFFERENTIALS,
-} from './clinical';
+} from './clinical.js';
 import { 
   sanitizeText, 
   clampPercent, 
   clampVisionConfidencePercent 
-} from './utils';
+} from './utils.js';
 
 export const repairJson = (value: string): string =>
   value

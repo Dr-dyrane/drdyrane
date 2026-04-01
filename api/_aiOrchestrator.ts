@@ -11,11 +11,11 @@ import {
   PrescriptionResponse,
   CycleRequest,
   CyclePayload,
-} from './_lib/types';
+} from './_lib/types.js';
 import {
   normalizeBooleanEnv,
   sanitizeText,
-} from './_lib/utils';
+} from './_lib/utils.js';
 import {
   parseFirstJsonObject,
   normalizeConsultPayload,
@@ -27,7 +27,7 @@ import {
   finalizeVisionContract,
   mergeConsultPayloads,
   mergeOptionsPayloads,
-} from './_lib/parsers';
+} from './_lib/parsers.js';
 import {
   hasProviderKey,
   resolveProviderOrder,
@@ -42,7 +42,7 @@ import {
   callAnthropic,
   callAnthropicVision,
   callOpenAI,
-} from './_providers/llm';
+} from './_providers/llm.js';
 import {
   CONVERSATION_SYSTEM_PROMPT,
   OPTIONS_SYSTEM_PROMPT,
@@ -51,8 +51,8 @@ import {
   SCAN_PLAN_SYSTEM_PROMPT,
   PRESCRIPTION_GENERATION_SYSTEM_PROMPT,
   CYCLE_SYSTEM_PROMPT,
-} from './_prompts';
-import { applyClinicalHeuristics } from './_lib/clinical_heuristics';
+} from './_prompts/index.js';
+import { applyClinicalHeuristics } from './_lib/clinical_heuristics.js';
 
 /**
  * Build LLM prompt with complete question history to prevent repetition

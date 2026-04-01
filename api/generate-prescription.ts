@@ -1,5 +1,5 @@
-import { PrescriptionRequest } from './_lib/types';
-import { runPrescriptionGeneration } from './_aiOrchestrator';
+import { PrescriptionRequest } from './_lib/types.js';
+import { runPrescriptionGeneration } from './_aiOrchestrator.js';
 
 interface ApiRequest {
   method?: string;
@@ -38,4 +38,3 @@ export default async function handler(req: ApiRequest, res: ApiResponse): Promis
     res.status(500).json({ error: message });
   }
 }
-

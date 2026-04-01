@@ -1,5 +1,5 @@
-import { CycleRequest } from './_lib/types';
-import { runCycle } from './_aiOrchestrator';
+import { CycleRequest } from './_lib/types.js';
+import { runCycle } from './_aiOrchestrator.js';
 
 interface ApiRequest {
   method?: string;

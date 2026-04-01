@@ -1,6 +1,6 @@
-import { LlmProvider, ConsultRequest, OptionsRequest, VisionRequest, ScanPlanRequest, PrescriptionRequest } from '../_lib/types';
-import { normalizeEnvValue, normalizeProvider, sanitizeText } from '../_lib/utils';
-import { normalizeVisionPayload } from '../_lib/parsers';
+import { LlmProvider, ConsultRequest, OptionsRequest, VisionRequest, ScanPlanRequest, PrescriptionRequest } from '../_lib/types.js';
+import { normalizeEnvValue, normalizeProvider, sanitizeText } from '../_lib/utils.js';
+import { normalizeVisionPayload } from '../_lib/parsers.js';
 
 export const ANTHROPIC_ENDPOINT = 'https://api.anthropic.com/v1/messages';
 export const OPENAI_CHAT_ENDPOINT = 'https://api.openai.com/v1/chat/completions';
